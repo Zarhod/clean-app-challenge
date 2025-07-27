@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react'; // 'useCallback' a été supprimé car non utilisé
 import './App.css'; 
 import FullRankingTable from './FullRankingTable'; 
 import HistoricalPodiums from './HistoricalPodiums'; 
@@ -660,6 +660,7 @@ function App() {
 
 
   // Effet pour charger les données initiales au montage du composant
+  // Les fonctions fetch sont ajoutées aux dépendances pour respecter la règle react-hooks/exhaustive-deps
   useEffect(() => {
     fetchTaches();
     fetchClassement();
@@ -667,7 +668,7 @@ function App() {
     fetchObjectives(); 
     fetchCongratulatoryMessages(); 
     fetchHistoricalPodiums(); 
-  }, []);
+  }, [fetchTaches, fetchClassement, fetchRealisations, fetchObjectives, fetchCongratulatoryMessages, fetchHistoricalPodiums]);
 
   // Gère le clic sur un participant dans le classement pour afficher son profil
   const handleParticipantClick = async (participant) => {
