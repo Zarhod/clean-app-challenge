@@ -24,7 +24,7 @@ const ADMIN_PASSWORD = 'Bombardier111';
 
 function App() {
   const [taches, setTaches] = useState([]); 
-  const [allRawTaches, setAllRawTaches] = useState([]); // Toutes les tâches brutes, y compris les sous-tâches
+  const [allRawTaches, setAllRawTaches] = useState([]); 
   const [realisations, setRealisations] = useState([]); 
   const [classement, setClassement] = useState([]); 
   const [historicalPodiums, setHistoricalPodiums] = useState([]); 
@@ -32,60 +32,43 @@ function App() {
   const [congratulatoryMessages, setCongratulatoryMessages] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedTask, setSelectedTask] = useState(null); // Tâche sélectionnée pour confirmation
+  const [selectedTask, setSelectedTask] = useState(null); 
   const [participantName, setParticipantName] = useState(''); 
-  const [showThankYouPopup, setShowThankYouPopup] = useState(null); // Gère l'affichage du popup de remerciement
-  const [showConfetti, setShowConfetti] = useState(false); // Gère l'affichage des confettis
+  const [showThankYouPopup, setShowThankYouPopup] = useState(null); 
+  const [showConfetti, setShowConfetti] = useState(false); 
   
-  const [activeMainView, setActiveMainView] = useState('home'); // Vue principale active (accueil, classement, admin, etc.)
-  const [activeTaskCategory, setActiveTaskCategory] = useState('tous'); // Catégorie de tâches active (tous, salle, cuisine)
+  const [activeMainView, setActiveMainView] = useState('home'); 
+  const [activeTaskCategory, setActiveTaskCategory] = useState('tous'); 
 
-  const [selectedParticipantProfile, setSelectedParticipantProfile] = useState(null); // Profil du participant sélectionné
-  const [participantWeeklyTasks, setParticipantWeeklyTasks] = useState([]); // Tâches hebdomadaires du participant sélectionné
-  const [totalGlobalCumulativePoints, setTotalGlobalCumulativePoints] = useState(0); // Total des points cumulatifs de tous les participants
+  const [selectedParticipantProfile, setSelectedParticipantProfile] = useState(null); 
+  const [participantWeeklyTasks, setParticipantWeeklyTasks] = useState([]); 
+  const [totalGlobalCumulativePoints, setTotalGlobalCumulativePoints] = useState(0); 
 
-  const [showSplitTaskDialog, setShowSplitTaskDialog] = useState(false); // Affiche la boîte de dialogue pour les tâches de groupe
-  const [subTasks, setSubTasks] = useState([]); // Sous-tâches d'une tâche de groupe
-  const [selectedSubTasks, setSelectedSubTasks] = useState([]); // Sous-tâches sélectionnées par le participant
+  const [showSplitTaskDialog, setShowSplitTaskDialog] = useState(false); 
+  const [subTasks, setSubTasks] = useState([]); 
+  const [selectedSubTasks, setSelectedSubTasks] = useState([]); 
   
-  // États pour les modales de confirmation/formulaire admin
   const [showConfirmResetModal, setShowConfirmResetModal] = useState(false); 
   const [showAdminTaskFormModal, setShowAdminTaskFormModal] = useState(false); 
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false); 
   const [taskToDelete, setTaskToDelete] = useState(null); 
 
-  // États pour la gestion des objectifs via le panneau admin
   const [showAdminObjectiveFormModal, setShowAdminObjectiveFormModal] = useState(false); 
   const [newObjectiveData, setNewObjectiveData] = useState({ 
-    ID_Objectif: '',
-    Nom_Objectif: '',
-    Description_Objectif: '',
-    Cible_Points: '',
-    Type_Cible: 'Cumulatif',
-    Categorie_Cible: '', 
-    Points_Actuels: 0, 
-    Est_Atteint: false 
+    ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '',
+    Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false 
   });
   const [editingObjective, setEditingObjective] = useState(null); 
   const [showDeleteObjectiveConfirmModal, setShowDeleteObjectiveConfirmModal] = useState(false); 
   const [objectiveToDelete, setObjectiveToDelete] = useState(null); 
 
-  // États pour le panneau d'administration
   const [isAdmin, setIsAdmin] = useState(false);
   const [newTaskData, setNewTaskData] = useState({ 
-    ID_Tache: '',
-    Nom_Tache: '',
-    Description: '',
-    Points: '', 
-    Frequence: 'Hebdomadaire', 
-    Urgence: 'Faible', 
-    Categorie: 'Tous', 
-    Sous_Taches_IDs: '',
-    Parent_Task_ID: ''
+    ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
+    Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
   });
   const [editingTask, setEditingTask] = useState(null);
 
-  // États pour la visibilité des sections déroulantes
   const [showHighlightsSection, setShowHighlightsSection] = useState(false); 
   const [showObjectivesSection, setShowObjectivesSection] = useState(false); 
   const [showAdminObjectivesManagement, setShowAdminObjectivesManagement] = useState(false); 
@@ -96,8 +79,6 @@ function App() {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${AUTH_TOKEN}`
   });
-
-  // --- Fonctions d'appel API (enveloppées dans useCallback) ---
 
   const fetchTaches = useCallback(async () => {
     try {
@@ -156,6 +137,18 @@ function App() {
         throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const rawData = await response.json(); 
+      
+      // LOG DE DÉBOGAGE IMPORTANT
+      console.log('Raw data from getClassement:', rawData); 
+
+      // Assurez-vous que rawData est bien un tableau avant d'appeler .map()
+      if (!Array.isArray(rawData)) {
+        console.error('Erreur: Les données du classement ne sont pas un tableau.', rawData);
+        setError('Erreur: Les données du classement sont mal formatées.');
+        toast.error('Erreur: Les données du classement sont mal formatées.');
+        setClassement([]); // Réinitialiser pour éviter d'autres erreurs
+        return;
+      }
 
       const currentClassement = rawData.map(row => ({
         Nom_Participant: row.Nom_Participant,
@@ -317,7 +310,7 @@ function App() {
         categorieTache: categoryToSend
       };
 
-      console.log('Payload envoyé pour recordTask:', payload); // LOG DE DÉBOGAGE
+      console.log('Payload envoyé pour recordTask:', payload); 
 
       const response = await fetch(API_URL, {
         method: 'POST',
@@ -387,7 +380,7 @@ function App() {
         nomParticipant: participantName.trim()
       };
 
-      console.log('Payload envoyé pour recordMultipleTasks:', payload); // LOG DE DÉBOGAGE
+      console.log('Payload envoyé pour recordMultipleTasks:', payload); 
 
       const response = await fetch(API_URL, {
         method: 'POST',
@@ -466,7 +459,6 @@ function App() {
     }
   };
 
-  // --- Fonctions d'administration des TÂCHES ---
   const handleAdminLogin = (passwordInput) => {
     if (passwordInput === ADMIN_PASSWORD) {
       setIsAdmin(true);
@@ -580,7 +572,6 @@ function App() {
     }
   };
 
-  // --- Fonctions d'administration des OBJECTIFS ---
   const handleObjectiveFormChange = (e) => {
     const { name, value, type, checked } = e.target;
     setNewObjectiveData(prev => ({
@@ -676,7 +667,6 @@ function App() {
   };
 
 
-  // Effet pour charger les données initiales au montage du composant
   useEffect(() => {
     fetchTaches();
     fetchClassement();
@@ -686,14 +676,12 @@ function App() {
     fetchHistoricalPodiums(); 
   }, [fetchTaches, fetchClassement, fetchRealisations, fetchObjectives, fetchCongratulatoryMessages, fetchHistoricalPodiums]);
 
-  // Gère le clic sur un participant dans le classement pour afficher son profil
   const handleParticipantClick = async (participant) => {
     setSelectedParticipantProfile(participant);
     setActiveMainView('participantProfile');
     await fetchParticipantWeeklyTasks(participant.Nom_Participant);
   };
 
-  // Gère le clic sur une tâche pour ouvrir le dialogue de confirmation ou de sous-tâches
   const handleTaskClick = (task) => {
     setSelectedTask(task);
     if (task.Sous_Taches_IDs && String(task.Sous_Taches_IDs).trim() !== '') {
@@ -704,7 +692,6 @@ function App() {
     }
   };
 
-  // Vérifie si une sous-tâche est disponible (non complétée pour sa période)
   const isSubTaskAvailable = (subTask) => {
     const frequence = subTask.Frequence ? String(subTask.Frequence).toLowerCase() : 'hebdomadaire';
     const today = new Date();
@@ -732,7 +719,6 @@ function App() {
     });
   };
 
-  // --- Logique des Badges ---
   const getParticipantBadges = (participant) => {
     const badges = [];
     const participantRealisations = realisations.filter(r => String(r.Nom_Participant).trim() === String(participant.Nom_Participant).trim());
@@ -785,7 +771,6 @@ function App() {
   };
 
 
-  // Classes Tailwind pour l'affichage de l'urgence
   const getUrgencyClasses = (urgency) => {
     switch (urgency ? String(urgency).toLowerCase() : '') { 
         case 'haute':
@@ -799,7 +784,6 @@ function App() {
     }
   };
 
-  // Classes Tailwind pour l'affichage de la fréquence
   const getFrequencyClasses = (frequency) => {
     switch (frequency ? String(frequency).toLowerCase() : '') { 
       case 'hebdomadaire':
@@ -813,7 +797,6 @@ function App() {
     }
   };
 
-  // Classes Tailwind pour l'affichage de la catégorie
   const getCategoryClasses = (category) => {
     switch (String(category || '').toLowerCase()) { 
       case 'tous':
@@ -827,9 +810,6 @@ function App() {
     }
   };
 
-  // --- Composants de rendu ---
-
-  // Rendu de la section Podium et Tendances
   const renderPodiumSection = () => {
     if (!Array.isArray(classement) || classement.length === 0) return <p className="text-center text-lightText text-lg">Aucun classement disponible pour le moment.</p>;
 
@@ -897,7 +877,6 @@ function App() {
     );
   };
 
-  // Rendu de la section Tendances Actuelles
   const renderHighlights = () => {
     let mostImproved = null;
     let maxImprovement = -1;
@@ -979,7 +958,6 @@ function App() {
     );
   };
 
-  // Rendu de la section Objectifs Communs sur la page d'accueil
   const renderObjectivesSection = () => {
     if (!Array.isArray(objectives) || objectives.length === 0) {
       return null;
@@ -1030,7 +1008,6 @@ function App() {
   };
 
 
-  // Rendu des catégories de tâches
   const renderTaskCategories = () => {
     const categories = [
       { name: 'tous', label: 'Tâches Communes' },
@@ -1145,7 +1122,6 @@ function App() {
     );
   };
 
-  // Rendu des tâches terminées
   const renderCompletedTasks = () => {
     if (!Array.isArray(realisations) || realisations.length === 0) {
       return (
@@ -1187,7 +1163,6 @@ function App() {
     );
   };
 
-  // Rendu du popup de remerciement après la validation d'une tâche
   const renderThankYouPopup = () => {
     if (!showThankYouPopup) return null; 
 
@@ -1213,7 +1188,6 @@ function App() {
   };
 
 
-  // Rendu du dialogue de confirmation de tâche (pour tâches simples)
   const renderTaskDialog = () => {
     if (!selectedTask || selectedTask.isGroupTask) return null; 
 
@@ -1362,7 +1336,6 @@ function App() {
   };
 
 
-  // Rendu du profil du participant
   const renderParticipantProfile = () => {
     if (!selectedParticipantProfile) return null;
 
@@ -1441,7 +1414,6 @@ function App() {
     );
   };
 
-  // Rendu de la modale de confirmation de réinitialisation
   const renderConfirmResetModal = () => {
     if (!showConfirmResetModal) return null;
 
@@ -1458,7 +1430,6 @@ function App() {
     );
   };
 
-  // Rendu de la modale de confirmation de suppression de tâche
   const renderDeleteConfirmModal = () => {
     if (!showDeleteConfirmModal || !taskToDelete) return null;
 
@@ -1475,7 +1446,6 @@ function App() {
     );
   };
 
-  // Rendu de la modale de confirmation de suppression d'objectif
   const renderDeleteObjectiveConfirmModal = () => {
     if (!showDeleteObjectiveConfirmModal || !objectiveToDelete) return null;
 
@@ -1492,7 +1462,6 @@ function App() {
     );
   };
 
-  // --- Fonctions d'export CSV ---
   const exportToCsv = (filename, dataArray, headers) => {
     if (!dataArray || dataArray.length === 0) {
       toast.info(`Aucune donnée à exporter pour ${filename}.`);
@@ -1552,7 +1521,6 @@ function App() {
   };
 
 
-  // Rendu du panneau d'administration
   const renderAdminPanel = () => {
     if (!isAdmin) {
       return null; 
@@ -1564,7 +1532,6 @@ function App() {
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl mb-6 sm:mb-8">
         <h2 className="text-2xl sm:text-3xl font-bold text-secondary mb-6 text-center">Panneau d'Administration</h2>
         
-        {/* Actions générales */}
         <div className="flex flex-wrap justify-center gap-4 mb-8 p-4 bg-neutralBg rounded-xl shadow-inner">
           <button
             onClick={() => setShowConfirmResetModal(true)}
@@ -1586,13 +1553,11 @@ function App() {
           </button>
         </div>
 
-        {/* Section Graphique des statistiques des tâches */}
         <div className="mb-8 p-4 bg-neutralBg rounded-xl shadow-inner">
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-center">Statistiques des Tâches</h3>
             <TaskStatisticsChart realisations={realisations} allRawTaches={allRawTaches} />
         </div>
 
-        {/* Section de gestion des OBJECTIFS (avec menu déroulant) */}
         <div className="mb-8 p-4 bg-neutralBg rounded-xl shadow-inner">
           <button
             onClick={() => setShowAdminObjectivesManagement(!showAdminObjectivesManagement)}
@@ -1678,7 +1643,6 @@ function App() {
           </div>
         </div>
 
-        {/* Section de gestion des TÂCHES (avec menu déroulant) */}
         <div className="mb-8 p-4 bg-neutralBg rounded-xl shadow-inner">
           <button
             onClick={() => setShowAdminTasksManagement(!showAdminTasksManagement)}
@@ -1769,7 +1733,6 @@ function App() {
   };
 
 
-  // Affichage du loader pendant le chargement initial
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4"> 
@@ -1779,7 +1742,6 @@ function App() {
     );
   }
 
-  // Affichage de l'erreur si une erreur survient
   if (error) return <div className="text-center p-8 text-xl text-error">Erreur: {error}</div>;
 
   return (
