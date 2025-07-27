@@ -75,14 +75,14 @@ function App() {
   const [showAdminTasksManagement, setShowAdminTasksManagement] = useState(false); 
 
 
-  // >>> MODIFIÉ : Ne retourne plus l'en-tête Authorization
+  // MODIFIÉ : Ne retourne plus l'en-tête Authorization
   const getHeaders = () => ({
     'Content-Type': 'application/json'
   });
 
   const fetchTaches = useCallback(async () => {
     try {
-      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getTaches&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
@@ -129,7 +129,7 @@ function App() {
 
   const fetchClassement = useCallback(async () => {
     try {
-      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getClassement&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
@@ -170,7 +170,7 @@ function App() {
 
   const fetchRealisations = useCallback(async () => {
     try {
-      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getRealisations&authToken=${AUTH_TOKEN}`, { 
         method: 'GET',
         headers: getHeaders()
@@ -190,7 +190,7 @@ function App() {
   const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
     setLoading(true);
     try {
-      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getParticipantWeeklyTasks&nomParticipant=${encodeURIComponent(participantName)}&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
@@ -213,7 +213,7 @@ function App() {
   const fetchSubTasks = useCallback(async (parentTaskId) => {
     setLoading(true); 
     try {
-      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getSousTaches&parentTaskId=${encodeURIComponent(parentTaskId)}&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
@@ -236,7 +236,7 @@ function App() {
 
   const fetchObjectives = useCallback(async () => {
     try {
-      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getObjectives&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
@@ -255,7 +255,7 @@ function App() {
 
   const fetchCongratulatoryMessages = useCallback(async () => {
     try {
-      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getCongratulatoryMessages&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
@@ -274,7 +274,7 @@ function App() {
 
   const fetchHistoricalPodiums = useCallback(async () => {
     try {
-      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getHistoricalPodiums&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
@@ -314,7 +314,7 @@ function App() {
         nomParticipant: participantName.trim(),
         pointsGagnes: pointsToSend,
         categorieTache: categoryToSend,
-        authToken: AUTH_TOKEN // >>> NOUVEAU : Ajout du token au corps de la requête pour les POST
+        authToken: AUTH_TOKEN // NOUVEAU : Ajout du token au corps de la requête pour les POST
       };
 
       console.log('Frontend: Payload envoyé pour recordTask:', payload); 
@@ -385,7 +385,7 @@ function App() {
         action: 'recordMultipleTasks',
         tasks: tasksToRecordPayload,
         nomParticipant: participantName.trim(),
-        authToken: AUTH_TOKEN // >>> NOUVEAU : Ajout du token au corps de la requête pour les POST
+        authToken: AUTH_TOKEN // NOUVEAU : Ajout du token au corps de la requête pour les POST
       };
 
       console.log('Frontend: Payload envoyé pour recordMultipleTasks:', payload); 
@@ -437,7 +437,7 @@ function App() {
   const resetWeeklyPoints = async () => {
     setLoading(true);
     try {
-      // >>> MODIFIÉ : Ajout du token au corps de la requête pour les POST
+      // MODIFIÉ : Ajout du token au corps de la requête pour les POST
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
@@ -523,7 +523,7 @@ function App() {
           ...newTaskData,
           Points: newTaskData.Points === '' ? '' : parseFloat(newTaskData.Points) 
         },
-        authToken: AUTH_TOKEN // >>> NOUVEAU : Ajout du token au corps de la requête pour les POST
+        authToken: AUTH_TOKEN // NOUVEAU : Ajout du token au corps de la requête pour les POST
       };
       
       const response = await fetch(API_URL, {
@@ -560,7 +560,7 @@ function App() {
 
     setLoading(true);
     try {
-      // >>> MODIFIÉ : Ajout du token au corps de la requête pour les POST
+      // MODIFIÉ : Ajout du token au corps de la requête pour les POST
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
@@ -620,7 +620,7 @@ function App() {
           Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
           Est_Atteint: newObjectiveData.Est_Atteint
         },
-        authToken: AUTH_TOKEN // >>> NOUVEAU : Ajout du token au corps de la requête pour les POST
+        authToken: AUTH_TOKEN // NOUVEAU : Ajout du token au corps de la requête pour les POST
       };
       
       const response = await fetch(API_URL, {
@@ -657,7 +657,7 @@ function App() {
 
     setLoading(true);
     try {
-      // >>> MODIFIÉ : Ajout du token au corps de la requête pour les POST
+      // MODIFIÉ : Ajout du token au corps de la requête pour les POST
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
