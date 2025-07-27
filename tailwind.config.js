@@ -15,7 +15,7 @@ module.exports = {
         text: '#333333', // Gris foncé (texte principal)
         lightText: '#666666', // Gris moyen (texte secondaire)
         neutralBg: '#E0E0E0', // Gris neutre (pour les arrière-plans subtils)
-        error: '#F44336', // Rouge (messages d'erreur, actions dangereuses)
+        error: '#F44366', // Rouge (messages d'erreur, actions dangereuses)
         success: '#4CAF50', // Vert (messages de succès, actions positives)
         warning: '#FF9800', // Orange (messages d'avertissement)
         

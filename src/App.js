@@ -90,7 +90,6 @@ function App() {
         throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const rawData = await response.json(); 
-      console.log('Frontend: Données brutes des tâches reçues:', rawData);
       
       const cleanedRawData = rawData.filter(tache => tache && tache.ID_Tache);
       setAllRawTaches(cleanedRawData); 
@@ -118,7 +117,6 @@ function App() {
         .filter(tache => String(tache.Parent_Task_ID || '').trim() === ''); 
       
       setTaches(processedAndFilteredTaches);
-      console.log('Frontend: Tâches filtrées et traitées:', processedAndFilteredTaches);
     } catch (err) {
       setError(`Erreur lors de la récupération des tâches: ${err.message}`);
       toast.error(`Erreur: ${err.message}`); 
@@ -139,10 +137,7 @@ function App() {
       }
       const rawData = await response.json(); 
       
-      console.log('Frontend: Données brutes du classement reçues:', rawData); 
-
       if (!Array.isArray(rawData)) {
-        console.error('Frontend: Erreur: Les données du classement ne sont pas un tableau.', rawData);
         setError('Erreur: Les données du classement sont mal formatées (non-tableau).');
         toast.error('Erreur: Les données du classement sont mal formatées.');
         setClassement([]); 
@@ -157,11 +152,9 @@ function App() {
       })).sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
       
       setClassement(currentClassement);
-      console.log('Frontend: Classement formaté:', currentClassement);
 
       const globalCumulative = rawData.reduce((sum, row) => sum + (parseFloat(row.Points_Total_Cumulatif) || 0), 0); 
       setTotalGlobalCumulativePoints(globalCumulative);
-      console.log('Frontend: Points cumulatifs globaux:', globalCumulative);
 
     } catch (err) {
       setError(`Erreur lors de la récupération du classement: ${err.message}`);
@@ -181,7 +174,6 @@ function App() {
       }
       const data = await response.json();
       setRealisations(data);
-      console.log('Frontend: Réalisations reçues:', data);
     } catch (err) {
       setError(`Erreur lors de la récupération des réalisations: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
@@ -201,7 +193,6 @@ function App() {
       }
       const data = await response.json();
       setParticipantWeeklyTasks(data);
-      console.log(`Frontend: Tâches hebdomadaires pour ${participantName} reçues:`, data);
 
     } catch (err) {
       setError(`Erreur lors de la récupération des tâches de ${participantName}: ${err.message}`);
@@ -225,7 +216,6 @@ function App() {
       }
       const data = await response.json();
       setSubTasks(Array.isArray(data) ? data : []); 
-      console.log(`Frontend: Sous-tâches pour ${parentTaskId} reçues:`, data);
     } catch (err) {
       setError(`Erreur lors de la récupération des sous-tâches: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
@@ -247,7 +237,6 @@ function App() {
       }
       const data = await response.json();
       setObjectives(data);
-      console.log('Frontend: Objectifs reçus:', data);
     } catch (err) {
       setError(`Erreur lors de la récupération des objectifs: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
@@ -266,7 +255,6 @@ function App() {
       }
       const data = await response.json();
       setCongratulatoryMessages(data);
-      console.log('Frontend: Messages de félicitations reçus:', data);
     } catch (err) {
       setError(`Erreur lors de la récupération des messages de félicitations: ${err.message}`);
       setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); // Fallback
@@ -285,7 +273,6 @@ function App() {
       }
       const data = await response.json();
       setHistoricalPodiums(data);
-      console.log('Frontend: Podiums historiques reçus:', data);
     } catch (err) {
       setError(`Erreur lors de la récupération de l'historique des podiums: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
@@ -317,8 +304,6 @@ function App() {
         categorieTache: categoryToSend,
         authToken: AUTH_TOKEN 
       };
-
-      console.log('Frontend: Payload envoyé pour recordTask:', payload); 
 
       const response = await fetch(API_URL, {
         method: 'POST',
@@ -388,8 +373,6 @@ function App() {
         nomParticipant: participantName.trim(),
         authToken: AUTH_TOKEN 
       };
-
-      console.log('Frontend: Payload envoyé pour recordMultipleTasks:', payload); 
 
       const response = await fetch(API_URL, {
         method: 'POST',
@@ -679,7 +662,6 @@ function App() {
 
 
   useEffect(() => {
-    console.log('Frontend: Début du chargement initial des données...');
     fetchTaches();
     fetchClassement();
     fetchRealisations(); 
@@ -691,18 +673,15 @@ function App() {
   const handleParticipantClick = async (participant) => {
     setSelectedParticipantProfile(participant);
     setActiveMainView('participantProfile');
-    console.log('Frontend: Clic sur le participant, chargement du profil pour:', participant.Nom_Participant);
     await fetchParticipantWeeklyTasks(participant.Nom_Participant);
   };
 
   const handleTaskClick = (task) => {
     setSelectedTask(task);
     if (task.Sous_Taches_IDs && String(task.Sous_Taches_IDs).trim() !== '') {
-      console.log('Frontend: Tâche de groupe sélectionnée, récupération des sous-tâches pour ID:', task.ID_Tache);
       fetchSubTasks(task.ID_Tache); 
       setShowSplitTaskDialog(true); 
     } else {
-      console.log('Frontend: Tâche simple sélectionnée:', task.ID_Tache);
       setShowSplitTaskDialog(false); 
     }
   };
@@ -732,7 +711,6 @@ function App() {
       }
       return false;
     });
-    // console.log(`Frontend: Tâche '${subTask.Nom_Tache}' (ID: ${subTask.ID_Tache}, Fréq: ${frequence}) est disponible: ${!isCompleted}`);
     return !isCompleted;
   };
 
@@ -783,7 +761,7 @@ function App() {
     if (hasBeenFirst) {
       badges.push({ name: 'Ancien Champion', icon: '🥇', description: 'A déjà été premier du podium.' });
     }
-    console.log(`Frontend: Badges pour ${participant.Nom_Participant}:`, badges);
+
     return badges;
   };
 
