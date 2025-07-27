@@ -75,14 +75,15 @@ function App() {
   const [showAdminTasksManagement, setShowAdminTasksManagement] = useState(false); 
 
 
+  // >>> MODIFIÉ : Ne retourne plus l'en-tête Authorization
   const getHeaders = () => ({
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${AUTH_TOKEN}`
+    'Content-Type': 'application/json'
   });
 
   const fetchTaches = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getTaches`, {
+      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      const response = await fetch(`${API_URL}?action=getTaches&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
       });
@@ -128,7 +129,8 @@ function App() {
 
   const fetchClassement = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getClassement`, {
+      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      const response = await fetch(`${API_URL}?action=getClassement&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
       });
@@ -152,8 +154,6 @@ function App() {
         Nom_Participant: row.Nom_Participant,
         Points_Total_Semaine_Courante: parseFloat(row.Points_Total_Semaine_Courante) || 0, 
         Points_Total_Cumulatif: parseFloat(row.Points_Total_Cumulatif) || 0,
-        // Points_Total_Semaine_Precedente est maintenant géré côté Apps Script pour la compatibilité
-        // Il sera 0 si la colonne n'est pas présente dans la feuille de calcul
         Points_Total_Semaine_Precedente: parseFloat(row.Points_Total_Semaine_Precedente || 0) || 0 
       })).sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
       
@@ -170,7 +170,8 @@ function App() {
 
   const fetchRealisations = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getRealisations`, { 
+      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      const response = await fetch(`${API_URL}?action=getRealisations&authToken=${AUTH_TOKEN}`, { 
         method: 'GET',
         headers: getHeaders()
       });
@@ -189,7 +190,8 @@ function App() {
   const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}?action=getParticipantWeeklyTasks&nomParticipant=${encodeURIComponent(participantName)}`, {
+      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      const response = await fetch(`${API_URL}?action=getParticipantWeeklyTasks&nomParticipant=${encodeURIComponent(participantName)}&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
       });
@@ -211,7 +213,8 @@ function App() {
   const fetchSubTasks = useCallback(async (parentTaskId) => {
     setLoading(true); 
     try {
-      const response = await fetch(`${API_URL}?action=getSousTaches&parentTaskId=${encodeURIComponent(parentTaskId)}`, {
+      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      const response = await fetch(`${API_URL}?action=getSousTaches&parentTaskId=${encodeURIComponent(parentTaskId)}&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
       });
@@ -233,7 +236,8 @@ function App() {
 
   const fetchObjectives = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getObjectives`, {
+      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      const response = await fetch(`${API_URL}?action=getObjectives&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
       });
@@ -251,7 +255,8 @@ function App() {
 
   const fetchCongratulatoryMessages = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getCongratulatoryMessages`, {
+      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      const response = await fetch(`${API_URL}?action=getCongratulatoryMessages&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
       });
@@ -269,7 +274,8 @@ function App() {
 
   const fetchHistoricalPodiums = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getHistoricalPodiums`, {
+      // >>> MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
+      const response = await fetch(`${API_URL}?action=getHistoricalPodiums&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
       });
@@ -307,7 +313,8 @@ function App() {
         idTache: idTacheToRecord,
         nomParticipant: participantName.trim(),
         pointsGagnes: pointsToSend,
-        categorieTache: categoryToSend
+        categorieTache: categoryToSend,
+        authToken: AUTH_TOKEN // >>> NOUVEAU : Ajout du token au corps de la requête pour les POST
       };
 
       console.log('Frontend: Payload envoyé pour recordTask:', payload); 
@@ -377,7 +384,8 @@ function App() {
       const payload = {
         action: 'recordMultipleTasks',
         tasks: tasksToRecordPayload,
-        nomParticipant: participantName.trim()
+        nomParticipant: participantName.trim(),
+        authToken: AUTH_TOKEN // >>> NOUVEAU : Ajout du token au corps de la requête pour les POST
       };
 
       console.log('Frontend: Payload envoyé pour recordMultipleTasks:', payload); 
@@ -429,10 +437,11 @@ function App() {
   const resetWeeklyPoints = async () => {
     setLoading(true);
     try {
+      // >>> MODIFIÉ : Ajout du token au corps de la requête pour les POST
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ action: 'resetWeeklyPoints' })
+        body: JSON.stringify({ action: 'resetWeeklyPoints', authToken: AUTH_TOKEN }) 
       });
 
       if (!response.ok) {
@@ -513,7 +522,8 @@ function App() {
         task: {
           ...newTaskData,
           Points: newTaskData.Points === '' ? '' : parseFloat(newTaskData.Points) 
-        }
+        },
+        authToken: AUTH_TOKEN // >>> NOUVEAU : Ajout du token au corps de la requête pour les POST
       };
       
       const response = await fetch(API_URL, {
@@ -550,10 +560,11 @@ function App() {
 
     setLoading(true);
     try {
+      // >>> MODIFIÉ : Ajout du token au corps de la requête pour les POST
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ action: 'deleteTask', idTache: taskId })
+        body: JSON.stringify({ action: 'deleteTask', idTache: taskId, authToken: AUTH_TOKEN })
       });
       const result = await response.json();
       if (result.success) {
@@ -608,7 +619,8 @@ function App() {
           Cible_Points: parseFloat(newObjectiveData.Cible_Points),
           Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
           Est_Atteint: newObjectiveData.Est_Atteint
-        }
+        },
+        authToken: AUTH_TOKEN // >>> NOUVEAU : Ajout du token au corps de la requête pour les POST
       };
       
       const response = await fetch(API_URL, {
@@ -645,10 +657,11 @@ function App() {
 
     setLoading(true);
     try {
+      // >>> MODIFIÉ : Ajout du token au corps de la requête pour les POST
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ action: 'deleteObjectif', idObjectif: objectiveId })
+        body: JSON.stringify({ action: 'deleteObjectif', idObjectif: objectiveId, authToken: AUTH_TOKEN })
       });
       const result = await response.json();
       if (result.success) {
@@ -1154,8 +1167,8 @@ function App() {
           ))}
         </div>
         <button
-          className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-8 rounded-lg shadow-lg
-                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm sm:text-base"
+          className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-8 rounded-lg shadow-lg 
+                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm sm:text-base" 
           onClick={() => setActiveMainView('home')}
         >
           Retour à l'accueil
