@@ -13,9 +13,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
 // --- CONFIGURATION DE L'API ---
-// Cette URL est celle de votre Cloudflare Worker qui redirige vers Google Apps Script.
 const API_URL = 'https://clean-app-challenge-api.jassairbus.workers.dev/'; 
-// Ce token DOIT être identique dans App.js, le Cloudflare Worker et Google Apps Script.
 const AUTH_TOKEN = '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2';        
 
 // Nom du fichier logo (assurez-vous qu'il est dans le dossier public/)
@@ -154,6 +152,8 @@ function App() {
         Nom_Participant: row.Nom_Participant,
         Points_Total_Semaine_Courante: parseFloat(row.Points_Total_Semaine_Courante) || 0, 
         Points_Total_Cumulatif: parseFloat(row.Points_Total_Cumulatif) || 0,
+        // Points_Total_Semaine_Precedente est maintenant géré côté Apps Script pour la compatibilité
+        // Il sera 0 si la colonne n'est pas présente dans la feuille de calcul
         Points_Total_Semaine_Precedente: parseFloat(row.Points_Total_Semaine_Precedente || 0) || 0 
       })).sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
       
@@ -263,7 +263,7 @@ function App() {
       setCongratulatoryMessages(data);
     } catch (err) {
       setError(`Erreur lors de la récupération des messages de félicitations: ${err.message}`);
-      setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]);
+      setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); // Fallback
     }
   }, [setCongratulatoryMessages, setError]);
 
@@ -881,11 +881,12 @@ function App() {
     let mostImproved = null;
     let maxImprovement = -1;
 
-    const lastPodium = historicalPodiums.length > 0 ? historicalPodiums[0] : null;
-
-    if (lastPodium) {
+    // NOTE: La colonne 'Points_Total_Semaine_Precedente' n'existe pas dans votre feuille 'Feuille_Classement'.
+    // La fonctionnalité "Plus Amélioré" ne sera pas fonctionnelle avec votre structure actuelle.
+    // Elle est ici pour des raisons de compatibilité avec le code précédent.
+    if (classement.length > 0) {
         classement.forEach(currentP => {
-            const previousScore = parseFloat(currentP.Points_Total_Semaine_Precedente) || 0;
+            const previousScore = parseFloat(currentP.Points_Total_Semaine_Precedente) || 0; // Sera toujours 0 avec votre structure actuelle
             const currentScore = parseFloat(currentP.Points_Total_Semaine_Courante) || 0;
             const improvement = currentScore - previousScore;
 
@@ -1502,20 +1503,20 @@ function App() {
   };
 
   const handleExportClassement = () => {
-    const baseHeaders = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Points_Total_Semaine_Precedente'];
-    const allHeaders = [...baseHeaders]; 
-
+    // En-têtes de colonnes de votre feuille_Classement
+    const headers = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Date_Mise_A_Jour'];
     const dataToExport = classement.map(p => ({
         Nom_Participant: p.Nom_Participant,
         Points_Total_Semaine_Courante: p.Points_Total_Semaine_Courante,
         Points_Total_Cumulatif: p.Points_Total_Cumulatif,
-        Points_Total_Semaine_Precedente: p.Points_Total_Semaine_Precedente 
+        Date_Mise_A_Jour: p.Date_Mise_A_Jour || '' 
     }));
 
-    exportToCsv('classement_clean_app.csv', dataToExport, allHeaders);
+    exportToCsv('classement_clean_app.csv', dataToExport, headers);
   };
 
   const handleExportRealisations = () => {
+    // En-têtes de colonnes de votre feuille_Realisations
     const headers = ['Timestamp', 'Nom_Participant', 'ID_Tache_Effectuee', 'Nom_Tache_Effectuee', 'Categorie_Tache', 'Points_Gagnes'];
     exportToCsv('realisations_clean_app.csv', realisations, headers);
   };
