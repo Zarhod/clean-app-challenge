@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'; // 'useCallback' a été supprimé car non utilisé
+import React, { useState, useEffect, useCallback } from 'react'; // 'useCallback' est maintenant utilisé
 import './App.css'; 
 import FullRankingTable from './FullRankingTable'; 
 import HistoricalPodiums from './HistoricalPodiums'; 
@@ -97,9 +97,9 @@ function App() {
     'Authorization': `Bearer ${AUTH_TOKEN}`
   });
 
-  // --- Fonctions d'appel API ---
+  // --- Fonctions d'appel API (enveloppées dans useCallback) ---
 
-  const fetchTaches = async () => {
+  const fetchTaches = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}?action=getTaches`, {
         method: 'GET',
@@ -134,7 +134,7 @@ function App() {
           return { ...tache, Calculated_Points: parseFloat(tache.Points) || 0, isGroupTask: false };
         })
         .filter(tache => tache !== null) 
-        .filter(tache => String(tache.Parent_Task_ID || '').trim() === ''); // Filtre pour n'afficher que les tâches principales
+        .filter(tache => String(tache.Parent_Task_ID || '').trim() === ''); 
       
       setTaches(processedAndFilteredTaches);
     } catch (err) {
@@ -143,9 +143,9 @@ function App() {
     } finally {
       setLoading(false); 
     }
-  };
+  }, [setAllRawTaches, setTaches, setError, setLoading]); // getHeaders est stable, donc pas besoin de le mettre ici
 
-  const fetchClassement = async () => {
+  const fetchClassement = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}?action=getClassement`, {
         method: 'GET',
@@ -173,9 +173,9 @@ function App() {
       setError(`Erreur lors de la récupération du classement: ${err.message}`);
       toast.error(`Erreur: ${err.message}`); 
     }
-  };
+  }, [setClassement, setTotalGlobalCumulativePoints, setError]);
 
-  const fetchRealisations = async () => {
+  const fetchRealisations = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}?action=getRealisations`, { 
         method: 'GET',
@@ -191,9 +191,9 @@ function App() {
       setError(`Erreur lors de la récupération des réalisations: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
     }
-  };
+  }, [setRealisations, setError]);
 
-  const fetchParticipantWeeklyTasks = async (participantName) => {
+  const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
     setLoading(true);
     try {
       const response = await fetch(`${API_URL}?action=getParticipantWeeklyTasks&nomParticipant=${encodeURIComponent(participantName)}`, {
@@ -213,9 +213,9 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setParticipantWeeklyTasks, setLoading, setError]);
 
-  const fetchSubTasks = async (parentTaskId) => {
+  const fetchSubTasks = useCallback(async (parentTaskId) => {
     setLoading(true); 
     try {
       const response = await fetch(`${API_URL}?action=getSousTaches&parentTaskId=${encodeURIComponent(parentTaskId)}`, {
@@ -236,9 +236,9 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setSubTasks, setLoading, setError]);
 
-  const fetchObjectives = async () => {
+  const fetchObjectives = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}?action=getObjectives`, {
         method: 'GET',
@@ -254,9 +254,9 @@ function App() {
       setError(`Erreur lors de la récupération des objectifs: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
     }
-  };
+  }, [setObjectives, setError]);
 
-  const fetchCongratulatoryMessages = async () => {
+  const fetchCongratulatoryMessages = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}?action=getCongratulatoryMessages`, {
         method: 'GET',
@@ -272,9 +272,9 @@ function App() {
       setError(`Erreur lors de la récupération des messages de félicitations: ${err.message}`);
       setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]);
     }
-  };
+  }, [setCongratulatoryMessages, setError]);
 
-  const fetchHistoricalPodiums = async () => {
+  const fetchHistoricalPodiums = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}?action=getHistoricalPodiums`, {
         method: 'GET',
@@ -290,7 +290,7 @@ function App() {
       setError(`Erreur lors de la récupération de l'historique des podiums: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
     }
-  };
+  }, [setHistoricalPodiums, setError]);
 
 
   const recordTask = async (idTacheToRecord, isSubTask = false) => {
@@ -382,7 +382,6 @@ function App() {
         setShowThankYouPopup({ name: participantName.trim(), task: completedTaskNames, message: randomMessage });
         setShowConfetti(true); 
 
-        // Supprimer les sous-tâches ponctuelles après leur enregistrement
         for (const subTask of availableSelectedSubTasks) {
             const fullSubTaskData = allRawTaches.find(t => String(t.ID_Tache) === String(subTask.ID_Tache));
             if (fullSubTaskData && String(fullSubTaskData.Frequence || '').toLowerCase() === 'ponctuel') {
@@ -1241,7 +1240,6 @@ function App() {
     );
   };
 
-  // Rendu du dialogue pour les tâches de groupe (avec sous-tâches)
   const renderSplitTaskDialog = () => {
     if (!showSplitTaskDialog || !selectedTask || !selectedTask.isGroupTask) {
       return null;
