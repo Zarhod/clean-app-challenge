@@ -12,19 +12,51 @@ import AdminObjectiveFormModal from './AdminObjectiveFormModal';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
-// --- CONFIGURATION DE L'API ---
-const API_URL = 'https://clean-app-challenge-api.jassairbus.workers.dev/'; 
-const AUTH_TOKEN = '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2'; // IMPORTANT: À changer pour la production !       
+// --- CONFIGURATION LOCALE (AUCUNE API EXTERNE) ---
+// Ces constantes ne sont plus utilisées pour les appels réseau, mais sont conservées pour la structure.
+const API_URL = ''; 
+const AUTH_TOKEN = ''; 
 
 // Nom du fichier logo (assurez-vous qu'il est dans le dossier public/)
 const LOGO_FILENAME = 'logo.png'; 
 
-// Mot de passe administrateur (IMPORTANT: À changer pour la production !)
+// Mot de passe administrateur
 const ADMIN_PASSWORD = 'Bombardier111'; 
+
+// --- DONNÉES INITIALES POUR LE LOCAL STORAGE ---
+// Ces données seront chargées si le localStorage est vide au premier lancement.
+const initialTachesData = [
+  { ID_Tache: 'T001', Nom_Tache: 'Nettoyer la cuisine', Categorie: 'Cuisine', Points: 10, Urgence: 'Haute', Frequence: 'Quotidien', Sous_Taches_IDs: '', Parent_Task_ID: '' },
+  { ID_Tache: 'T002', Nom_Tache: 'Passer l\'aspirateur salon', Categorie: 'Salle', Points: 15, Urgence: 'Moyenne', Frequence: 'Hebdomadaire', Sous_Taches_IDs: '', Parent_Task_ID: '' },
+  { ID_Tache: 'T003', Nom_Tache: 'Vider les poubelles', Categorie: 'Tous', Points: 5, Urgence: 'Haute', Frequence: 'Quotidien', Sous_Taches_IDs: '', Parent_Task_ID: '' },
+  { ID_Tache: 'GT001', Nom_Tache: 'Grand nettoyage de printemps', Categorie: 'Tous', Points: 0, Urgence: 'Faible', Frequence: 'Ponctuel', Sous_Taches_IDs: 'ST001,ST002', Parent_Task_ID: '' },
+  { ID_Tache: 'ST001', Nom_Tache: 'Laver les vitres', Categorie: 'Salle', Points: 20, Urgence: 'Moyenne', Frequence: 'Ponctuel', Sous_Taches_IDs: '', Parent_Task_ID: 'GT001' },
+  { ID_Tache: 'ST002', Nom_Tache: 'Nettoyer les placards', Categorie: 'Cuisine', Points: 25, Urgence: 'Moyenne', Frequence: 'Ponctuel', Sous_Taches_IDs: '', Parent_Task_ID: 'GT001' },
+  { ID_Tache: 'T004', Nom_Tache: 'Ranger la salle de bain', Categorie: 'Salle', Points: 12, Urgence: 'Moyenne', Frequence: 'Hebdomadaire', Sous_Taches_IDs: '', Parent_Task_ID: '' },
+  { ID_Tache: 'T005', Nom_Tache: 'Laver le linge', Categorie: 'Tous', Points: 8, Urgence: 'Faible', Frequence: 'Hebdomadaire', Sous_Taches_IDs: '', Parent_Task_ID: '' },
+  { ID_Tache: 'T006', Nom_Tache: 'Faire la vaisselle', Categorie: 'Cuisine', Points: 7, Urgence: 'Haute', Frequence: 'Quotidien', Sous_Taches_IDs: '', Parent_Task_ID: '' },
+];
+
+const initialRealisationsData = [];
+const initialClassementData = [];
+const initialObjectivesData = [
+  { ID_Objectif: 'O001', Nom_Objectif: 'Atteindre 100 points cumulatifs', Description_Objectif: 'Accumuler 100 points au total.', Cible_Points: 100, Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false },
+  { ID_Objectif: 'O002', Nom_Objectif: 'Nettoyer 5 tâches de cuisine', Description_Objectif: 'Terminer 5 tâches de la catégorie Cuisine.', Cible_Points: 5, Type_Cible: 'Par_Categorie', Categorie_Cible: 'Cuisine', Points_Actuels: 0, Est_Atteint: false },
+  { ID_Objectif: 'O003', Nom_Objectif: 'Devenir Maître de la Propreté', Description_Objectif: 'Atteindre 500 points cumulatifs.', Cible_Points: 500, Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false },
+];
+const initialCongratulatoryMessagesData = [
+  { Texte_Message: "Magnifique travail ! Votre effort est apprécié." },
+  { Texte_Message: "Bravo ! La propreté est votre super-pouvoir." },
+  { Texte_Message: "Excellent ! Chaque tâche compte." },
+  { Texte_Message: "Impressionnant ! Vous êtes un champion du ménage." },
+  { Texte_Message: "Félicitations ! La maison brille grâce à vous." },
+];
+const initialHistoricalPodiumsData = [];
+
 
 function App() {
   const [taches, setTaches] = useState([]); 
-  const [allRawTaches, setAllRawTaches] = useState([]); // Toutes les tâches brutes, y compris les sous-tâches
+  const [allRawTaches, setAllRawTaches] = useState([]); 
   const [realisations, setRealisations] = useState([]); 
   const [classement, setClassement] = useState([]); 
   const [historicalPodiums, setHistoricalPodiums] = useState([]); 
@@ -32,94 +64,68 @@ function App() {
   const [congratulatoryMessages, setCongratulatoryMessages] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedTask, setSelectedTask] = useState(null); // Tâche sélectionnée pour confirmation
+  const [selectedTask, setSelectedTask] = useState(null); 
   const [participantName, setParticipantName] = useState(''); 
-  const [showThankYouPopup, setShowThankYouPopup] = useState(null); // Gère l'affichage du popup de remerciement
-  const [showConfetti, setShowConfetti] = useState(false); // Gère l'affichage des confettis
+  const [showThankYouPopup, setShowThankYouPopup] = useState(null); 
+  const [showConfetti, setShowConfetti] = useState(false); 
   
-  const [activeMainView, setActiveMainView] = useState('home'); // Vue principale active (accueil, classement, admin, etc.)
-  const [activeTaskCategory, setActiveTaskCategory] = useState('tous'); // Catégorie de tâches active (tous, salle, cuisine)
+  const [activeMainView, setActiveMainView] = useState('home'); 
+  const [activeTaskCategory, setActiveTaskCategory] = useState('tous'); 
 
-  const [selectedParticipantProfile, setSelectedParticipantProfile] = useState(null); // Profil du participant sélectionné
-  const [participantWeeklyTasks, setParticipantWeeklyTasks] = useState([]); // Tâches hebdomadaires du participant sélectionné
-  const [totalGlobalCumulativePoints, setTotalGlobalCumulativePoints] = useState(0); // Total des points cumulatifs de tous les participants
+  const [selectedParticipantProfile, setSelectedParticipantProfile] = useState(null); 
+  const [participantWeeklyTasks, setParticipantWeeklyTasks] = useState([]); 
 
-  const [showSplitTaskDialog, setShowSplitTaskDialog] = useState(false); // Affiche la boîte de dialogue pour les tâches de groupe
-  const [subTasks, setSubTasks] = useState([]); // Sous-tâches d'une tâche de groupe
-  const [selectedSubTasks, setSelectedSubTasks] = useState([]); // Sous-tâches sélectionnées par le participant
+  const [showSplitTaskDialog, setShowSplitTaskDialog] = useState(false); 
+  const [subTasks, setSubTasks] = useState([]); 
+  const [selectedSubTasks, setSelectedSubTasks] = useState([]); 
   
-  // États pour les modales de confirmation/formulaire admin
   const [showConfirmResetModal, setShowConfirmResetModal] = useState(false); 
   const [showAdminTaskFormModal, setShowAdminTaskFormModal] = useState(false); 
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false); 
   const [taskToDelete, setTaskToDelete] = useState(null); 
 
-  // États pour la gestion des objectifs via le panneau admin
   const [showAdminObjectiveFormModal, setShowAdminObjectiveFormModal] = useState(false); 
   const [newObjectiveData, setNewObjectiveData] = useState({ 
-    ID_Objectif: '',
-    Nom_Objectif: '',
-    Description_Objectif: '',
-    Cible_Points: '',
-    Type_Cible: 'Cumulatif',
-    Categorie_Cible: '', 
-    Points_Actuels: 0, 
-    Est_Atteint: false 
+    ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '',
+    Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false 
   });
   const [editingObjective, setEditingObjective] = useState(null); 
   const [showDeleteObjectiveConfirmModal, setShowDeleteObjectiveConfirmModal] = useState(false); 
   const [objectiveToDelete, setObjectiveToDelete] = useState(null); 
 
-  // États pour le panneau d'administration
   const [isAdmin, setIsAdmin] = useState(false);
   const [newTaskData, setNewTaskData] = useState({ 
-    ID_Tache: '',
-    Nom_Tache: '',
-    Description: '',
-    Points: '', 
-    Frequence: 'Hebdomadaire', 
-    Urgence: 'Faible', 
-    Categorie: 'Tous', 
-    Sous_Taches_IDs: '',
-    Parent_Task_ID: ''
+    ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
+    Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
   });
-  const [editingTask, setEditingTask] = useState(null); 
+  const [editingTask, setEditingTask] = useState(null);
 
-  // États pour la visibilité des sections déroulantes
-  const [showHighlightsSection, setShowHighlightsSection] = useState(false); // Tendances actuelles
-  const [showObjectivesSection, setShowObjectivesSection] = useState(false); // Objectifs communs sur la page d'accueil
-  const [showAdminObjectivesManagement, setShowAdminObjectivesManagement] = useState(false); // Gestion des objectifs dans l'admin
-  const [showAdminTasksManagement, setShowAdminTasksManagement] = useState(false); // Gestion des tâches dans l'admin
+  const [showHighlightsSection, setShowHighlightsSection] = useState(false); 
+  const [showObjectivesSection, setShowObjectivesSection] = useState(false); 
+  const [showAdminObjectivesManagement, setShowAdminObjectivesManagement] = useState(false); 
+  const [showAdminTasksManagement, setShowAdminTasksManagement] = useState(false); 
 
-
-  const getHeaders = () => ({
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${AUTH_TOKEN}`
-  });
-
-  // --- Fonctions d'appel API ---
-
-  const fetchTaches = async () => {
+  // --- Fonctions de gestion du localStorage ---
+  const loadDataFromLocalStorage = useCallback(() => {
     try {
-      const response = await fetch(`${API_URL}?action=getTaches`, {
-        method: 'GET',
-        headers: getHeaders()
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
-      }
-      const rawData = await response.json(); 
-      
-      const cleanedRawData = rawData.filter(tache => tache && tache.ID_Tache);
-      setAllRawTaches(cleanedRawData); 
+      const storedTaches = JSON.parse(localStorage.getItem('taches')) || initialTachesData;
+      const storedRealisations = JSON.parse(localStorage.getItem('realisations')) || initialRealisationsData;
+      const storedClassement = JSON.parse(localStorage.getItem('classement')) || initialClassementData;
+      const storedObjectives = JSON.parse(localStorage.getItem('objectives')) || initialObjectivesData;
+      const storedMessages = JSON.parse(localStorage.getItem('congratulatoryMessages')) || initialCongratulatoryMessagesData;
+      const storedHistoricalPodiums = JSON.parse(localStorage.getItem('historicalPodiums')) || initialHistoricalPodiumsData;
 
-      const tachesMap = new Map(cleanedRawData.map(t => [String(t.ID_Tache), t]));
+      setAllRawTaches(storedTaches);
+      setRealisations(storedRealisations);
+      setClassement(storedClassement);
+      setObjectives(storedObjectives);
+      setCongratulatoryMessages(storedMessages);
+      setHistoricalPodiums(storedHistoricalPodiums);
 
-      const processedAndFilteredTaches = cleanedRawData
+      // Traitement des tâches pour l'affichage (calcul des points de groupe, filtrage des sous-tâches)
+      const tachesMap = new Map(storedTaches.map(t => [String(t.ID_Tache), t]));
+      const processedTaches = storedTaches
         .map(tache => {
-          if (!tache) return null; 
-
           if (tache.Sous_Taches_IDs && String(tache.Sous_Taches_IDs).trim() !== '') {
             const subTaskIds = String(tache.Sous_Taches_IDs).split(',').map(id => id.trim());
             let totalSubTaskPoints = 0;
@@ -133,165 +139,138 @@ function App() {
           }
           return { ...tache, Calculated_Points: parseFloat(tache.Points) || 0, isGroupTask: false };
         })
-        .filter(tache => tache !== null) 
-        .filter(tache => String(tache.Parent_Task_ID || '').trim() === ''); // Filtre pour n'afficher que les tâches principales
-      
-      setTaches(processedAndFilteredTaches);
-    } catch (err) {
-      setError(`Erreur lors de la récupération des tâches: ${err.message}`);
-      toast.error(`Erreur: ${err.message}`); 
-    } finally {
-      setLoading(false); 
-    }
-  };
+        .filter(tache => String(tache.Parent_Task_ID || '').trim() === ''); // Filtrer les sous-tâches
 
-  const fetchClassement = async () => {
-    try {
-      const response = await fetch(`${API_URL}?action=getClassement`, {
-        method: 'GET',
-        headers: getHeaders()
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
-      }
-      const rawData = await response.json(); 
+      setTaches(processedTaches);
 
-      const currentClassement = rawData.map(row => ({
-        Nom_Participant: row.Nom_Participant,
-        Points_Total_Semaine_Courante: parseFloat(row.Points_Total_Semaine_Courante) || 0, 
-        Points_Total_Cumulatif: parseFloat(row.Points_Total_Cumulatif) || 0,
-        Points_Total_Semaine_Precedente: parseFloat(row.Points_Total_Semaine_Precedente || 0) || 0 
-      })).sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
-      
-      setClassement(currentClassement);
-
-      const globalCumulative = rawData.reduce((sum, row) => sum + (parseFloat(row.Points_Total_Cumulatif) || 0), 0); 
-      setTotalGlobalCumulativePoints(globalCumulative);
+      setLoading(false);
+      // Mettre à jour le classement et les objectifs après le chargement initial
+      updateClassementLocal(storedRealisations, storedClassement);
+      updateObjectivesProgressLocal(storedRealisations, storedObjectives, storedClassement);
 
     } catch (err) {
-      setError(`Erreur lors de la récupération du classement: ${err.message}`);
-      toast.error(`Erreur: ${err.message}`); 
-    }
-  };
-
-  const fetchRealisations = async () => {
-    try {
-      const response = await fetch(`${API_URL}?action=getRealisations`, { 
-        method: 'GET',
-        headers: getHeaders()
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
-      setRealisations(data);
-    } catch (err) {
-      setError(`Erreur lors de la récupération des réalisations: ${err.message}`);
-      toast.error(`Erreur: ${err.message}`);
-    }
-  };
-
-  const fetchParticipantWeeklyTasks = async (participantName) => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_URL}?action=getParticipantWeeklyTasks&nomParticipant=${encodeURIComponent(participantName)}`, {
-        method: 'GET',
-        headers: getHeaders()
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
-      setParticipantWeeklyTasks(data);
-
-    } catch (err) {
-      setError(`Erreur lors de la récupération des tâches de ${participantName}: ${err.message}`);
-      toast.error(`Erreur lors du chargement du profil: ${err.message}`);
-    } finally {
+      setError(`Erreur lors du chargement des données depuis le stockage local: ${err.message}`);
+      toast.error(`Erreur lors du chargement des données: ${err.message}`);
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchSubTasks = async (parentTaskId) => {
-    setLoading(true); 
+  const saveDataToLocalStorage = useCallback((key, data) => {
     try {
-      const response = await fetch(`${API_URL}?action=getSousTaches&parentTaskId=${encodeURIComponent(parentTaskId)}`, {
-        method: 'GET',
-        headers: getHeaders()
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
-      setSubTasks(Array.isArray(data) ? data : []); 
+      localStorage.setItem(key, JSON.stringify(data));
     } catch (err) {
-      setError(`Erreur lors de la récupération des sous-tâches: ${err.message}`);
-      toast.error(`Erreur: ${err.message}`);
-      setSubTasks([]); 
-    } finally {
-      setLoading(false);
+      console.error(`Erreur lors de la sauvegarde des données dans le stockage local pour la clé ${key}:`, err);
+      toast.error(`Erreur lors de la sauvegarde des données localement: ${err.message}`);
     }
-  };
+  }, []);
 
-  const fetchObjectives = async () => {
-    try {
-      const response = await fetch(`${API_URL}?action=getObjectives`, {
-        method: 'GET',
-        headers: getHeaders()
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
+  // --- Fonctions de mise à jour des données locales (simulent les appels API) ---
+
+  const updateClassementLocal = useCallback((currentRealisations, currentClassementData) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayOfWeek = today.getDay(); 
+    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
+    const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
+    startOfCurrentWeek.setHours(0, 0, 0, 0);
+
+    const participantScores = {};
+    currentRealisations.forEach(real => {
+      const participant = String(real.Nom_Participant).trim();
+      const points = parseFloat(real.Points_Gagnes) || 0;
+      const realDate = new Date(real.Timestamp);
+      realDate.setHours(0, 0, 0, 0);
+
+      if (!participantScores[participant]) {
+        participantScores[participant] = {
+          Points_Total_Semaine_Courante: 0,
+          Points_Total_Cumulatif: 0,
+          Date_Mise_A_Jour: '' 
+        };
       }
-      const data = await response.json();
-      setObjectives(data);
-    } catch (err) {
-      setError(`Erreur lors de la récupération des objectifs: ${err.message}`);
-      toast.error(`Erreur: ${err.message}`);
-    }
-  };
 
-  const fetchCongratulatoryMessages = async () => {
-    try {
-      const response = await fetch(`${API_URL}?action=getCongratulatoryMessages`, {
-        method: 'GET',
-        headers: getHeaders()
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
+      participantScores[participant].Points_Total_Cumulatif += points;
+
+      if (realDate >= startOfCurrentWeek) {
+        participantScores[participant].Points_Total_Semaine_Courante += points;
       }
-      const data = await response.json();
-      setCongratulatoryMessages(data);
-    } catch (err) {
-      setError(`Erreur lors de la récupération des messages de félicitations: ${err.message}`);
-      setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]);
-    }
-  };
+    });
 
-  const fetchHistoricalPodiums = async () => {
-    try {
-      const response = await fetch(`${API_URL}?action=getHistoricalPodiums`, {
-        method: 'GET',
-        headers: getHeaders()
+    const currentClassementMap = new Map(currentClassementData.map(row => [String(row.Nom_Participant).trim(), row]));
+    const newClassement = []; 
+
+    for (const participant in participantScores) {
+      const currentParticipantData = participantScores[participant];
+      const oldClassementEntry = currentClassementMap.get(participant);
+
+      currentParticipantData.Date_Mise_A_Jour = oldClassementEntry ? oldClassementEntry.Date_Mise_A_Jour : new Date().toISOString().split('T')[0];
+
+      newClassement.push({
+        Nom_Participant: participant,
+        Points_Total_Semaine_Courante: currentParticipantData.Points_Total_Semaine_Courante,
+        Points_Total_Cumulatif: currentParticipantData.Points_Total_Cumulatif,
+        // Conserver l'ancien score hebdomadaire pour le calcul de "plus amélioré"
+        Points_Total_Semaine_Precedente: oldClassementEntry ? (parseFloat(oldClassementEntry.Points_Total_Semaine_Courante) || 0) : 0, 
+        Date_Mise_A_Jour: currentParticipantData.Date_Mise_A_Jour
       });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
-      setHistoricalPodiums(data);
-    } catch (err) {
-      setError(`Erreur lors de la récupération de l'historique des podiums: ${err.message}`);
-      toast.error(`Erreur: ${err.message}`);
     }
-  };
+    
+    // Trier le classement
+    newClassement.sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
 
+    setClassement(newClassement);
+    saveDataToLocalStorage('classement', newClassement);
+
+  }, [saveDataToLocalStorage]);
+
+  const updateObjectivesProgressLocal = useCallback((currentRealisations, currentObjectivesData, currentClassementData) => {
+    const totalCumulativePoints = currentClassementData.reduce((sum, row) => sum + (parseFloat(row.Points_Total_Cumulatif) || 0), 0);
+
+    const categoryPoints = {};
+    currentRealisations.forEach(real => {
+      const category = String(real.Categorie_Tache || '').trim();
+      const points = parseFloat(real.Points_Gagnes) || 0;
+      if (category) {
+        categoryPoints[category] = (categoryPoints[category] || 0) + points;
+      }
+    });
+
+    const updatedObjectives = currentObjectivesData.map(obj => {
+      let currentPoints = parseFloat(obj.Points_Actuels) || 0;
+      const targetPoints = parseFloat(obj.Cible_Points) || 0;
+      let isCompleted = obj.Est_Atteint === true || String(obj.Est_Atteint).toLowerCase() === 'true';
+
+      if (obj.Type_Cible === 'Cumulatif') {
+        currentPoints = totalCumulativePoints;
+      } else if (obj.Type_Cible === 'Par_Categorie' && obj.Categorie_Cible) {
+        currentPoints = categoryPoints[String(obj.Categorie_Cible).trim()] || 0;
+      }
+
+      if (currentPoints >= targetPoints) {
+        isCompleted = true;
+      } else {
+        isCompleted = false; 
+      }
+
+      return {
+        ...obj,
+        Points_Actuels: currentPoints,
+        Est_Atteint: isCompleted
+      };
+    });
+
+    setObjectives(updatedObjectives);
+    saveDataToLocalStorage('objectives', updatedObjectives);
+  }, [saveDataToLocalStorage]);
+
+
+  // --- Effet initial pour charger les données au démarrage de l'application ---
+  useEffect(() => {
+    loadDataFromLocalStorage();
+  }, [loadDataFromLocalStorage]);
+
+
+  // --- Fonctions de gestion des actions (simulent les appels API en manipulant le localStorage) ---
 
   const recordTask = async (idTacheToRecord, isSubTask = false) => {
     if (!participantName.trim()) {
@@ -301,47 +280,52 @@ function App() {
 
     setLoading(true);
     try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({
-          action: 'recordTask',
-          idTache: idTacheToRecord,
-          nomParticipant: participantName.trim()
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
+      const taskToRecord = allRawTaches.find(t => String(t.ID_Tache) === String(idTacheToRecord));
+      if (!taskToRecord) {
+        throw new Error(`Tâche avec l'ID ${idTacheToRecord} introuvable.`);
       }
-      const result = await response.json();
-      if (result.success) {
-        const completedTask = taches.find(t => t.ID_Tache === idTacheToRecord);
-        if (completedTask && String(completedTask.Frequence || '').toLowerCase() === 'ponctuel') {
-            // Si la tâche est ponctuelle, la supprimer après enregistrement
-            await handleDeleteTask(idTacheToRecord, true); 
-            toast.success(`Tâche ponctuelle "${completedTask.Nom_Tache}" enregistrée et supprimée.`);
-        } else {
-            toast.success(`Tâche "${completedTask ? completedTask.Nom_Tache : 'inconnue'}" enregistrée avec succès.`);
-        }
 
-        if (!isSubTask) { 
-          // Affiche un message de félicitations aléatoire et les confettis pour les tâches principales
-          const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
-          setShowThankYouPopup({ name: participantName.trim(), task: completedTask ? completedTask.Nom_Tache : 'Tâche inconnue', message: randomMessage }); 
-          setShowConfetti(true); 
-          setParticipantName('');
-          setSelectedTask(null); 
-        }
-        // Rafraîchir toutes les données pertinentes après l'enregistrement
-        fetchClassement(); 
-        fetchRealisations(); 
-        fetchTaches(); 
-        fetchObjectives(); 
+      const pointsGagnes = parseFloat(taskToRecord.Points) || 0;
+      const categorieTache = taskToRecord.Categorie || 'Non catégorisée';
+
+      const newRealisation = {
+        Timestamp: new Date().toISOString(),
+        Nom_Participant: participantName.trim(),
+        ID_Tache_Effectuee: idTacheToRecord,
+        Nom_Tache_Effectuee: taskToRecord.Nom_Tache,
+        Categorie_Tache: categorieTache,
+        Points_Gagnes: pointsGagnes
+      };
+
+      const updatedRealisations = [...realisations, newRealisation];
+      setRealisations(updatedRealisations);
+      saveDataToLocalStorage('realisations', updatedRealisations);
+      
+      // Mise à jour immédiate du classement et des objectifs
+      updateClassementLocal(updatedRealisations, classement);
+      updateObjectivesProgressLocal(updatedRealisations, objectives, classement);
+
+      if (String(taskToRecord.Frequence || '').toLowerCase() === 'ponctuel') {
+          // Supprimer la tâche ponctuelle après l'avoir enregistrée
+          const updatedTaches = allRawTaches.filter(t => String(t.ID_Tache) !== String(idTacheToRecord));
+          setAllRawTaches(updatedTaches);
+          saveDataToLocalStorage('taches', updatedTaches);
+          toast.success(`Tâche ponctuelle "${taskToRecord.Nom_Tache}" enregistrée et supprimée.`);
       } else {
-        toast.error(`Erreur: ${result.message}`); 
+          toast.success(`Tâche "${taskToRecord.Nom_Tache}" enregistrée avec succès.`);
       }
+
+      if (!isSubTask) { 
+        const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
+        setShowThankYouPopup({ name: participantName.trim(), task: taskToRecord.Nom_Tache, message: randomMessage }); 
+        setShowConfetti(true); 
+        setParticipantName('');
+        setSelectedTask(null); 
+      }
+      
+      // Recharger les tâches pour mettre à jour l'affichage si une tâche ponctuelle a été supprimée
+      loadDataFromLocalStorage();
+
     } catch (err) {
       setError(`Erreur lors de l'enregistrement de la tâche: ${err.message}`);
       toast.error(`Une erreur est survenue: ${err.message}`); 
@@ -351,7 +335,6 @@ function App() {
   };
 
   const recordMultipleTasks = async () => {
-    // Filtre les sous-tâches sélectionnées pour n'inclure que celles qui sont disponibles
     const availableSelectedSubTasks = selectedSubTasks.filter(subTask => isSubTaskAvailable(subTask));
 
     if (!participantName.trim() || availableSelectedSubTasks.length === 0) {
@@ -361,49 +344,45 @@ function App() {
 
     setLoading(true);
     try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({
-          action: 'recordMultipleTasks',
-          idTaches: availableSelectedSubTasks.map(task => task.ID_Tache), 
-          nomParticipant: participantName.trim()
-        })
-      });
+      const newRealisationsBatch = availableSelectedSubTasks.map(subTask => ({
+        Timestamp: new Date().toISOString(),
+        Nom_Participant: participantName.trim(),
+        ID_Tache_Effectuee: subTask.ID_Tache,
+        Nom_Tache_Effectuee: subTask.Nom_Tache,
+        Categorie_Tache: subTask.Categorie || 'Non catégorisée',
+        Points_Gagnes: parseFloat(subTask.Points) || 0
+      }));
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
+      const updatedRealisations = [...realisations, ...newRealisationsBatch];
+      setRealisations(updatedRealisations);
+      saveDataToLocalStorage('realisations', updatedRealisations);
+
+      // Mise à jour immédiate du classement et des objectifs
+      updateClassementLocal(updatedRealisations, classement);
+      updateObjectivesProgressLocal(updatedRealisations, objectives, classement);
+      
+      const completedTaskNames = availableSelectedSubTasks.map(st => st.Nom_Tache).join(', ');
+      const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
+      setShowThankYouPopup({ name: participantName.trim(), task: completedTaskNames, message: randomMessage });
+      setShowConfetti(true); 
+
+      let currentAllRawTaches = [...allRawTaches];
+      for (const subTask of availableSelectedSubTasks) {
+          const fullSubTaskData = allRawTaches.find(t => String(t.ID_Tache) === String(subTask.ID_Tache));
+          if (fullSubTaskData && String(fullSubTaskData.Frequence || '').toLowerCase() === 'ponctuel') {
+              currentAllRawTaches = currentAllRawTaches.filter(t => String(t.ID_Tache) !== String(subTask.ID_Tache));
+          }
       }
-      const result = await response.json();
-      if (result.success) {
-        const completedTaskNames = availableSelectedSubTasks.map(st => st.Nom_Tache).join(', ');
-        const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
-        setShowThankYouPopup({ name: participantName.trim(), task: completedTaskNames, message: randomMessage });
-        setShowConfetti(true); 
+      setAllRawTaches(currentAllRawTaches);
+      saveDataToLocalStorage('taches', currentAllRawTaches);
 
-        // Supprimer les sous-tâches ponctuelles après leur enregistrement
-        for (const subTask of availableSelectedSubTasks) {
-            const fullSubTaskData = allRawTaches.find(t => String(t.ID_Tache) === String(subTask.ID_Tache));
-            if (fullSubTaskData && String(fullSubTaskData.Frequence || '').toLowerCase() === 'ponctuel') {
-                await handleDeleteTask(subTask.ID_Tache, true); 
-            }
-        }
-        toast.success(`Tâches enregistrées avec succès.`);
+      toast.success(`Tâches enregistrées avec succès.`);
 
-        // Réinitialiser les états du dialogue
-        setParticipantName('');
-        setSelectedTask(null);
-        setShowSplitTaskDialog(false); 
-        setSelectedSubTasks([]);
-        // Rafraîchir toutes les données pertinentes
-        fetchClassement();
-        fetchRealisations(); 
-        fetchTaches(); 
-        fetchObjectives(); 
-      } else {
-        toast.error(`Erreur: ${result.message}`);
-      }
+      setParticipantName('');
+      setSelectedTask(null);
+      setShowSplitTaskDialog(false); 
+      setSelectedSubTasks([]);
+      loadDataFromLocalStorage(); // Recharger pour mettre à jour les tâches affichées
     } catch (err) {
       setError(`Erreur lors de l'enregistrement des sous-tâches: ${err.message}`);
       toast.error(`Une erreur est survenue: ${err.message}`);
@@ -415,28 +394,42 @@ function App() {
   const resetWeeklyPoints = async () => {
     setLoading(true);
     try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ action: 'resetWeeklyPoints' })
-      });
+      const today = new Date();
+      const datePodium = today.toISOString().split('T')[0]; 
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
-      }
-      const result = await response.json();
-      if (result.success) {
-        toast.success(result.message);
-        // Rafraîchir toutes les données après la réinitialisation
-        fetchClassement(); 
-        fetchRealisations(); 
-        fetchTaches(); 
-        fetchObjectives(); 
-        fetchHistoricalPodiums(); // Recharger l'historique après réinitialisation
-      } else {
-        toast.error(`Erreur: ${result.message}`);
-      }
+      // Enregistrer le podium historique
+      const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
+      const top3 = sortedClassement.slice(0, 3);
+
+      const newPodiumEntry = {
+        Date_Podium: datePodium,
+        top3: [
+          top3[0] ? { name: top3[0].Nom_Participant, points: top3[0].Points_Total_Semaine_Courante } : null,
+          top3[1] ? { name: top3[1].Nom_Participant, points: top3[1].Points_Total_Semaine_Courante } : null,
+          top3[2] ? { name: top3[2].Nom_Participant, points: top3[2].Points_Total_Semaine_Courante } : null,
+        ].filter(entry => entry !== null)
+      };
+      
+      const updatedHistoricalPodiums = [...historicalPodiums, newPodiumEntry];
+      setHistoricalPodiums(updatedHistoricalPodiums);
+      saveDataToLocalStorage('historicalPodiums', updatedHistoricalPodiums);
+
+      // Réinitialiser les points hebdomadaires dans le classement
+      const newClassement = classement.map(p => ({
+        ...p,
+        Points_Total_Semaine_Precedente: p.Points_Total_Semaine_Courante, // Sauvegarder le score de la semaine précédente
+        Points_Total_Semaine_Courante: 0, 
+        Date_Mise_A_Jour: today.toISOString().split('T')[0]
+      }));
+
+      setClassement(newClassement);
+      saveDataToLocalStorage('classement', newClassement);
+
+      toast.success('Points hebdomadaires réinitialisés et podium enregistré.');
+      
+      // Recharger toutes les données pour s'assurer que l'affichage est à jour
+      loadDataFromLocalStorage();
+
     } catch (err) {
       setError(`Erreur lors de la réinitialisation des points: ${err.message}`);
       toast.error(`Une erreur est survenue lors de la réinitialisation: ${err.message}`);
@@ -496,34 +489,29 @@ function App() {
 
     setLoading(true);
     try {
-      const action = editingTask ? 'updateTask' : 'addTask';
-      const payload = { 
-        action: action, 
-        task: {
-          ...newTaskData,
-          Points: newTaskData.Points === '' ? '' : parseFloat(newTaskData.Points) 
-        }
-      };
-      
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload)
-      });
-      const result = await response.json();
-      if (result.success) {
-        toast.success(result.message);
-        fetchTaches(); // Rafraîchir la liste des tâches
-        setShowAdminTaskFormModal(false); 
-        setEditingTask(null);
-        // Réinitialiser le formulaire
-        setNewTaskData({ 
-          ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
-          Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
-        });
+      let updatedTachesData;
+      if (editingTask) {
+        // Mise à jour de la tâche existante
+        updatedTachesData = allRawTaches.map(task => 
+          String(task.ID_Tache) === String(newTaskData.ID_Tache) ? { ...newTaskData, Points: parseFloat(newTaskData.Points) || 0 } : task
+        );
+        toast.success('Tâche mise à jour avec succès.');
       } else {
-        toast.error(`Erreur: ${result.message}`);
+        // Ajout d'une nouvelle tâche
+        updatedTachesData = [...allRawTaches, { ...newTaskData, Points: parseFloat(newTaskData.Points) || 0 }];
+        toast.success('Tâche ajoutée avec succès.');
       }
+      setAllRawTaches(updatedTachesData);
+      saveDataToLocalStorage('taches', updatedTachesData);
+      loadDataFromLocalStorage(); // Recharger pour mettre à jour l'affichage des tâches
+      
+      setShowAdminTaskFormModal(false); 
+      setEditingTask(null);
+      // Réinitialiser le formulaire
+      setNewTaskData({ 
+        ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
+        Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
+      });
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
@@ -540,19 +528,11 @@ function App() {
 
     setLoading(true);
     try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ action: 'deleteTask', idTache: taskId })
-      });
-      const result = await response.json();
-      if (result.success) {
-        toast.success(result.message);
-        fetchTaches(); // Rafraîchir la liste des tâches
-        fetchRealisations(); // Rafraîchir les réalisations car une tâche a pu être supprimée
-      } else {
-        toast.error(`Erreur: ${result.message}`);
-      }
+      const updatedTachesData = allRawTaches.filter(task => String(task.ID_Tache) !== String(taskId));
+      setAllRawTaches(updatedTachesData);
+      saveDataToLocalStorage('taches', updatedTachesData);
+      loadDataFromLocalStorage(); // Recharger pour mettre à jour l'affichage des tâches
+      toast.success('Tâche supprimée avec succès.');
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
@@ -591,36 +571,39 @@ function App() {
 
     setLoading(true);
     try {
-      const action = editingObjective ? 'updateObjectif' : 'addObjectif';
-      const payload = { 
-        action: action, 
-        objective: {
-          ...newObjectiveData,
+      let updatedObjectivesData;
+      if (editingObjective) {
+        // Mise à jour de l'objectif existant
+        updatedObjectivesData = objectives.map(obj => 
+          String(obj.ID_Objectif) === String(newObjectiveData.ID_Objectif) ? { 
+            ...newObjectiveData, 
+            Cible_Points: parseFloat(newObjectiveData.Cible_Points),
+            Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
+            Est_Atteint: newObjectiveData.Est_Atteint
+          } : obj
+        );
+        toast.success('Objectif mis à jour avec succès.');
+      } else {
+        // Ajout d'un nouvel objectif
+        updatedObjectivesData = [...objectives, { 
+          ...newObjectiveData, 
           Cible_Points: parseFloat(newObjectiveData.Cible_Points),
           Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
           Est_Atteint: newObjectiveData.Est_Atteint
-        }
-      };
-      
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload)
-      });
-      const result = await response.json();
-      if (result.success) {
-        toast.success(result.message);
-        fetchObjectives(); // Rafraîchir la liste des objectifs
-        setShowAdminObjectiveFormModal(false); 
-        setEditingObjective(null);
-        // Réinitialiser le formulaire
-        setNewObjectiveData({ 
-          ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '', 
-          Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
-        });
-      } else {
-        toast.error(`Erreur: ${result.message}`);
+        }];
+        toast.success('Objectif ajouté avec succès.');
       }
+      setObjectives(updatedObjectivesData);
+      saveDataToLocalStorage('objectives', updatedObjectivesData);
+      updateObjectivesProgressLocal(realisations, updatedObjectivesData, classement); // Mettre à jour la progression immédiatement
+      
+      setShowAdminObjectiveFormModal(false); 
+      setEditingObjective(null);
+      // Réinitialiser le formulaire
+      setNewObjectiveData({ 
+        ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '', 
+        Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
+      });
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
@@ -637,18 +620,11 @@ function App() {
 
     setLoading(true);
     try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ action: 'deleteObjectif', idObjectif: objectiveId })
-      });
-      const result = await response.json();
-      if (result.success) {
-        toast.success(result.message);
-        fetchObjectives(); // Rafraîchir la liste des objectifs
-      } else {
-        toast.error(`Erreur: ${result.message}`);
-      }
+      const updatedObjectivesData = objectives.filter(obj => String(obj.ID_Objectif) !== String(objectiveId));
+      setObjectives(updatedObjectivesData);
+      saveDataToLocalStorage('objectives', updatedObjectivesData);
+      updateObjectivesProgressLocal(realisations, updatedObjectivesData, classement); // Mettre à jour la progression
+      toast.success('Objectif supprimé avec succès.');
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
@@ -659,28 +635,39 @@ function App() {
   };
 
 
-  // Effet pour charger les données initiales au montage du composant
-  useEffect(() => {
-    fetchTaches();
-    fetchClassement();
-    fetchRealisations(); 
-    fetchObjectives(); 
-    fetchCongratulatoryMessages(); 
-    fetchHistoricalPodiums(); 
-  }, []);
-
   // Gère le clic sur un participant dans le classement pour afficher son profil
   const handleParticipantClick = async (participant) => {
     setSelectedParticipantProfile(participant);
     setActiveMainView('participantProfile');
-    await fetchParticipantWeeklyTasks(participant.Nom_Participant);
+    
+    // Simuler fetchParticipantWeeklyTasks localement
+    setLoading(true);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayOfWeek = today.getDay(); 
+    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
+    const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
+    startOfCurrentWeek.setHours(0, 0, 0, 0);
+
+    const weeklyTasks = realisations.filter(real => {
+      const realDate = new Date(real.Timestamp);
+      realDate.setHours(0, 0, 0, 0);
+      return String(real.Nom_Participant).trim() === String(participant.Nom_Participant).trim() && realDate >= startOfCurrentWeek;
+    });
+    setParticipantWeeklyTasks(weeklyTasks);
+    setLoading(false);
   };
 
   // Gère le clic sur une tâche pour ouvrir le dialogue de confirmation ou de sous-tâches
   const handleTaskClick = (task) => {
     setSelectedTask(task);
-    if (task.Sous_Taches_IDs && String(task.Sous_Taches_IDs).trim() !== '') {
-      fetchSubTasks(task.ID_Tache); 
+    if (task.isGroupTask) { // Utiliser isGroupTask directement
+      // Simuler fetchSubTasks localement
+      setLoading(true);
+      const subTaskIds = String(task.Sous_Taches_IDs).split(',').map(id => id.trim());
+      const filteredSubTasks = allRawTaches.filter(tache => subTaskIds.includes(String(tache.ID_Tache)));
+      setSubTasks(filteredSubTasks);
+      setLoading(false);
       setShowSplitTaskDialog(true); 
     } else {
       setShowSplitTaskDialog(false); 
@@ -715,7 +702,7 @@ function App() {
     });
   };
 
-  // --- Logique des Badges ---
+  // --- Logique des Badges (utilise les données locales) ---
   const getParticipantBadges = (participant) => {
     const badges = [];
     const participantRealisations = realisations.filter(r => String(r.Nom_Participant).trim() === String(participant.Nom_Participant).trim());
@@ -875,7 +862,7 @@ function App() {
           </button>
         )}
         {renderHighlights()} 
-        {renderObjectivesSection()} {/* Objectifs communs ici */}
+        {renderObjectivesSection()} 
       </div>
     );
   };
@@ -886,11 +873,10 @@ function App() {
     let maxImprovement = -1;
 
     // Calcul du participant le plus amélioré (si l'historique est disponible)
-    const lastPodium = historicalPodiums.length > 0 ? historicalPodiums[0] : null;
-
-    if (lastPodium) {
+    // Utilise Points_Total_Semaine_Precedente qui est maintenant géré localement
+    if (classement.length > 0) {
         classement.forEach(currentP => {
-            const previousScore = parseFloat(currentP.Points_Total_Semaine_Precedente) || 0;
+            const previousScore = parseFloat(currentP.Points_Total_Semaine_Precedente) || 0; 
             const currentScore = parseFloat(currentP.Points_Total_Semaine_Courante) || 0;
             const improvement = currentScore - previousScore;
 
@@ -908,8 +894,8 @@ function App() {
     // Calcul du participant le plus actif cette semaine
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const dayOfWeek = today.getDay(); // Dimanche = 0, Lundi = 1, etc.
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Début de semaine (Lundi)
+    const dayOfWeek = today.getDay(); 
+    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
     const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
     startOfCurrentWeek.setHours(0, 0, 0, 0);
 
@@ -971,7 +957,7 @@ function App() {
     }
 
     return (
-      <div className="mt-6 border-t border-neutralBg pt-4"> {/* Marge et bordure pour séparer des tendances */}
+      <div className="mt-6 border-t border-neutralBg pt-4"> 
         <button
           onClick={() => setShowObjectivesSection(!showObjectivesSection)}
           className="w-full bg-neutralBg hover:bg-neutralBg/80 text-text font-semibold py-2 px-4 rounded-md transition duration-300 flex items-center justify-between text-sm sm:text-base"
@@ -980,7 +966,7 @@ function App() {
           <span>{showObjectivesSection ? '▲' : '▼'}</span>
         </button>
         <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showObjectivesSection ? 'max-h-screen opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
-          <div className="space-y-2"> {/* Espacement plus compact */}
+          <div className="space-y-2"> 
             {objectives.map(obj => {
               const currentPoints = parseFloat(obj.Points_Actuels) || 0;
               const targetPoints = parseFloat(obj.Cible_Points) || 0;
@@ -989,17 +975,17 @@ function App() {
 
               return (
                 <div key={obj.ID_Objectif} className={`bg-white rounded-lg p-3 shadow-sm border 
-                  ${isCompleted ? 'border-success' : 'border-primary/10'}`}> {/* Couleurs plus douces */}
+                  ${isCompleted ? 'border-success' : 'border-primary/10'}`}> 
                   <div className="flex justify-between items-center mb-1">
-                    <h3 className="text-base font-bold text-primary truncate">{obj.Nom_Objectif}</h3> {/* Texte plus petit */}
+                    <h3 className="text-base font-bold text-primary truncate">{obj.Nom_Objectif}</h3> 
                     {isCompleted ? (
                       <span className="text-success font-bold text-sm">✅ Atteint !</span>
                     ) : (
                       <span className="text-text font-semibold text-sm">{currentPoints} / {targetPoints} pts</span>
                     )}
                   </div>
-                  <p className="text-lightText text-xs mb-2 truncate">{obj.Description_Objectif}</p> {/* Texte encore plus petit */}
-                  <div className="w-full bg-gray-200 rounded-full h-2"> {/* Barre de progression plus fine */}
+                  <p className="text-lightText text-xs mb-2 truncate">{obj.Description_Objectif}</p> 
+                  <div className="w-full bg-gray-200 rounded-full h-2"> 
                     <div 
                       className={`h-2 rounded-full ${isCompleted ? 'bg-success' : 'bg-primary'}`} 
                       style={{ width: `${Math.min(progress, 100)}%` }}
@@ -1045,7 +1031,7 @@ function App() {
             const isCompletedForPeriod = !isSubTaskAvailable(tache); 
 
             if (isCompletedForPeriod) {
-              return null; // Ne pas afficher les tâches déjà complétées pour la période
+              return null; 
             }
 
             const cardClasses = `bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center sm:items-center justify-between 
@@ -1352,6 +1338,8 @@ function App() {
   const renderParticipantProfile = () => {
     if (!selectedParticipantProfile) return null;
 
+    // Calcul du score d'implication global
+    const totalGlobalCumulativePoints = classement.reduce((sum, p) => sum + (parseFloat(p.Points_Total_Cumulatif) || 0), 0);
     const participantCumulativePoints = selectedParticipantProfile.Points_Total_Cumulatif || 0;
     const engagementPercentage = totalGlobalCumulativePoints > 0 
       ? ((participantCumulativePoints / totalGlobalCumulativePoints) * 100).toFixed(2) 
@@ -1519,20 +1507,13 @@ function App() {
   };
 
   const handleExportClassement = () => {
-    const baseHeaders = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Points_Total_Semaine_Precedente'];
-    const allHeaders = [...baseHeaders]; 
-
-    const dataToExport = classement.map(p => ({
-        Nom_Participant: p.Nom_Participant,
-        Points_Total_Semaine_Courante: p.Points_Total_Semaine_Courante,
-        Points_Total_Cumulatif: p.Points_Total_Cumulatif,
-        Points_Total_Semaine_Precedente: p.Points_Total_Semaine_Precedente 
-    }));
-
-    exportToCsv('classement_clean_app.csv', dataToExport, allHeaders);
+    // Les en-têtes doivent correspondre aux clés des objets dans le tableau `classement`
+    const headers = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Points_Total_Semaine_Precedente', 'Date_Mise_A_Jour'];
+    exportToCsv('classement_clean_app.csv', classement, headers);
   };
 
   const handleExportRealisations = () => {
+    // Les en-têtes doivent correspondre aux clés des objets dans le tableau `realisations`
     const headers = ['Timestamp', 'Nom_Participant', 'ID_Tache_Effectuee', 'Nom_Tache_Effectuee', 'Categorie_Tache', 'Points_Gagnes'];
     exportToCsv('realisations_clean_app.csv', realisations, headers);
   };
