@@ -13,9 +13,9 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
 // --- CONFIGURATION DE L'API ---
-// ASSUREZ-VOUS QUE CETTE URL CORRESPOND À VOTRE CLOUDFLARE WORKER DÉPLOYÉ
+// REMPLACEZ CETTE URL PAR L'URL DE VOTRE PROPRE CLOUDFLARE WORKER APRÈS L'AVOIR DÉPLOYÉ
 const API_URL = 'https://clean-app-challenge-api.jassairbus.workers.dev/'; 
-const AUTH_TOKEN = '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2';        
+const AUTH_TOKEN = '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2'; // CE TOKEN DOIT CORRESPONDRE À CELUI DU WORKER ET DU GOOGLE APPS SCRIPT       
 
 // Nom du fichier logo (assurez-vous qu'il est dans le dossier public/)
 const LOGO_FILENAME = 'logo.png'; 
@@ -88,10 +88,14 @@ function App() {
       });
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const rawData = await response.json(); 
       
+      if (!Array.isArray(rawData)) { 
+        throw new Error("Les données reçues ne sont pas un tableau.");
+      }
+
       const cleanedRawData = rawData.filter(tache => tache && tache.ID_Tache);
       setAllRawTaches(cleanedRawData); 
 
@@ -119,8 +123,8 @@ function App() {
       
       setTaches(processedAndFilteredTaches);
     } catch (err) {
-      setError(`Error fetching tasks: ${err.message}`);
-      toast.error(`Error: ${err.message}`); 
+      setError(`Erreur lors de la récupération des tâches: ${err.message}`);
+      toast.error(`Erreur: ${err.message}`); 
     } finally {
       setLoading(false); 
     }
@@ -134,13 +138,13 @@ function App() {
       });
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const rawData = await response.json(); 
       
       if (!Array.isArray(rawData)) {
-        setError('Error: Ranking data is malformed (not an array).');
-        toast.error('Error: Ranking data is malformed.');
+        setError('Erreur: Les données de classement sont mal formées (pas un tableau).');
+        toast.error('Erreur: Les données de classement sont mal formées.');
         setClassement([]); 
         return;
       }
@@ -158,8 +162,8 @@ function App() {
       setTotalGlobalCumulativePoints(globalCumulative);
 
     } catch (err) {
-      setError(`Error fetching ranking: ${err.message}`);
-      toast.error(`Error: ${err.message}`); 
+      setError(`Erreur lors de la récupération du classement: ${err.message}`);
+      toast.error(`Erreur: ${err.message}`); 
     }
   }, [setClassement, setTotalGlobalCumulativePoints, setError]);
 
@@ -171,13 +175,13 @@ function App() {
       });
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
       setRealisations(data);
     } catch (err) {
-      setError(`Error fetching realizations: ${err.message}`);
-      toast.error(`Error: ${err.message}`);
+      setError(`Erreur lors de la récupération des réalisations: ${err.message}`);
+      toast.error(`Erreur: ${err.message}`);
     }
   }, [setRealisations, setError]);
 
@@ -190,14 +194,14 @@ function App() {
       });
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
       setParticipantWeeklyTasks(data);
 
     } catch (err) {
-      setError(`Error fetching tasks for ${participantName}: ${err.message}`);
-      toast.error(`Error loading profile: ${err.message}`);
+      setError(`Erreur lors de la récupération des tâches de ${participantName}: ${err.message}`);
+      toast.error(`Erreur lors du chargement du profil: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -213,13 +217,13 @@ function App() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
       setSubTasks(Array.isArray(data) ? data : []); 
     } catch (err) {
-      setError(`Error fetching subtasks: ${err.message}`);
-      toast.error(`Error: ${err.message}`);
+      setError(`Erreur lors de la récupération des sous-tâches: ${err.message}`);
+      toast.error(`Erreur: ${err.message}`);
       setSubTasks([]); 
     } finally {
       setLoading(false);
@@ -234,13 +238,13 @@ function App() {
       });
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
       setObjectives(data);
     } catch (err) {
-      setError(`Error fetching objectives: ${err.message}`);
-      toast.error(`Error: ${err.message}`);
+      setError(`Erreur lors de la récupération des objectifs: ${err.message}`);
+      toast.error(`Erreur: ${err.message}`);
     }
   }, [setObjectives, setError]);
 
@@ -257,8 +261,8 @@ function App() {
       const data = await response.json();
       setCongratulatoryMessages(data);
     } catch (err) {
-      setError(`Error fetching congratulatory messages: ${err.message}`);
-      setCongratulatoryMessages([{ Texte_Message: "Bravo for your excellent work!" }]); // Fallback
+      setError(`Erreur lors de la récupération des messages de félicitations: ${err.message}`);
+      setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); // Fallback
     }
   }, [setCongratulatoryMessages, setError]);
 
@@ -275,15 +279,15 @@ function App() {
       const data = await response.json();
       setHistoricalPodiums(data);
     } catch (err) {
-      setError(`Error fetching historical podiums: ${err.message}`);
-      toast.error(`Error: ${err.message}`);
+      setError(`Erreur lors de la récupération de l'historique des podiums: ${err.message}`);
+      toast.error(`Erreur: ${err.message}`);
     }
   }, [setHistoricalPodiums, setError]);
 
 
   const recordTask = async (idTacheToRecord, isSubTask = false) => {
     if (!participantName.trim()) {
-      toast.warn('Please enter your name.'); 
+      toast.warn('Veuillez entrer votre nom.'); 
       return;
     }
 
@@ -291,11 +295,11 @@ function App() {
     try {
       const taskToRecord = allRawTaches.find(t => String(t.ID_Tache) === String(idTacheToRecord));
       if (!taskToRecord) {
-        throw new Error(`Task with ID ${idTacheToRecord} not found in allRawTaches.`);
+        throw new Error(`Tâche avec l'ID ${idTacheToRecord} introuvable.`);
       }
 
       const pointsToSend = parseFloat(taskToRecord.Points) || 0;
-      const categoryToSend = taskToRecord.Categorie || 'Uncategorized';
+      const categoryToSend = taskToRecord.Categorie || 'Non catégorisée';
 
       const payload = {
         action: 'recordTask',
@@ -314,21 +318,21 @@ function App() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const result = await response.json();
       if (result.success) {
         const completedTask = taches.find(t => t.ID_Tache === idTacheToRecord);
         if (completedTask && String(completedTask.Frequence || '').toLowerCase() === 'ponctuel') {
             await handleDeleteTask(idTacheToRecord, true); 
-            toast.success(`One-time task "${completedTask.Nom_Tache}" recorded and deleted.`);
+            toast.success(`Tâche ponctuelle "${completedTask.Nom_Tache}" enregistrée et supprimée.`);
         } else {
-            toast.success(`Task "${completedTask ? completedTask.Nom_Tache : 'unknown'}" recorded successfully.`);
+            toast.success(`Tâche "${completedTask ? completedTask.Nom_Tache : 'inconnue'}" enregistrée avec succès.`);
         }
 
         if (!isSubTask) { 
-          const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo for your excellent work!";
-          setShowThankYouPopup({ name: participantName.trim(), task: completedTask ? completedTask.Nom_Tache : 'Unknown Task', message: randomMessage }); 
+          const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
+          setShowThankYouPopup({ name: participantName.trim(), task: completedTask ? completedTask.Nom_Tache : 'Tâche inconnue', message: randomMessage }); 
           setShowConfetti(true); 
           setParticipantName('');
           setSelectedTask(null); 
@@ -338,11 +342,11 @@ function App() {
         fetchTaches(); 
         fetchObjectives(); 
       } else {
-        toast.error(`Error: ${result.message}`); 
+        toast.error(`Erreur: ${result.message}`); 
       }
     } catch (err) {
-      setError(`Error recording task: ${err.message}`);
-      toast.error(`An error occurred: ${err.message}`); 
+      setError(`Erreur lors de l'enregistrement de la tâche: ${err.message}`);
+      toast.error(`Une erreur est survenue: ${err.message}`); 
     } finally {
       setLoading(false);
     }
@@ -352,7 +356,7 @@ function App() {
     const availableSelectedSubTasks = selectedSubTasks.filter(subTask => isSubTaskAvailable(subTask));
 
     if (!participantName.trim() || availableSelectedSubTasks.length === 0) {
-      toast.warn('Please enter your name and select at least one available subtask.');
+      toast.warn('Veuillez entrer votre nom et sélectionner au moins une sous-tâche disponible.');
       return;
     }
 
@@ -360,7 +364,7 @@ function App() {
     try {
       const tasksToRecordPayload = availableSelectedSubTasks.map(subTask => {
         const points = parseFloat(subTask.Points) || 0;
-        const category = subTask.Categorie || 'Uncategorized';
+        const category = subTask.Categorie || 'Non catégorisée';
         return {
           idTache: subTask.ID_Tache,
           pointsGagnes: points,
@@ -388,7 +392,7 @@ function App() {
       const result = await response.json();
       if (result.success) {
         const completedTaskNames = availableSelectedSubTasks.map(st => st.Nom_Tache).join(', ');
-        const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo for your excellent work!";
+        const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
         setShowThankYouPopup({ name: participantName.trim(), task: completedTaskNames, message: randomMessage });
         setShowConfetti(true); 
 
@@ -398,7 +402,7 @@ function App() {
                 await handleDeleteTask(subTask.ID_Tache, true); 
             }
         }
-        toast.success(`Tasks recorded successfully.`);
+        toast.success(`Tâches enregistrées avec succès.`);
 
         setParticipantName('');
         setSelectedTask(null);
@@ -409,11 +413,11 @@ function App() {
         fetchTaches(); 
         fetchObjectives(); 
       } else {
-        toast.error(`Error: ${result.message}`);
+        toast.error(`Erreur: ${result.message}`);
       }
     } catch (err) {
-      setError(`Error recording subtasks: ${err.message}`);
-      toast.error(`An error occurred: ${err.message}`);
+      setError(`Erreur lors de l'enregistrement des sous-tâches: ${err.message}`);
+      toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -441,11 +445,11 @@ function App() {
         fetchObjectives(); 
         fetchHistoricalPodiums(); 
       } else {
-        toast.error(`Error: ${result.message}`);
+        toast.error(`Erreur: ${result.message}`);
       }
     } catch (err) {
-      setError(`Error resetting points: ${err.message}`);
-      toast.error(`An error occurred while resetting: ${err.message}`);
+      setError(`Erreur lors de la réinitialisation des points: ${err.message}`);
+      toast.error(`Une erreur est survenue lors de la réinitialisation: ${err.message}`);
     } finally {
       setLoading(false);
       setShowConfirmResetModal(false); 
@@ -456,16 +460,16 @@ function App() {
     if (passwordInput === ADMIN_PASSWORD) {
       setIsAdmin(true);
       setActiveMainView('adminPanel');
-      toast.success('Logged in as administrator!');
+      toast.success('Connecté en tant qu\'administrateur !');
     } else {
-      toast.error('Incorrect password.');
+      toast.error('Mot de passe incorrect.');
     }
   };
 
   const handleAdminLogout = () => {
     setIsAdmin(false);
     setActiveMainView('home');
-    toast.info('Logged out of admin panel.');
+    toast.info('Déconnecté du panneau administrateur.');
   };
 
   const handleTaskFormChange = (e) => {
@@ -478,23 +482,23 @@ function App() {
 
   const handleSubmitTask = async () => {
     if (!newTaskData.ID_Tache.trim()) {
-      toast.error('Task ID is required.');
+      toast.error('L\'ID de la tâche est requis.');
       return;
     }
     if (!newTaskData.Nom_Tache.trim()) {
-      toast.error('Task name is required.');
+      toast.error('Le nom de la tâche est requis.');
       return;
     }
     if (newTaskData.Points !== '' && isNaN(newTaskData.Points)) {
-      toast.error('Points must be a valid number.');
+      toast.error('Les points doivent être un nombre valide.');
       return;
     }
     if (newTaskData.Parent_Task_ID.trim() !== '' && newTaskData.Sous_Taches_IDs.trim() !== '') {
-        toast.error('A task cannot be both a subtask and a task group.');
+        toast.error('Une tâche ne peut pas être à la fois une sous-tâche et un groupe de tâches.');
         return;
     }
     if (newTaskData.Sous_Taches_IDs.trim() !== '' && newTaskData.Parent_Task_ID.trim() !== '') {
-        toast.error('A task cannot be both a task group and a subtask.');
+        toast.error('Une tâche ne peut pas être à la fois un groupe de tâches et une sous-tâche.');
         return;
     }
 
@@ -526,10 +530,10 @@ function App() {
           Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
         });
       } else {
-        toast.error(`Error: ${result.message}`);
+        toast.error(`Erreur: ${result.message}`);
       }
     } catch (err) {
-      toast.error(`An error occurred: ${err.message}`);
+      toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -555,10 +559,10 @@ function App() {
         fetchTaches(); 
         fetchRealisations(); 
       } else {
-        toast.error(`Error: ${result.message}`);
+        toast.error(`Erreur: ${result.message}`);
       }
     } catch (err) {
-      toast.error(`An error occurred: ${err.message}`);
+      toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
       setShowDeleteConfirmModal(false); 
@@ -576,19 +580,19 @@ function App() {
 
   const handleSubmitObjective = async () => {
     if (!newObjectiveData.ID_Objectif.trim()) {
-      toast.error('Objective ID is required.');
+      toast.error('L\'ID de l\'objectif est requis.');
       return;
     }
     if (!newObjectiveData.Nom_Objectif.trim()) {
-      toast.error('Objective name is required.');
+      toast.error('Le nom de l\'objectif est requis.');
       return;
     }
     if (isNaN(parseFloat(newObjectiveData.Cible_Points))) {
-      toast.error('Target points must be a valid number.');
+      toast.error('Les points cible doivent être un nombre valide.');
       return;
     }
     if (newObjectiveData.Type_Cible === 'Par_Categorie' && !newObjectiveData.Categorie_Cible.trim()) {
-      toast.error('Target category is required for "By Category" type.');
+      toast.error('La catégorie cible est requise pour le type "Par Catégorie".');
       return;
     }
 
@@ -622,10 +626,10 @@ function App() {
           Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
         });
       } else {
-        toast.error(`Error: ${result.message}`);
+        toast.error(`Erreur: ${result.message}`);
       }
     } catch (err) {
-      toast.error(`An error occurred: ${err.message}`);
+      toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -650,10 +654,10 @@ function App() {
         toast.success(result.message);
         fetchObjectives(); 
       } else {
-        toast.error(`Error: ${result.message}`);
+        toast.error(`Erreur: ${result.message}`);
       }
     } catch (err) {
-      toast.error(`An error occurred: ${err.message}`);
+      toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
       setShowDeleteObjectiveConfirmModal(false); 
@@ -722,13 +726,13 @@ function App() {
     const totalPoints = parseFloat(participant.Points_Total_Cumulatif) || 0;
     
     if (totalPoints >= 50) {
-      badges.push({ name: 'Beginner Cleaner', icon: '✨', description: 'Reached 50 cumulative points.' });
+      badges.push({ name: 'Nettoyeur Débutant', icon: '✨', description: 'Atteint 50 points cumulés.' });
     }
     if (totalPoints >= 200) {
-      badges.push({ name: 'Pro Cleaner', icon: '🌟', description: 'Reached 200 cumulative points.' });
+      badges.push({ name: 'Nettoyeur Pro', icon: '🌟', description: 'Atteint 200 points cumulés.' });
     }
     if (totalPoints >= 500) {
-      badges.push({ name: 'Master of Cleanliness', icon: '�', description: 'Reached 500 cumulative points.' });
+      badges.push({ name: 'Maître de la Propreté', icon: '👑', description: 'Atteint 500 points cumulés.' });
     }
 
     const tasksThisWeek = participantRealisations.filter(real => {
@@ -743,24 +747,24 @@ function App() {
         return realDate >= startOfCurrentWeek;
     }).length;
     if (tasksThisWeek >= 3) {
-        badges.push({ name: 'Active This Week', icon: '🔥', description: '3 or more tasks completed this week.' });
+        badges.push({ name: 'Actif de la Semaine', icon: '🔥', description: '3 tâches ou plus complétées cette semaine.' });
     }
 
     const kitchenTasks = participantRealisations.filter(r => String(r.Categorie_Tache || '').toLowerCase() === 'cuisine').length;
     if (kitchenTasks >= 5) {
-      badges.push({ name: 'Kitchen Specialist', icon: '🍳', description: '5 kitchen tasks completed.' });
+      badges.push({ name: 'Spécialiste Cuisine', icon: '🍳', description: '5 tâches de cuisine complétées.' });
     }
 
     const roomTasks = participantRealisations.filter(r => String(r.Categorie_Tache || '').toLowerCase() === 'salle').length;
     if (roomTasks >= 5) {
-      badges.push({ name: 'Room Specialist', icon: '🛋️', description: '5 room tasks completed.' });
+      badges.push({ name: 'Spécialiste Salle', icon: '🛋️', description: '5 tâches de salle complétées.' });
     }
 
     const hasBeenFirst = historicalPodiums.some(podium => 
       podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.Nom_Participant).trim()
     );
     if (hasBeenFirst) {
-      badges.push({ name: 'Former Champion', icon: '🥇', description: 'Has already been first on the podium.' });
+      badges.push({ name: 'Ancien Champion', icon: '🥇', description: 'A déjà été premier du podium.' });
     }
 
     return badges;
@@ -877,9 +881,8 @@ function App() {
     let mostImproved = null;
     let maxImprovement = -1;
 
-    // NOTE: La colonne 'Points_Total_Semaine_Precedente' n'existe pas dans votre feuille 'Feuille_Classement'.
-    // La fonctionnalité "Plus Amélioré" ne fonctionnera pas avec votre structure actuelle.
-    // Elle est ici pour la compatibilité avec le code précédent.
+    // NOTE: La colonne 'Points_Total_Semaine_Precedente' doit exister dans votre feuille 'Feuille_Classement'
+    // pour que la fonctionnalité "Plus Amélioré" fonctionne correctement.
     if (classement.length > 0) {
         classement.forEach(currentP => {
             const previousScore = parseFloat(currentP.Points_Total_Semaine_Precedente) || 0; 
@@ -1166,7 +1169,7 @@ function App() {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4"> 
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center animate-fade-in-scale border border-primary/20"> 
-          <h3 className="text-3xl sm:text-4xl font-bold text-success mb-6 sm:mb-8">🎉 Bravo! 🎉</h3> 
+          <h3 className="text-3xl sm:text-4xl font-bold text-success mb-6 sm:mb-8">🎉 Bravo ! 🎉</h3> 
           <p className="text-lg sm:text-xl text-text mb-6 sm:mb-8">
             {showThankYouPopup.message}
             <br/>
@@ -1746,7 +1749,7 @@ function App() {
     <div className="min-h-screen bg-background font-sans p-4 sm:p-6">
       <div className="max-w-4xl mx-auto">
         <header className="relative flex flex-col items-center justify-center py-6 sm:py-8 px-4 mb-8 sm:mb-10 text-center"> 
-          <img src={`/${LOGO_FILENAME}`} alt="Clean App Challenge Logo" className="mx-auto mb-4 sm:mb-5 h-24 sm:h-32 md:h-40 w-auto drop-shadow-xl" /> 
+          <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-4 sm:mb-5 h-24 sm:h-32 md:h-40 w-auto drop-shadow-xl" /> 
           <h1 className="text-4xl sm:text-7xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1> 
           <AdminLoginButton 
             isAdmin={isAdmin} 
@@ -1777,7 +1780,7 @@ function App() {
               ${activeMainView === 'historicalPodiums' ? 'bg-primary text-white shadow-lg' : 'bg-neutralBg text-text hover:bg-accent hover:text-secondary'}`}
             onClick={() => setActiveMainView('historicalPodiums')}
           >
-            Historique du Podium
+            Historique des Podiums
           </button>
         </nav>
 
