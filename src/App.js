@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'; // 'useCallback' est maintenant utilisé
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css'; 
 import FullRankingTable from './FullRankingTable'; 
 import HistoricalPodiums from './HistoricalPodiums'; 
@@ -83,7 +83,7 @@ function App() {
     Sous_Taches_IDs: '',
     Parent_Task_ID: ''
   });
-  const [editingTask, setEditingTask] = useState(null); // CORRECTION: C'était la ligne avec l'erreur précédente
+  const [editingTask, setEditingTask] = useState(null);
 
   // États pour la visibilité des sections déroulantes
   const [showHighlightsSection, setShowHighlightsSection] = useState(false); // Tendances actuelles
@@ -301,14 +301,29 @@ function App() {
 
     setLoading(true);
     try {
+      const taskToRecord = allRawTaches.find(t => String(t.ID_Tache) === String(idTacheToRecord));
+      if (!taskToRecord) {
+        throw new Error(`Tâche avec l'ID ${idTacheToRecord} introuvable dans allRawTaches.`);
+      }
+
+      // S'assurer que les points sont un nombre valide, même si la chaîne est vide
+      const pointsToSend = parseFloat(taskToRecord.Points) || 0;
+      const categoryToSend = taskToRecord.Categorie || 'Non catégorisée';
+
+      const payload = {
+        action: 'recordTask',
+        idTache: idTacheToRecord,
+        nomParticipant: participantName.trim(),
+        pointsGagnes: pointsToSend,
+        categorieTache: categoryToSend
+      };
+
+      console.log('Payload envoyé pour recordTask:', payload); // LOG DE DÉBOGAGE
+
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({
-          action: 'recordTask',
-          idTache: idTacheToRecord,
-          nomParticipant: participantName.trim()
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
@@ -319,7 +334,6 @@ function App() {
       if (result.success) {
         const completedTask = taches.find(t => t.ID_Tache === idTacheToRecord);
         if (completedTask && String(completedTask.Frequence || '').toLowerCase() === 'ponctuel') {
-            // Si la tâche est ponctuelle, la supprimer après enregistrement
             await handleDeleteTask(idTacheToRecord, true); 
             toast.success(`Tâche ponctuelle "${completedTask.Nom_Tache}" enregistrée et supprimée.`);
         } else {
@@ -327,14 +341,12 @@ function App() {
         }
 
         if (!isSubTask) { 
-          // Affiche un message de félicitations aléatoire et les confettis pour les tâches principales
           const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
           setShowThankYouPopup({ name: participantName.trim(), task: completedTask ? completedTask.Nom_Tache : 'Tâche inconnue', message: randomMessage }); 
           setShowConfetti(true); 
           setParticipantName('');
           setSelectedTask(null); 
         }
-        // Rafraîchir toutes les données pertinentes après l'enregistrement
         fetchClassement(); 
         fetchRealisations(); 
         fetchTaches(); 
@@ -351,7 +363,6 @@ function App() {
   };
 
   const recordMultipleTasks = async () => {
-    // Filtre les sous-tâches sélectionnées pour n'inclure que celles qui sont disponibles
     const availableSelectedSubTasks = selectedSubTasks.filter(subTask => isSubTaskAvailable(subTask));
 
     if (!participantName.trim() || availableSelectedSubTasks.length === 0) {
@@ -361,14 +372,29 @@ function App() {
 
     setLoading(true);
     try {
+      const tasksToRecordPayload = availableSelectedSubTasks.map(subTask => {
+        // S'assurer que les points sont un nombre valide, même si la chaîne est vide
+        const points = parseFloat(subTask.Points) || 0;
+        const category = subTask.Categorie || 'Non catégorisée';
+        return {
+          idTache: subTask.ID_Tache,
+          pointsGagnes: points,
+          categorieTache: category
+        };
+      });
+
+      const payload = {
+        action: 'recordMultipleTasks',
+        tasks: tasksToRecordPayload,
+        nomParticipant: participantName.trim()
+      };
+
+      console.log('Payload envoyé pour recordMultipleTasks:', payload); // LOG DE DÉBOGAGE
+
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({
-          action: 'recordMultipleTasks',
-          idTaches: availableSelectedSubTasks.map(task => task.ID_Tache), 
-          nomParticipant: participantName.trim()
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
@@ -390,12 +416,10 @@ function App() {
         }
         toast.success(`Tâches enregistrées avec succès.`);
 
-        // Réinitialiser les états du dialogue
         setParticipantName('');
         setSelectedTask(null);
         setShowSplitTaskDialog(false); 
         setSelectedSubTasks([]);
-        // Rafraîchir toutes les données pertinentes
         fetchClassement();
         fetchRealisations(); 
         fetchTaches(); 
@@ -427,12 +451,11 @@ function App() {
       const result = await response.json();
       if (result.success) {
         toast.success(result.message);
-        // Rafraîchir toutes les données après la réinitialisation
         fetchClassement(); 
         fetchRealisations(); 
         fetchTaches(); 
         fetchObjectives(); 
-        fetchHistoricalPodiums(); // Recharger l'historique après réinitialisation
+        fetchHistoricalPodiums(); 
       } else {
         toast.error(`Erreur: ${result.message}`);
       }
@@ -483,7 +506,6 @@ function App() {
       toast.error('Les points doivent être un nombre valide.');
       return;
     }
-    // Vérification pour éviter qu'une tâche soit à la fois un groupe et une sous-tâche
     if (newTaskData.Parent_Task_ID.trim() !== '' && newTaskData.Sous_Taches_IDs.trim() !== '') {
         toast.error('Une tâche ne peut pas être à la fois une sous-tâche et un groupe de tâches.');
         return;
@@ -512,10 +534,9 @@ function App() {
       const result = await response.json();
       if (result.success) {
         toast.success(result.message);
-        fetchTaches(); // Rafraîchir la liste des tâches
+        fetchTaches(); 
         setShowAdminTaskFormModal(false); 
         setEditingTask(null);
-        // Réinitialiser le formulaire
         setNewTaskData({ 
           ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
           Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
@@ -547,8 +568,8 @@ function App() {
       const result = await response.json();
       if (result.success) {
         toast.success(result.message);
-        fetchTaches(); // Rafraîchir la liste des tâches
-        fetchRealisations(); // Rafraîchir les réalisations car une tâche a pu être supprimée
+        fetchTaches(); 
+        fetchRealisations(); 
       } else {
         toast.error(`Erreur: ${result.message}`);
       }
@@ -609,10 +630,9 @@ function App() {
       const result = await response.json();
       if (result.success) {
         toast.success(result.message);
-        fetchObjectives(); // Rafraîchir la liste des objectifs
+        fetchObjectives(); 
         setShowAdminObjectiveFormModal(false); 
         setEditingObjective(null);
-        // Réinitialiser le formulaire
         setNewObjectiveData({ 
           ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '', 
           Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
@@ -644,7 +664,7 @@ function App() {
       const result = await response.json();
       if (result.success) {
         toast.success(result.message);
-        fetchObjectives(); // Rafraîchir la liste des objectifs
+        fetchObjectives(); 
       } else {
         toast.error(`Erreur: ${result.message}`);
       }
@@ -659,7 +679,6 @@ function App() {
 
 
   // Effet pour charger les données initiales au montage du composant
-  // Les fonctions fetch sont ajoutées aux dépendances pour respecter la règle react-hooks/exhaustive-deps
   useEffect(() => {
     fetchTaches();
     fetchClassement();
@@ -875,7 +894,7 @@ function App() {
           </button>
         )}
         {renderHighlights()} 
-        {renderObjectivesSection()} {/* Objectifs communs ici */}
+        {renderObjectivesSection()} 
       </div>
     );
   };
@@ -885,7 +904,6 @@ function App() {
     let mostImproved = null;
     let maxImprovement = -1;
 
-    // Calcul du participant le plus amélioré (si l'historique est disponible)
     const lastPodium = historicalPodiums.length > 0 ? historicalPodiums[0] : null;
 
     if (lastPodium) {
@@ -905,11 +923,10 @@ function App() {
     let maxTasksCompleted = -1;
     const tasksByParticipantThisWeek = new Map();
 
-    // Calcul du participant le plus actif cette semaine
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const dayOfWeek = today.getDay(); // Dimanche = 0, Lundi = 1, etc.
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Début de semaine (Lundi)
+    const dayOfWeek = today.getDay(); 
+    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
     const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
     startOfCurrentWeek.setHours(0, 0, 0, 0);
 
@@ -971,7 +988,7 @@ function App() {
     }
 
     return (
-      <div className="mt-6 border-t border-neutralBg pt-4"> {/* Marge et bordure pour séparer des tendances */}
+      <div className="mt-6 border-t border-neutralBg pt-4"> 
         <button
           onClick={() => setShowObjectivesSection(!showObjectivesSection)}
           className="w-full bg-neutralBg hover:bg-neutralBg/80 text-text font-semibold py-2 px-4 rounded-md transition duration-300 flex items-center justify-between text-sm sm:text-base"
@@ -980,7 +997,7 @@ function App() {
           <span>{showObjectivesSection ? '▲' : '▼'}</span>
         </button>
         <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showObjectivesSection ? 'max-h-screen opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
-          <div className="space-y-2"> {/* Espacement plus compact */}
+          <div className="space-y-2"> 
             {objectives.map(obj => {
               const currentPoints = parseFloat(obj.Points_Actuels) || 0;
               const targetPoints = parseFloat(obj.Cible_Points) || 0;
@@ -989,17 +1006,17 @@ function App() {
 
               return (
                 <div key={obj.ID_Objectif} className={`bg-white rounded-lg p-3 shadow-sm border 
-                  ${isCompleted ? 'border-success' : 'border-primary/10'}`}> {/* Couleurs plus douces */}
+                  ${isCompleted ? 'border-success' : 'border-primary/10'}`}> 
                   <div className="flex justify-between items-center mb-1">
-                    <h3 className="text-base font-bold text-primary truncate">{obj.Nom_Objectif}</h3> {/* Texte plus petit */}
+                    <h3 className="text-base font-bold text-primary truncate">{obj.Nom_Objectif}</h3> 
                     {isCompleted ? (
                       <span className="text-success font-bold text-sm">✅ Atteint !</span>
                     ) : (
                       <span className="text-text font-semibold text-sm">{currentPoints} / {targetPoints} pts</span>
                     )}
                   </div>
-                  <p className="text-lightText text-xs mb-2 truncate">{obj.Description_Objectif}</p> {/* Texte encore plus petit */}
-                  <div className="w-full bg-gray-200 rounded-full h-2"> {/* Barre de progression plus fine */}
+                  <p className="text-lightText text-xs mb-2 truncate">{obj.Description_Objectif}</p> 
+                  <div className="w-full bg-gray-200 rounded-full h-2"> 
                     <div 
                       className={`h-2 rounded-full ${isCompleted ? 'bg-success' : 'bg-primary'}`} 
                       style={{ width: `${Math.min(progress, 100)}%` }}
@@ -1045,7 +1062,7 @@ function App() {
             const isCompletedForPeriod = !isSubTaskAvailable(tache); 
 
             if (isCompletedForPeriod) {
-              return null; // Ne pas afficher les tâches déjà complétées pour la période
+              return null; 
             }
 
             const cardClasses = `bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center sm:items-center justify-between 
