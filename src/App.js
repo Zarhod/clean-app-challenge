@@ -1503,7 +1503,7 @@ function App() {
   };
 
   const handleExportClassement = () => {
-    // En-têtes de colonnes de votre feuille_Classement
+    // En-têtes de colonnes de votre Feuille_Classement
     const headers = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Date_Mise_A_Jour'];
     const dataToExport = classement.map(p => ({
         Nom_Participant: p.Nom_Participant,
@@ -1516,7 +1516,7 @@ function App() {
   };
 
   const handleExportRealisations = () => {
-    // En-têtes de colonnes de votre feuille_Realisations
+    // En-têtes de colonnes de votre Feuille_Realisations
     const headers = ['Timestamp', 'Nom_Participant', 'ID_Tache_Effectuee', 'Nom_Tache_Effectuee', 'Categorie_Tache', 'Points_Gagnes'];
     exportToCsv('realisations_clean_app.csv', realisations, headers);
   };
