@@ -1,43 +1,101 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
+    <!-- Favicon Balai (Emoji SVG) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧹</text></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#E3F2FD" /> <!-- Couleur de thème ajustée -->
     <meta
       name="description"
-      content="Web site created using create-react-app"
+      content="Site web pour le Clean App Challenge de votre bar"
     />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
+    <title>Clean App Challenge</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuration de Tailwind pour utiliser la police Inter et une nouvelle palette de couleurs -->
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: { 
+              // Nouvelle palette de couleurs adaptée au fond clair
+              primary: '#2196F3',    // Bleu vibrant pour les éléments principaux
+              secondary: '#1976D2',  // Bleu plus foncé pour les accents
+              accent: '#BBDEFB',     // Bleu très clair pour les fonds/highlights
+              background: '#E3F2FD', // NOUVEAU FOND : Bleu très pâle
+              card: '#FFFFFF',       // Blanc pur pour les cartes et boîtes
+              text: '#263238',       // Gris très foncé pour le texte principal
+              lightText: '#455A64',  // Gris plus clair pour le texte secondaire
+              neutralBg: '#F0F4F8',  // Gris bleuâtre clair pour fonds subtils
+              success: '#4CAF50',    // Vert pour les succès (boutons, toasts)
+              warning: '#FFC107',    // Jaune pour les avertissements (toasts)
+              error: '#F44336',      // Rouge pour les erreurs (boutons, toasts)
+              // Couleurs spécifiques pour les tags de fréquence (ajustées pour le fond clair)
+              'blue-100': '#E0F2FE', // Bleu clair pour hebdomadaire
+              'blue-800': '#0C4A6E', // Texte bleu foncé
+              'green-100': '#D1FAE5', // Vert clair pour quotidien
+              'green-800': '#065F46', // Texte vert foncé
+              'red-100': '#FEE2E2',  // Rouge clair pour ponctuel
+              'red-800': '#991B1B',  // Texte rouge foncé
+              // Couleurs spécifiques pour les tags de catégorie (ajustées pour le fond clair)
+              'purple-100': '#EDE9FE', 
+              'purple-800': '#5B21B6',
+              'orange-100': '#FFEDD5', 
+              'orange-800': '#C2410C',
+              'teal-100': '#CCFBF1', 
+              'teal-800': '#0F766E',
+              // Couleurs du podium (inchangées pour l'or/argent/bronze)
+              'podium-gold': '#f2d247',
+              'podium-silver': '#c0c0c0',
+              'podium-bronze': '#c28342',
+            }
+          },
+        },
+      };
+    </script>
+    <!-- Importation de la police Inter depuis Google Fonts avec plus de graisses -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>React App</title>
+    <!-- Styles pour les animations -->
+    <style>
+      /* Animation pour le spinner de chargement */
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .animate-spin-fast {
+        animation: spin 1s linear infinite; /* Spinner plus rapide */
+      }
+
+      /* Animation pour l'apparition des pop-ups et boîtes de dialogue */
+      @keyframes fadeInScale {
+        0% {
+          opacity: 0;
+          transform: scale(0.9);
+        }
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+      .animate-fade-in-scale {
+        animation: fadeInScale 0.3s ease-out forwards; /* forwards maintient l'état final */
+      }
+    </style>
   </head>
-  <body>
+  <!-- Appliquer le fond et la police par défaut au corps -->
+  <body class="font-sans antialiased text-text bg-background">
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
-
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
-
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
   </body>
 </html>
