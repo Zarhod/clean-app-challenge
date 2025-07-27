@@ -725,10 +725,10 @@ function App() {
       badges.push({ name: 'Beginner Cleaner', icon: '✨', description: 'Reached 50 cumulative points.' });
     }
     if (totalPoints >= 200) {
-      badges.push({ name: 'Pro Cleaner', icon: '�', description: 'Reached 200 cumulative points.' });
+      badges.push({ name: 'Pro Cleaner', icon: '🌟', description: 'Reached 200 cumulative points.' });
     }
     if (totalPoints >= 500) {
-      badges.push({ name: 'Master of Cleanliness', icon: '👑', description: 'Reached 500 cumulative points.' });
+      badges.push({ name: 'Master of Cleanliness', icon: '�', description: 'Reached 500 cumulative points.' });
     }
 
     const tasksThisWeek = participantRealisations.filter(real => {
@@ -1839,4 +1839,3 @@ function App() {
 }
 
 export default App;
-�
