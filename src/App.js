@@ -12,15 +12,16 @@ import AdminObjectiveFormModal from './AdminObjectiveFormModal';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
-// --- API CONFIGURATION ---
+// --- CONFIGURATION DE L'API ---
+// ASSUREZ-VOUS QUE CETTE URL CORRESPOND À VOTRE CLOUDFLARE WORKER DÉPLOYÉ
 const API_URL = 'https://clean-app-challenge-api.jassairbus.workers.dev/'; 
 const AUTH_TOKEN = '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2';        
 
-// Logo filename (make sure it's in the public/ folder)
+// Nom du fichier logo (assurez-vous qu'il est dans le dossier public/)
 const LOGO_FILENAME = 'logo.png'; 
 
-// Admin password (IMPORTANT: Change for production!)
-const ADMIN_PASSWORD = 'Bombardier111'; // Changed back to original
+// Mot de passe administrateur (IMPORTANT: À changer pour la production !)
+const ADMIN_PASSWORD = 'Bombardier111'; 
 
 function App() {
   const [taches, setTaches] = useState([]); 
@@ -806,16 +807,16 @@ function App() {
   };
 
   const renderPodiumSection = () => {
-    if (!Array.isArray(classement) || classement.length === 0) return <p className="text-center text-lightText text-lg">No ranking available yet.</p>;
+    if (!Array.isArray(classement) || classement.length === 0) return <p className="text-center text-lightText text-lg">Aucun classement disponible pour le moment.</p>;
 
     const podiumColors = ['bg-podium-gold', 'bg-podium-silver', 'bg-podium-bronze']; 
     const medals = ['🥇', '🥈', '🥉'];
 
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 mb-6 sm:mb-8 shadow-2xl text-center"> 
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-secondary mb-6 sm:mb-8 whitespace-nowrap overflow-hidden text-ellipsis">🏆 Weekly Podium 🏆</h2> 
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-secondary mb-6 sm:mb-8 whitespace-nowrap overflow-hidden text-ellipsis">🏆 Podium de la Semaine 🏆</h2> 
         <div className="flex justify-center items-end mt-4 sm:mt-6 gap-2 sm:gap-4"> 
-          {/* 2nd Place */}
+          {/* 2ème Place */}
           {classement.length > 1 && (
             <div 
               key={classement[1].Nom_Participant || `anon-silver`} 
@@ -829,7 +830,7 @@ function App() {
             </div>
           )}
 
-          {/* 1st Place */}
+          {/* 1ère Place */}
           {classement.length > 0 && (
             <div 
               key={classement[0].Nom_Participant || `anon-gold`} 
@@ -843,7 +844,7 @@ function App() {
             </div>
           )}
 
-          {/* 3rd Place */}
+          {/* 3ème Place */}
           {classement.length > 2 && (
             <div 
               key={classement[2].Nom_Participant || `anon-bronze`} 
@@ -863,7 +864,7 @@ function App() {
                        transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm sm:text-base" 
             onClick={() => setActiveMainView('fullRanking')} 
           >
-            View Full Ranking
+            Voir le Classement Complet
           </button>
         )}
         {renderHighlights()} 
@@ -876,9 +877,9 @@ function App() {
     let mostImproved = null;
     let maxImprovement = -1;
 
-    // NOTE: The 'Points_Total_Semaine_Precedente' column does not exist in your 'Feuille_Classement' sheet.
-    // The "Most Improved" functionality will not work with your current structure.
-    // It is here for compatibility with previous code.
+    // NOTE: La colonne 'Points_Total_Semaine_Precedente' n'existe pas dans votre feuille 'Feuille_Classement'.
+    // La fonctionnalité "Plus Amélioré" ne fonctionnera pas avec votre structure actuelle.
+    // Elle est ici pour la compatibilité avec le code précédent.
     if (classement.length > 0) {
         classement.forEach(currentP => {
             const previousScore = parseFloat(currentP.Points_Total_Semaine_Precedente) || 0; 
@@ -929,23 +930,23 @@ function App() {
           onClick={() => setShowHighlightsSection(!showHighlightsSection)}
           className="w-full bg-neutralBg hover:bg-neutralBg/80 text-text font-semibold py-2 px-4 rounded-md transition duration-300 flex items-center justify-between text-sm sm:text-base"
         >
-          <span>✨ Current Trends ✨</span>
+          <span>✨ Tendances Actuelles ✨</span>
           <span>{showHighlightsSection ? '▲' : '▼'}</span>
         </button>
         <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showHighlightsSection ? 'max-h-screen opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"> 
             {mostImproved && maxImprovement > 0 && (
               <div className="bg-white p-3 rounded-lg shadow-sm text-center border border-blue-50"> 
-                <h3 className="text-base font-bold text-primary mb-1">Most Improved</h3>
+                <h3 className="text-base font-bold text-primary mb-1">Le Plus Amélioré</h3>
                 <p className="text-text text-sm font-semibold">{mostImproved.Nom_Participant}</p>
-                <p className="text-lightText text-xs">+{maxImprovement} pts this week</p>
+                <p className="text-lightText text-xs">+{maxImprovement} pts cette semaine</p>
               </div>
             )}
             {mostActive && maxTasksCompleted > 0 && (
               <div className="bg-white p-3 rounded-lg shadow-sm text-center border border-blue-50">
-                <h3 className="text-base font-bold text-primary mb-1">Most Active</h3>
+                <h3 className="text-base font-bold text-primary mb-1">Le Plus Actif</h3>
                 <p className="text-text text-sm font-semibold">{mostActive.Nom_Participant}</p>
-                <p className="text-lightText text-xs">{maxTasksCompleted} tasks completed this week</p>
+                <p className="text-lightText text-xs">{maxTasksCompleted} tâches terminées cette semaine</p>
               </div>
             )}
           </div>
@@ -965,7 +966,7 @@ function App() {
           onClick={() => setShowObjectivesSection(!showObjectivesSection)}
           className="w-full bg-neutralBg hover:bg-neutralBg/80 text-text font-semibold py-2 px-4 rounded-md transition duration-300 flex items-center justify-between text-sm sm:text-base"
         >
-          <span>🎯 Common Objectives 🎯</span>
+          <span>🎯 Objectifs Communs 🎯</span>
           <span>{showObjectivesSection ? '▲' : '▼'}</span>
         </button>
         <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showObjectivesSection ? 'max-h-screen opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
@@ -982,7 +983,7 @@ function App() {
                   <div className="flex justify-between items-center mb-1">
                     <h3 className="text-base font-bold text-primary truncate">{obj.Nom_Objectif}</h3> 
                     {isCompleted ? (
-                      <span className="text-success font-bold text-sm">✅ Achieved!</span>
+                      <span className="text-success font-bold text-sm">✅ Atteint !</span>
                     ) : (
                       <span className="text-text font-semibold text-sm">{currentPoints} / {targetPoints} pts</span>
                     )}
@@ -1006,9 +1007,9 @@ function App() {
 
   const renderTaskCategories = () => {
     const categories = [
-      { name: 'tous', label: 'Common Tasks' },
-      { name: 'salle', label: 'Room Tasks' },
-      { name: 'cuisine', label: 'Kitchen Tasks' }
+      { name: 'tous', label: 'Tâches Communes' },
+      { name: 'salle', label: 'Tâches Salle' },
+      { name: 'cuisine', label: 'Tâches Cuisine' }
     ];
 
     const currentCategoryTasks = taches.filter(tache => {
@@ -1025,7 +1026,7 @@ function App() {
 
     const renderTasksList = (tasks) => {
       if (tasks.length === 0) {
-        return <p className="text-center text-lightText text-md py-2">No tasks available in this section.</p>;
+        return <p className="text-center text-lightText text-md py-2">Aucune tâche disponible dans cette section.</p>;
       }
       return (
         <div className="space-y-3">
@@ -1051,7 +1052,7 @@ function App() {
                     </h4> 
                     {tache.isGroupTask && (
                         <span className="ml-0 sm:ml-2 px-1 py-0.5 text-[0.4rem] sm:text-xs font-semibold rounded-full bg-primary text-white shadow-sm whitespace-nowrap mt-1 sm:mt-0">
-                            Task Group
+                            Groupe de Tâches
                         </span>
                     )}
                 </div>
@@ -1060,7 +1061,7 @@ function App() {
                         {tache.Urgence || 'Normal'} 
                     </span>
                     <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${getFrequencyClasses(tache.Frequence)}`}> 
-                        {tache.Frequence || 'Weekly'}
+                        {tache.Frequence || 'Hebdomadaire'}
                     </span>
                     <div className="border border-primary text-primary font-bold text-xs sm:text-base px-1.5 py-0.5 rounded-md bg-primary/10"> 
                         {tache.Calculated_Points} pts
@@ -1092,27 +1093,27 @@ function App() {
 
         {ponctuelTasks.filter(t => isSubTaskAvailable(t)).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
-            <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">One-time Tasks</h3> 
+            <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Ponctuelles</h3> 
             {renderTasksList(ponctuelTasks)}
           </div>
         )}
 
         {quotidienTasks.filter(t => isSubTaskAvailable(t)).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
-            <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Daily Tasks</h3> 
+            <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Quotidiennes</h3> 
             {renderTasksList(quotidienTasks)}
           </div>
         )}
 
         {hebdomadaireTasks.filter(t => isSubTaskAvailable(t)).length > 0 && ( 
           <div className="mb-6"> 
-            <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Weekly Tasks</h3> 
+            <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Hebdomadaires</h3> 
             {renderTasksList(hebdomadaireTasks)}
           </div>
         )}
 
         {currentCategoryTasks.filter(t => isSubTaskAvailable(t)).length === 0 && (
-          <p className="text-center text-lightText text-lg py-4">No tasks available in this category.</p>
+          <p className="text-center text-lightText text-lg py-4">Aucune tâche disponible dans cette catégorie.</p>
         )}
       </div>
     );
@@ -1122,15 +1123,15 @@ function App() {
     if (!Array.isArray(realisations) || realisations.length === 0) {
       return (
         <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8"> 
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Completed Tasks</h2>
-          <p className="text-center text-lightText text-lg">No tasks have been completed yet.</p>
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Tâches Terminées</h2>
+          <p className="text-center text-lightText text-lg">Aucune tâche n'a été terminée pour le moment.</p>
         </div>
       );
     }
 
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8"> 
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Completed Tasks</h2>
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Tâches Terminées</h2>
         <div className="space-y-3 text-left"> 
           {realisations.map((real, index) => (
             <div key={real.Timestamp + real.Nom_Participant + index} 
@@ -1139,11 +1140,11 @@ function App() {
                   {real.Nom_Tache_Effectuee}
               </h4>
               <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-sm text-lightText">
-                  <span>by <strong className="text-text">{real.Nom_Participant}</strong></span>
+                  <span>par <strong className="text-text">{real.Nom_Participant}</strong></span>
                   <span className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(real.Categorie_Tache)}`}>
-                      {real.Categorie_Tache || 'Uncategorized'}
+                      {real.Categorie_Tache || 'Non catégorisé'}
                   </span>
-                  <span>on {new Date(real.Timestamp).toLocaleDateString('en-US')} at {new Date(real.Timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span>le {new Date(real.Timestamp).toLocaleDateString('fr-FR')} à {new Date(real.Timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
             </div>
           ))}
@@ -1153,7 +1154,7 @@ function App() {
                      transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm sm:text-base" 
           onClick={() => setActiveMainView('home')}
         >
-          Back to Home
+          Retour à l'Accueil
         </button>
       </div>
     );
@@ -1169,14 +1170,14 @@ function App() {
           <p className="text-lg sm:text-xl text-text mb-6 sm:mb-8">
             {showThankYouPopup.message}
             <br/>
-            Task: "<strong className="text-primary">{showThankYouPopup.task}</strong>" completed by <strong className="text-secondary">{showThankYouPopup.name}</strong>.
+            Tâche: "<strong className="text-primary">{showThankYouPopup.task}</strong>" terminée par <strong className="text-secondary">{showThankYouPopup.name}</strong>.
           </p>
           <button 
             onClick={() => setShowThankYouPopup(null)} 
             className="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-8 rounded-full shadow-lg 
                        transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm sm:text-base"
           >
-            Great!
+            Super !
           </button>
         </div>
       </div>
@@ -1190,15 +1191,15 @@ function App() {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4"> 
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center animate-fade-in-scale border border-primary/20"> 
-          <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">Confirm Task</h3> 
-          <p className="text-base sm:text-lg mb-4">Task: <strong className="text-text">{selectedTask.Nom_Tache}</strong> (<span className="font-semibold text-primary">{selectedTask.Calculated_Points} points</span>)</p>
-          <label htmlFor="participantName" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Your Name:</label>
+          <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">Confirmer la Tâche</h3> 
+          <p className="text-base sm:text-lg mb-4">Tâche: <strong className="text-text">{selectedTask.Nom_Tache}</strong> (<span className="font-semibold text-primary">{selectedTask.Calculated_Points} points</span>)</p>
+          <label htmlFor="participantName" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Votre Nom:</label>
           <input
             id="participantName"
             type="text"
             value={participantName}
             onChange={(e) => setParticipantName(e.target.value)}
-            placeholder="Enter your name"
+            placeholder="Entrez votre nom"
             className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm sm:text-base"
             autoFocus
           />
@@ -1209,7 +1210,7 @@ function App() {
               className="bg-success hover:bg-green-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-6 rounded-full shadow-lg 
                          transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm sm:text-base"
             >
-              {loading ? 'Submitting...' : 'Validate Task'} 
+              {loading ? 'Soumission...' : 'Valider la Tâche'} 
             </button>
             <button 
               onClick={() => { setSelectedTask(null); setParticipantName(''); }} 
@@ -1217,7 +1218,7 @@ function App() {
               className="bg-error hover:bg-red-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-6 rounded-full shadow-lg 
                          transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm sm:text-base"
             >
-              Cancel
+              Annuler
             </button>
           </div>
         </div>
@@ -1238,7 +1239,7 @@ function App() {
             : [...prev, subTask]
         );
       } else {
-        toast.info(`Task "${subTask.Nom_Tache}" has already been completed for its period.`);
+        toast.info(`La tâche "${subTask.Nom_Tache}" a déjà été terminée pour sa période.`);
       }
     };
 
@@ -1254,16 +1255,16 @@ function App() {
       <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4">
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center animate-fade-in-scale border border-primary/20">
           <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">
-            Complete: {selectedTask.Nom_Tache}
+            Terminer: {selectedTask.Nom_Tache}
           </h3>
           <p className="text-base sm:text-lg mb-4 text-lightText">
-            Select the parts you have completed:
+            Sélectionnez les parties que vous avez complétées:
           </p>
           
           {loading ? (
             <div className="flex justify-center items-center py-4">
               <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
-              <p className="ml-3 text-lightText">Loading subtasks...</p>
+              <p className="ml-3 text-lightText">Chargement des sous-tâches...</p>
             </div>
           ) : (
             Array.isArray(subTasks) && subTasks.length > 0 ? (
@@ -1293,17 +1294,17 @@ function App() {
                 })}
               </div>
             ) : (
-              <p className="text-center text-lightText text-md py-2">No subtasks available for this task, or loading error.</p>
+              <p className="text-center text-lightText text-md py-2">Aucune sous-tâche disponible pour cette tâche, ou erreur de chargement.</p>
             )
           )}
 
-          <label htmlFor="participantNameSplit" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Your Name:</label>
+          <label htmlFor="participantNameSplit" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Votre Nom:</label>
           <input
             id="participantNameSplit"
             type="text"
             value={participantName}
             onChange={(e) => setParticipantName(e.target.value)}
-            placeholder="Enter your name"
+            placeholder="Entrez votre nom"
             className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm sm:text-base"
             autoFocus
           />
@@ -1315,7 +1316,7 @@ function App() {
               className="bg-success hover:bg-green-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-6 rounded-full shadow-lg
                          transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm sm:text-base"
             >
-              {loading ? 'Submitting...' : 'Validate Selected Tasks'}
+              {loading ? 'Soumission...' : 'Valider les Tâches Sélectionnées'}
             </button>
             <button
               onClick={handleClose}
@@ -1323,7 +1324,7 @@ function App() {
               className="bg-error hover:bg-red-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-6 rounded-full shadow-lg
                          transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm sm:text-base"
             >
-              Cancel
+              Annuler
             </button>
           </div>
         </div>
@@ -1344,17 +1345,17 @@ function App() {
 
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8"> 
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Profile of {selectedParticipantProfile.Nom_Participant}</h2>
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Profil de {selectedParticipantProfile.Nom_Participant}</h2>
         <div className="mb-6 p-4 bg-neutralBg rounded-xl shadow-inner"> 
           <p className="text-lg sm:text-xl font-semibold text-text">
-            Overall Engagement Score: <span className="text-primary font-bold">{engagementPercentage}%</span>
+            Score d'Engagement Global: <span className="text-primary font-bold">{engagementPercentage}%</span>
           </p>
           <p className="text-base sm:text-lg text-lightText mt-2">
-            Cumulative Points: <span className="font-bold">{participantCumulativePoints}</span>
+            Points Cumulatifs: <span className="font-bold">{participantCumulativePoints}</span>
           </p>
           {participantBadges.length > 0 && (
             <div className="mt-4">
-              <h4 className="text-lg font-semibold text-primary mb-2">Your Badges:</h4>
+              <h4 className="text-lg font-semibold text-primary mb-2">Vos Badges:</h4>
               <div className="flex flex-wrap justify-center gap-2">
                 {participantBadges.map(badge => (
                   <span 
@@ -1370,7 +1371,7 @@ function App() {
           )}
         </div>
 
-        <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4">Tasks completed this week:</h3>
+        <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4">Tâches terminées cette semaine:</h3>
         {participantWeeklyTasks.length > 0 ? (
           <div className="space-y-3 text-left"> 
             {participantWeeklyTasks.map((task, index) => (
@@ -1382,10 +1383,10 @@ function App() {
                     </h4> 
                     <div className="flex items-center space-x-2 mt-1"> 
                         <span className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(task.Categorie_Tache)}`}>
-                            {task.Categorie_Tache || 'Uncategorized'}
+                            {task.Categorie_Tache || 'Non catégorisé'}
                         </span>
                         <span className="text-sm text-lightText">
-                            {new Date(task.Timestamp).toLocaleDateString('en-US')} 
+                            {new Date(task.Timestamp).toLocaleDateString('fr-FR')} 
                         </span>
                     </div>
                 </div>
@@ -1396,7 +1397,7 @@ function App() {
             ))}
           </div>
         ) : (
-          <p className="text-lightText text-md sm:text-lg">No tasks completed this week.</p>
+          <p className="text-lightText text-md sm:text-lg">Aucune tâche terminée cette semaine.</p>
         )}
 
         <button 
@@ -1404,7 +1405,7 @@ function App() {
                      transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm sm:text-base" 
           onClick={() => setActiveMainView('home')}
         >
-          Back to Home
+          Retour à l'Accueil
         </button>
       </div>
     );
@@ -1415,10 +1416,10 @@ function App() {
 
     return (
       <ConfirmActionModal
-        title="Confirm Reset"
-        message="Are you sure you want to reset weekly points and record the podium? This action is irreversible."
-        confirmText="Yes, Reset"
-        cancelText="No, Cancel"
+        title="Confirmer la Réinitialisation"
+        message="Êtes-vous sûr de vouloir réinitialiser les points hebdomadaires et enregistrer le podium ? Cette action est irréversible."
+        confirmText="Oui, Réinitialiser"
+        cancelText="Non, Annuler"
         onConfirm={resetWeeklyPoints}
         onCancel={() => setShowConfirmResetModal(false)}
         loading={loading}
@@ -1431,10 +1432,10 @@ function App() {
 
     return (
       <ConfirmActionModal
-        title="Confirm Deletion"
-        message={`Are you sure you want to delete task with ID "${taskToDelete}"? This action is irreversible.`}
-        confirmText="Yes, Delete"
-        cancelText="No, Cancel"
+        title="Confirmer la Suppression"
+        message={`Êtes-vous sûr de vouloir supprimer la tâche avec l'ID "${taskToDelete}" ? Cette action est irréversible.`}
+        confirmText="Oui, Supprimer"
+        cancelText="Non, Annuler"
         onConfirm={() => handleDeleteTask(taskToDelete, true)} 
         onCancel={() => { setShowDeleteConfirmModal(false); setTaskToDelete(null); }}
         loading={loading}
@@ -1447,10 +1448,10 @@ function App() {
 
     return (
       <ConfirmActionModal
-        title="Confirm Objective Deletion"
-        message={`Are you sure you want to delete objective with ID "${objectiveToDelete}"? This action is irreversible.`}
-        confirmText="Yes, Delete"
-        cancelText="No, Cancel"
+        title="Confirmer la Suppression de l'Objectif"
+        message={`Êtes-vous sûr de vouloir supprimer l'objectif avec l'ID "${objectiveToDelete}" ? Cette action est irréversible.`}
+        confirmText="Oui, Supprimer"
+        cancelText="Non, Annuler"
         onConfirm={() => handleDeleteObjective(objectiveToDelete, true)}
         onCancel={() => { setShowDeleteObjectiveConfirmModal(false); setObjectiveToDelete(null); }}
         loading={loading}
@@ -1460,7 +1461,7 @@ function App() {
 
   const exportToCsv = (filename, dataArray, headers) => {
     if (!dataArray || dataArray.length === 0) {
-      toast.info(`No data to export for ${filename}.`);
+      toast.info(`Aucune donnée à exporter pour ${filename}.`);
       return;
     }
 
@@ -1491,14 +1492,14 @@ function App() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      toast.success(`"${filename}" exported successfully!`);
+      toast.success(`"${filename}" exporté avec succès !`);
     } else {
-      toast.error("Your browser does not support direct CSV export.");
+      toast.error("Votre navigateur ne supporte pas l'export CSV direct.");
     }
   };
 
   const handleExportClassement = () => {
-    // Column headers from your Feuille_Classement sheet
+    // En-têtes de colonnes de votre feuille Feuille_Classement
     const headers = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Date_Mise_A_Jour'];
     const dataToExport = classement.map(p => ({
         Nom_Participant: p.Nom_Participant,
@@ -1511,7 +1512,7 @@ function App() {
   };
 
   const handleExportRealisations = () => {
-    // Column headers from your Feuille_Realisations sheet
+    // En-têtes de colonnes de votre feuille Feuille_Realisations
     const headers = ['Timestamp', 'Nom_Participant', 'ID_Tache_Effectuee', 'Nom_Tache_Effectuee', 'Categorie_Tache', 'Points_Gagnes'];
     exportToCsv('realisations_clean_app.csv', realisations, headers);
   };
@@ -1526,31 +1527,31 @@ function App() {
 
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl mb-6 sm:mb-8">
-        <h2 className="text-2xl sm:text-3xl font-bold text-secondary mb-6 text-center">Administration Panel</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold text-secondary mb-6 text-center">Panneau d'Administration</h2>
         
         <div className="flex flex-wrap justify-center gap-4 mb-8 p-4 bg-neutralBg rounded-xl shadow-inner">
           <button
             onClick={() => setShowConfirmResetModal(true)}
             className={adminButtonClasses}
           >
-            Reset Weekly Points
+            Réinitialiser les Points Hebdomadaires
           </button>
           <button
             onClick={handleExportClassement}
             className={adminButtonClasses}
           >
-            Export Ranking CSV
+            Exporter le Classement CSV
           </button>
           <button
             onClick={handleExportRealisations}
             className={adminButtonClasses}
           >
-            Export Realizations CSV
+            Exporter les Réalisations CSV
           </button>
         </div>
 
         <div className="mb-8 p-4 bg-neutralBg rounded-xl shadow-inner">
-            <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-center">Task Statistics</h3>
+            <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-center">Statistiques des Tâches</h3>
             <TaskStatisticsChart realisations={realisations} allRawTaches={allRawTaches} />
         </div>
 
@@ -1559,7 +1560,7 @@ function App() {
             onClick={() => setShowAdminObjectivesManagement(!showAdminObjectivesManagement)}
             className="w-full bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-md transition duration-300 flex items-center justify-between text-sm sm:text-base mb-4"
           >
-            <span>🎯 Objective Management 🎯</span>
+            <span>🎯 Gestion des Objectifs 🎯</span>
             <span>{showAdminObjectivesManagement ? '▲' : '▼'}</span>
           </button>
           <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showAdminObjectivesManagement ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'}`}>
@@ -1572,9 +1573,9 @@ function App() {
                   Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
                 });
               }}
-              className={`${adminButtonClasses} w-full mb-4`}
+              className={`${adminButtonClasses} !bg-accent hover:!bg-yellow-600`}
             >
-              Add New Objective
+              Ajouter un Nouvel Objectif
             </button>
 
             {showAdminObjectiveFormModal && (
@@ -1595,23 +1596,23 @@ function App() {
               />
             )}
 
-            <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">All Objectives</h4>
+            <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">Tous les Objectifs</h4>
             {loading ? (
               <div className="flex justify-center items-center py-4">
                 <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
-                <p className="ml-3 text-lightText">Loading objectives...</p>
+                <p className="ml-3 text-lightText">Chargement des objectifs...</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {objectives.length === 0 ? (
-                  <p className="text-center text-lightText text-lg">No objectives available.</p>
+                  <p className="text-center text-lightText text-lg">Aucun objectif disponible.</p>
                 ) : (
                   objectives.map(obj => (
                     <div key={obj.ID_Objectif} className="bg-white rounded-lg p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm border border-neutralBg/50">
                       <div className="flex-1 min-w-0 mb-2 sm:mb-0">
                         <p className="font-bold text-text text-lg truncate">{obj.Nom_Objectif} <span className="text-sm text-lightText">({obj.ID_Objectif})</span></p>
-                        <p className="text-sm text-lightText">Target: {obj.Cible_Points} | Current: {obj.Points_Actuels} | Type: {obj.Type_Cible} {obj.Categorie_Cible && `(${obj.Categorie_Cible})`}</p>
-                        <p className="text-sm text-lightText">Achieved: {obj.Est_Atteint ? 'Yes' : 'No'}</p>
+                        <p className="text-sm text-lightText">Cible: {obj.Cible_Points} | Actuel: {obj.Points_Actuels} | Type: {obj.Type_Cible} {obj.Categorie_Cible && `(${obj.Categorie_Cible})`}</p>
+                        <p className="text-sm text-lightText">Atteint: {obj.Est_Atteint ? 'Oui' : 'Non'}</p>
                       </div>
                       <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
                         <button
@@ -1622,13 +1623,13 @@ function App() {
                           }}
                           className={`${adminButtonClasses} !bg-accent hover:!bg-yellow-600`}
                         >
-                          Edit
+                          Modifier
                         </button>
                         <button
                           onClick={() => handleDeleteObjective(obj.ID_Objectif)}
                           className={`${adminButtonClasses} !bg-error hover:!bg-red-700`}
                         >
-                          Delete
+                          Supprimer
                         </button>
                       </div>
                     </div>
@@ -1644,7 +1645,7 @@ function App() {
             onClick={() => setShowAdminTasksManagement(!showAdminTasksManagement)}
             className="w-full bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-md transition duration-300 flex items-center justify-between text-sm sm:text-base mb-4"
           >
-            <span>📝 Task Management 📝</span>
+            <span>📝 Gestion des Tâches 📝</span>
             <span>{showAdminTasksManagement ? '▲' : '▼'}</span>
           </button>
           <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showAdminTasksManagement ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'}`}>
@@ -1657,9 +1658,9 @@ function App() {
                   Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
                 }); 
               }}
-              className={`${adminButtonClasses} w-full mb-4`}
+              className={`${adminButtonClasses} !bg-accent hover:!bg-yellow-600`}
             >
-              Add New Task
+              Ajouter une Nouvelle Tâche
             </button>
 
             {showAdminTaskFormModal && (
@@ -1680,23 +1681,23 @@ function App() {
               />
             )}
 
-            <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">All Tasks</h4>
+            <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">Toutes les Tâches</h4>
             {loading ? (
               <div className="flex justify-center items-center py-4">
                 <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
-                <p className="ml-3 text-lightText">Loading tasks...</p>
+                <p className="ml-3 text-lightText">Chargement des tâches...</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {allRawTaches.length === 0 ? (
-                  <p className="text-center text-lightText text-lg">No tasks available.</p>
+                  <p className="text-center text-lightText text-lg">Aucune tâche disponible.</p>
                 ) : (
                   allRawTaches.map(task => (
                     <div key={task.ID_Tache} className="bg-white rounded-lg p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm border border-neutralBg/50">
                       <div className="flex-1 min-w-0 mb-2 sm:mb-0">
                         <p className="font-bold text-text text-lg truncate">{task.Nom_Tache} <span className="text-sm text-lightText">({task.ID_Tache})</span></p>
-                        <p className="text-sm text-lightText">Points: {task.Points} | Freq: {task.Frequence} | Urg: {task.Urgence} | Cat: {task.Categorie}</p>
-                        {task.Sous_Taches_IDs && <p className="text-xs text-lightText">Subtasks: {task.Sous_Taches_IDs}</p>}
+                        <p className="text-sm text-lightText">Points: {task.Points} | Fréq: {task.Frequence} | Urg: {task.Urgence} | Cat: {task.Categorie}</p>
+                        {task.Sous_Taches_IDs && <p className="text-xs text-lightText">Sous-tâches: {task.Sous_Taches_IDs}</p>}
                         {task.Parent_Task_ID && <p className="text-xs text-lightText">Parent: {task.Parent_Task_ID}</p>}
                       </div>
                       <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
@@ -1708,13 +1709,13 @@ function App() {
                           }}
                           className={`${adminButtonClasses} !bg-accent hover:!bg-yellow-600`}
                         >
-                          Edit
+                          Modifier
                         </button>
                         <button
                           onClick={() => handleDeleteTask(task.ID_Tache)}
                           className={`${adminButtonClasses} !bg-error hover:!bg-red-700`}
                         >
-                          Delete
+                          Supprimer
                         </button>
                       </div>
                     </div>
@@ -1733,12 +1734,12 @@ function App() {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4"> 
         <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast mb-4 sm:mb-6"></div> 
-        <p className="text-xl sm:text-2xl font-semibold text-lightText">Loading data...</p> 
+        <p className="text-xl sm:text-2xl font-semibold text-lightText">Chargement des données...</p> 
       </div>
     );
   }
 
-  if (error) return <div className="text-center p-8 text-xl text-error">Error: {error}</div>;
+  if (error) return <div className="text-center p-8 text-xl text-error">Erreur: {error}</div>;
 
   return (
     <div className="min-h-screen bg-background font-sans p-4 sm:p-6">
@@ -1761,21 +1762,21 @@ function App() {
               ${activeMainView === 'home' ? 'bg-primary text-white shadow-lg' : 'bg-neutralBg text-text hover:bg-accent hover:text-secondary'}`}
             onClick={() => setActiveMainView('home')}
           >
-            Home
+            Accueil
           </button>
           <button
             className={`py-2.5 px-6 sm:py-3 sm:px-7 rounded-lg font-bold text-sm sm:text-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-md
               ${activeMainView === 'completedTasks' ? 'bg-primary text-white shadow-lg' : 'bg-neutralBg text-text hover:bg-accent hover:text-secondary'}`}
             onClick={() => setActiveMainView('completedTasks')}
           >
-            Completed Tasks
+            Tâches Terminées
           </button>
           <button
             className={`py-2.5 px-6 sm:py-3 sm:px-7 rounded-lg font-bold text-sm sm:text-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-md
               ${activeMainView === 'historicalPodiums' ? 'bg-primary text-white shadow-lg' : 'bg-neutralBg text-text hover:bg-accent hover:text-secondary'}`}
             onClick={() => setActiveMainView('historicalPodiums')}
           >
-            Podium History
+            Historique du Podium
           </button>
         </nav>
 
@@ -1811,7 +1812,7 @@ function App() {
             renderAdminPanel()
           )}
         </main>
-        {/* Modals and popups */}
+        {/* Modales et popups */}
         {renderTaskDialog()}
         {renderThankYouPopup()} 
         {renderSplitTaskDialog()} 
@@ -1820,7 +1821,7 @@ function App() {
         {renderDeleteObjectiveConfirmModal()} 
         <ConfettiOverlay show={showConfetti} onComplete={() => setShowConfetti(false)} /> 
       </div>
-      {/* Container for toast notifications */}
+      {/* Conteneur pour les notifications toast */}
       <ToastContainer 
         position="top-right"
         autoClose={5000}
