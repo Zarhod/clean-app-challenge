@@ -83,7 +83,7 @@ function App() {
     Sous_Taches_IDs: '',
     Parent_Task_ID: ''
   });
-  const [editingTask, setEditingTask] = useState(null); // Changed from useState(null) to null directly as it's set by handleEditTask
+  const [editingTask, setEditingTask] = useState(null); // CORRECTION: C'était la ligne avec l'erreur précédente
 
   // États pour la visibilité des sections déroulantes
   const [showHighlightsSection, setShowHighlightsSection] = useState(false); // Tendances actuelles
