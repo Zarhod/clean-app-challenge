@@ -14,7 +14,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 // --- CONFIGURATION DE L'API ---
 const API_URL = 'https://clean-app-challenge-api.jassairbus.workers.dev/'; 
-const AUTH_TOKEN = '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2'; // IMPORTANT: À changer pour la production !       
+const AUTH_TOKEN = '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2'; // <<< VÉRIFIEZ CE TOKEN !       
 
 // Nom du fichier logo (assurez-vous qu'il est dans le dossier public/)
 const LOGO_FILENAME = 'logo.png'; 
@@ -138,15 +138,13 @@ function App() {
       }
       const rawData = await response.json(); 
       
-      // LOG DE DÉBOGAGE IMPORTANT
       console.log('Raw data from getClassement:', rawData); 
 
-      // Assurez-vous que rawData est bien un tableau avant d'appeler .map()
       if (!Array.isArray(rawData)) {
         console.error('Erreur: Les données du classement ne sont pas un tableau.', rawData);
-        setError('Erreur: Les données du classement sont mal formatées.');
+        setError('Erreur: Les données du classement sont mal formatées (non-tableau).');
         toast.error('Erreur: Les données du classement sont mal formatées.');
-        setClassement([]); // Réinitialiser pour éviter d'autres erreurs
+        setClassement([]); 
         return;
       }
 
