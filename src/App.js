@@ -13,9 +13,8 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
 // --- CONFIGURATION DE L'API ---
-// ASSUREZ-VOUS QUE CETTE URL CORRESPOND À VOTRE CLOUDFLARE WORKER DÉPLOYÉ
 const API_URL = 'https://clean-app-challenge-api.jassairbus.workers.dev/'; 
-const AUTH_TOKEN = '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2';        
+const AUTH_TOKEN = '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2'; // IMPORTANT: À changer pour la production !       
 
 // Nom du fichier logo (assurez-vous qu'il est dans le dossier public/)
 const LOGO_FILENAME = 'logo.png'; 
@@ -25,7 +24,7 @@ const ADMIN_PASSWORD = 'Bombardier111';
 
 function App() {
   const [taches, setTaches] = useState([]); 
-  const [allRawTaches, setAllRawTaches] = useState([]); 
+  const [allRawTaches, setAllRawTaches] = useState([]); // Toutes les tâches brutes, y compris les sous-tâches
   const [realisations, setRealisations] = useState([]); 
   const [classement, setClassement] = useState([]); 
   const [historicalPodiums, setHistoricalPodiums] = useState([]); 
@@ -33,62 +32,82 @@ function App() {
   const [congratulatoryMessages, setCongratulatoryMessages] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedTask, setSelectedTask] = useState(null); 
+  const [selectedTask, setSelectedTask] = useState(null); // Tâche sélectionnée pour confirmation
   const [participantName, setParticipantName] = useState(''); 
-  const [showThankYouPopup, setShowThankYouPopup] = useState(null); 
-  const [showConfetti, setShowConfetti] = useState(false); 
+  const [showThankYouPopup, setShowThankYouPopup] = useState(null); // Gère l'affichage du popup de remerciement
+  const [showConfetti, setShowConfetti] = useState(false); // Gère l'affichage des confettis
   
-  const [activeMainView, setActiveMainView] = useState('home'); 
-  const [activeTaskCategory, setActiveTaskCategory] = useState('tous'); 
+  const [activeMainView, setActiveMainView] = useState('home'); // Vue principale active (accueil, classement, admin, etc.)
+  const [activeTaskCategory, setActiveTaskCategory] = useState('tous'); // Catégorie de tâches active (tous, salle, cuisine)
 
-  const [selectedParticipantProfile, setSelectedParticipantProfile] = useState(null); 
-  const [participantWeeklyTasks, setParticipantWeeklyTasks] = useState([]); 
-  const [totalGlobalCumulativePoints, setTotalGlobalCumulativePoints] = useState(0); 
+  const [selectedParticipantProfile, setSelectedParticipantProfile] = useState(null); // Profil du participant sélectionné
+  const [participantWeeklyTasks, setParticipantWeeklyTasks] = useState([]); // Tâches hebdomadaires du participant sélectionné
+  const [totalGlobalCumulativePoints, setTotalGlobalCumulativePoints] = useState(0); // Total des points cumulatifs de tous les participants
 
-  const [showSplitTaskDialog, setShowSplitTaskDialog] = useState(false); 
-  const [subTasks, setSubTasks] = useState([]); 
-  const [selectedSubTasks, setSelectedSubTasks] = useState([]); 
+  const [showSplitTaskDialog, setShowSplitTaskDialog] = useState(false); // Affiche la boîte de dialogue pour les tâches de groupe
+  const [subTasks, setSubTasks] = useState([]); // Sous-tâches d'une tâche de groupe
+  const [selectedSubTasks, setSelectedSubTasks] = useState([]); // Sous-tâches sélectionnées par le participant
   
+  // États pour les modales de confirmation/formulaire admin
   const [showConfirmResetModal, setShowConfirmResetModal] = useState(false); 
   const [showAdminTaskFormModal, setShowAdminTaskFormModal] = useState(false); 
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false); 
   const [taskToDelete, setTaskToDelete] = useState(null); 
 
+  // États pour la gestion des objectifs via le panneau admin
   const [showAdminObjectiveFormModal, setShowAdminObjectiveFormModal] = useState(false); 
   const [newObjectiveData, setNewObjectiveData] = useState({ 
-    ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '',
-    Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false 
+    ID_Objectif: '',
+    Nom_Objectif: '',
+    Description_Objectif: '',
+    Cible_Points: '',
+    Type_Cible: 'Cumulatif',
+    Categorie_Cible: '', 
+    Points_Actuels: 0, 
+    Est_Atteint: false 
   });
   const [editingObjective, setEditingObjective] = useState(null); 
   const [showDeleteObjectiveConfirmModal, setShowDeleteObjectiveConfirmModal] = useState(false); 
   const [objectiveToDelete, setObjectiveToDelete] = useState(null); 
 
+  // États pour le panneau d'administration
   const [isAdmin, setIsAdmin] = useState(false);
   const [newTaskData, setNewTaskData] = useState({ 
-    ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
-    Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
+    ID_Tache: '',
+    Nom_Tache: '',
+    Description: '',
+    Points: '', 
+    Frequence: 'Hebdomadaire', 
+    Urgence: 'Faible', 
+    Categorie: 'Tous', 
+    Sous_Taches_IDs: '',
+    Parent_Task_ID: ''
   });
-  const [editingTask, setEditingTask] = useState(null);
+  const [editingTask, setEditingTask] = useState(null); 
 
-  const [showHighlightsSection, setShowHighlightsSection] = useState(false); 
-  const [showObjectivesSection, setShowObjectivesSection] = useState(false); 
-  const [showAdminObjectivesManagement, setShowAdminObjectivesManagement] = useState(false); 
-  const [showAdminTasksManagement, setShowAdminTasksManagement] = useState(false); 
+  // États pour la visibilité des sections déroulantes
+  const [showHighlightsSection, setShowHighlightsSection] = useState(false); // Tendances actuelles
+  const [showObjectivesSection, setShowObjectivesSection] = useState(false); // Objectifs communs sur la page d'accueil
+  const [showAdminObjectivesManagement, setShowAdminObjectivesManagement] = useState(false); // Gestion des objectifs dans l'admin
+  const [showAdminTasksManagement, setShowAdminTasksManagement] = useState(false); // Gestion des tâches dans l'admin
 
 
   const getHeaders = () => ({
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${AUTH_TOKEN}`
   });
 
-  const fetchTaches = useCallback(async () => {
+  // --- Fonctions d'appel API ---
+
+  const fetchTaches = async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getTaches&authToken=${AUTH_TOKEN}`, {
+      const response = await fetch(`${API_URL}?action=getTaches`, {
         method: 'GET',
         headers: getHeaders()
       });
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const rawData = await response.json(); 
       
@@ -115,35 +134,28 @@ function App() {
           return { ...tache, Calculated_Points: parseFloat(tache.Points) || 0, isGroupTask: false };
         })
         .filter(tache => tache !== null) 
-        .filter(tache => String(tache.Parent_Task_ID || '').trim() === ''); 
+        .filter(tache => String(tache.Parent_Task_ID || '').trim() === ''); // Filtre pour n'afficher que les tâches principales
       
       setTaches(processedAndFilteredTaches);
     } catch (err) {
-      setError(`Error fetching tasks: ${err.message}`);
-      toast.error(`Error: ${err.message}`); 
+      setError(`Erreur lors de la récupération des tâches: ${err.message}`);
+      toast.error(`Erreur: ${err.message}`); 
     } finally {
       setLoading(false); 
     }
-  }, [setAllRawTaches, setTaches, setError, setLoading]);
+  };
 
-  const fetchClassement = useCallback(async () => {
+  const fetchClassement = async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getClassement&authToken=${AUTH_TOKEN}`, {
+      const response = await fetch(`${API_URL}?action=getClassement`, {
         method: 'GET',
         headers: getHeaders()
       });
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const rawData = await response.json(); 
-      
-      if (!Array.isArray(rawData)) {
-        setError('Error: Ranking data is malformed (not an array).');
-        toast.error('Error: Ranking data is malformed.');
-        setClassement([]); 
-        return;
-      }
 
       const currentClassement = rawData.map(row => ({
         Nom_Participant: row.Nom_Participant,
@@ -158,262 +170,243 @@ function App() {
       setTotalGlobalCumulativePoints(globalCumulative);
 
     } catch (err) {
-      setError(`Error fetching ranking: ${err.message}`);
-      toast.error(`Error: ${err.message}`); 
+      setError(`Erreur lors de la récupération du classement: ${err.message}`);
+      toast.error(`Erreur: ${err.message}`); 
     }
-  }, [setClassement, setTotalGlobalCumulativePoints, setError]);
+  };
 
-  const fetchRealisations = useCallback(async () => {
+  const fetchRealisations = async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getRealisations&authToken=${AUTH_TOKEN}`, { 
+      const response = await fetch(`${API_URL}?action=getRealisations`, { 
         method: 'GET',
         headers: getHeaders()
       });
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
       setRealisations(data);
     } catch (err) {
-      setError(`Error fetching realizations: ${err.message}`);
-      toast.error(`Error: ${err.message}`);
+      setError(`Erreur lors de la récupération des réalisations: ${err.message}`);
+      toast.error(`Erreur: ${err.message}`);
     }
-  }, [setRealisations, setError]);
+  };
 
-  const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
+  const fetchParticipantWeeklyTasks = async (participantName) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}?action=getParticipantWeeklyTasks&nomParticipant=${encodeURIComponent(participantName)}&authToken=${AUTH_TOKEN}`, {
+      const response = await fetch(`${API_URL}?action=getParticipantWeeklyTasks&nomParticipant=${encodeURIComponent(participantName)}`, {
         method: 'GET',
         headers: getHeaders()
       });
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
       setParticipantWeeklyTasks(data);
 
     } catch (err) {
-      setError(`Error fetching tasks for ${participantName}: ${err.message}`);
-      toast.error(`Error loading profile: ${err.message}`);
+      setError(`Erreur lors de la récupération des tâches de ${participantName}: ${err.message}`);
+      toast.error(`Erreur lors du chargement du profil: ${err.message}`);
     } finally {
       setLoading(false);
     }
-  }, [setParticipantWeeklyTasks, setLoading, setError]);
+  };
 
-  const fetchSubTasks = useCallback(async (parentTaskId) => {
+  const fetchSubTasks = async (parentTaskId) => {
     setLoading(true); 
     try {
-      const response = await fetch(`${API_URL}?action=getSousTaches&parentTaskId=${encodeURIComponent(parentTaskId)}&authToken=${AUTH_TOKEN}`, {
+      const response = await fetch(`${API_URL}?action=getSousTaches&parentTaskId=${encodeURIComponent(parentTaskId)}`, {
         method: 'GET',
         headers: getHeaders()
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
       setSubTasks(Array.isArray(data) ? data : []); 
     } catch (err) {
-      setError(`Error fetching subtasks: ${err.message}`);
-      toast.error(`Error: ${err.message}`);
+      setError(`Erreur lors de la récupération des sous-tâches: ${err.message}`);
+      toast.error(`Erreur: ${err.message}`);
       setSubTasks([]); 
     } finally {
       setLoading(false);
     }
-  }, [setSubTasks, setLoading, setError]);
+  };
 
-  const fetchObjectives = useCallback(async () => {
+  const fetchObjectives = async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getObjectives&authToken=${AUTH_TOKEN}`, {
+      const response = await fetch(`${API_URL}?action=getObjectives`, {
         method: 'GET',
         headers: getHeaders()
       });
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
       setObjectives(data);
     } catch (err) {
-      setError(`Error fetching objectives: ${err.message}`);
-      toast.error(`Error: ${err.message}`);
+      setError(`Erreur lors de la récupération des objectifs: ${err.message}`);
+      toast.error(`Erreur: ${err.message}`);
     }
-  }, [setObjectives, setError]);
+  };
 
-  const fetchCongratulatoryMessages = useCallback(async () => {
+  const fetchCongratulatoryMessages = async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getCongratulatoryMessages&authToken=${AUTH_TOKEN}`, {
+      const response = await fetch(`${API_URL}?action=getCongratulatoryMessages`, {
         method: 'GET',
         headers: getHeaders()
       });
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
       setCongratulatoryMessages(data);
     } catch (err) {
-      setError(`Error fetching congratulatory messages: ${err.message}`);
-      setCongratulatoryMessages([{ Texte_Message: "Bravo for your excellent work!" }]); // Fallback
+      setError(`Erreur lors de la récupération des messages de félicitations: ${err.message}`);
+      setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]);
     }
-  }, [setCongratulatoryMessages, setError]);
+  };
 
-  const fetchHistoricalPodiums = useCallback(async () => {
+  const fetchHistoricalPodiums = async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getHistoricalPodiums&authToken=${AUTH_TOKEN}`, {
+      const response = await fetch(`${API_URL}?action=getHistoricalPodiums`, {
         method: 'GET',
         headers: getHeaders()
       });
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
       setHistoricalPodiums(data);
     } catch (err) {
-      setError(`Error fetching historical podiums: ${err.message}`);
-      toast.error(`Error: ${err.message}`);
+      setError(`Erreur lors de la récupération de l'historique des podiums: ${err.message}`);
+      toast.error(`Erreur: ${err.message}`);
     }
-  }, [setHistoricalPodiums, setError]);
+  };
 
 
   const recordTask = async (idTacheToRecord, isSubTask = false) => {
     if (!participantName.trim()) {
-      toast.warn('Please enter your name.'); 
+      toast.warn('Veuillez entrer votre nom.'); 
       return;
     }
 
     setLoading(true);
     try {
-      const taskToRecord = allRawTaches.find(t => String(t.ID_Tache) === String(idTacheToRecord));
-      if (!taskToRecord) {
-        throw new Error(`Task with ID ${idTacheToRecord} not found in allRawTaches.`);
-      }
-
-      const pointsToSend = parseFloat(taskToRecord.Points) || 0;
-      const categoryToSend = taskToRecord.Categorie || 'Uncategorized';
-
-      const payload = {
-        action: 'recordTask',
-        idTache: idTacheToRecord,
-        nomParticipant: participantName.trim(),
-        pointsGagnes: pointsToSend,
-        categorieTache: categoryToSend,
-        authToken: AUTH_TOKEN 
-      };
-
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          action: 'recordTask',
+          idTache: idTacheToRecord,
+          nomParticipant: participantName.trim()
+        })
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const result = await response.json();
       if (result.success) {
         const completedTask = taches.find(t => t.ID_Tache === idTacheToRecord);
         if (completedTask && String(completedTask.Frequence || '').toLowerCase() === 'ponctuel') {
+            // Si la tâche est ponctuelle, la supprimer après enregistrement
             await handleDeleteTask(idTacheToRecord, true); 
-            toast.success(`One-time task "${completedTask.Nom_Tache}" recorded and deleted.`);
+            toast.success(`Tâche ponctuelle "${completedTask.Nom_Tache}" enregistrée et supprimée.`);
         } else {
-            toast.success(`Task "${completedTask ? completedTask.Nom_Tache : 'unknown'}" recorded successfully.`);
+            toast.success(`Tâche "${completedTask ? completedTask.Nom_Tache : 'inconnue'}" enregistrée avec succès.`);
         }
 
         if (!isSubTask) { 
-          const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo for your excellent work!";
-          setShowThankYouPopup({ name: participantName.trim(), task: completedTask ? completedTask.Nom_Tache : 'Unknown Task', message: randomMessage }); 
+          // Affiche un message de félicitations aléatoire et les confettis pour les tâches principales
+          const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
+          setShowThankYouPopup({ name: participantName.trim(), task: completedTask ? completedTask.Nom_Tache : 'Tâche inconnue', message: randomMessage }); 
           setShowConfetti(true); 
           setParticipantName('');
           setSelectedTask(null); 
         }
+        // Rafraîchir toutes les données pertinentes après l'enregistrement
         fetchClassement(); 
         fetchRealisations(); 
         fetchTaches(); 
         fetchObjectives(); 
       } else {
-        toast.error(`Error: ${result.message}`); 
+        toast.error(`Erreur: ${result.message}`); 
       }
     } catch (err) {
-      setError(`Error recording task: ${err.message}`);
-      toast.error(`An error occurred: ${err.message}`); 
+      setError(`Erreur lors de l'enregistrement de la tâche: ${err.message}`);
+      toast.error(`Une erreur est survenue: ${err.message}`); 
     } finally {
       setLoading(false);
     }
   };
 
   const recordMultipleTasks = async () => {
+    // Filtre les sous-tâches sélectionnées pour n'inclure que celles qui sont disponibles
     const availableSelectedSubTasks = selectedSubTasks.filter(subTask => isSubTaskAvailable(subTask));
 
     if (!participantName.trim() || availableSelectedSubTasks.length === 0) {
-      toast.warn('Please enter your name and select at least one available subtask.');
+      toast.warn('Veuillez entrer votre nom et sélectionner au moins une sous-tâche disponible.');
       return;
     }
 
     setLoading(true);
     try {
-      const tasksToRecordPayload = availableSelectedSubTasks.map(subTask => {
-        const points = parseFloat(subTask.Points) || 0;
-        const category = subTask.Categorie || 'Uncategorized';
-        return {
-          idTache: subTask.ID_Tache,
-          pointsGagnes: points,
-          categorieTache: category
-        };
-      });
-
-      const payload = {
-        action: 'recordMultipleTasks',
-        tasks: tasksToRecordPayload,
-        nomParticipant: participantName.trim(),
-        authToken: AUTH_TOKEN 
-      };
-
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          action: 'recordMultipleTasks',
+          idTaches: availableSelectedSubTasks.map(task => task.ID_Tache), 
+          nomParticipant: participantName.trim()
+        })
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const result = await response.json();
       if (result.success) {
         const completedTaskNames = availableSelectedSubTasks.map(st => st.Nom_Tache).join(', ');
-        const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo for your excellent work!";
+        const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
         setShowThankYouPopup({ name: participantName.trim(), task: completedTaskNames, message: randomMessage });
         setShowConfetti(true); 
 
+        // Supprimer les sous-tâches ponctuelles après leur enregistrement
         for (const subTask of availableSelectedSubTasks) {
             const fullSubTaskData = allRawTaches.find(t => String(t.ID_Tache) === String(subTask.ID_Tache));
             if (fullSubTaskData && String(fullSubTaskData.Frequence || '').toLowerCase() === 'ponctuel') {
                 await handleDeleteTask(subTask.ID_Tache, true); 
             }
         }
-        toast.success(`Tasks recorded successfully.`);
+        toast.success(`Tâches enregistrées avec succès.`);
 
+        // Réinitialiser les états du dialogue
         setParticipantName('');
         setSelectedTask(null);
         setShowSplitTaskDialog(false); 
         setSelectedSubTasks([]);
+        // Rafraîchir toutes les données pertinentes
         fetchClassement();
         fetchRealisations(); 
         fetchTaches(); 
         fetchObjectives(); 
       } else {
-        toast.error(`Error: ${result.message}`);
+        toast.error(`Erreur: ${result.message}`);
       }
     } catch (err) {
-      setError(`Error recording subtasks: ${err.message}`);
-      toast.error(`An error occurred: ${err.message}`);
+      setError(`Erreur lors de l'enregistrement des sous-tâches: ${err.message}`);
+      toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -425,47 +418,49 @@ function App() {
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ action: 'resetWeeklyPoints', authToken: AUTH_TOKEN }) 
+        body: JSON.stringify({ action: 'resetWeeklyPoints' })
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const result = await response.json();
       if (result.success) {
         toast.success(result.message);
+        // Rafraîchir toutes les données après la réinitialisation
         fetchClassement(); 
         fetchRealisations(); 
         fetchTaches(); 
         fetchObjectives(); 
-        fetchHistoricalPodiums(); 
+        fetchHistoricalPodiums(); // Recharger l'historique après réinitialisation
       } else {
-        toast.error(`Error: ${result.message}`);
+        toast.error(`Erreur: ${result.message}`);
       }
     } catch (err) {
-      setError(`Error resetting points: ${err.message}`);
-      toast.error(`An error occurred while resetting: ${err.message}`);
+      setError(`Erreur lors de la réinitialisation des points: ${err.message}`);
+      toast.error(`Une erreur est survenue lors de la réinitialisation: ${err.message}`);
     } finally {
       setLoading(false);
       setShowConfirmResetModal(false); 
     }
   };
 
+  // --- Fonctions d'administration des TÂCHES ---
   const handleAdminLogin = (passwordInput) => {
     if (passwordInput === ADMIN_PASSWORD) {
       setIsAdmin(true);
       setActiveMainView('adminPanel');
-      toast.success('Logged in as administrator!');
+      toast.success('Connecté en tant qu\'administrateur !');
     } else {
-      toast.error('Incorrect password.');
+      toast.error('Mot de passe incorrect.');
     }
   };
 
   const handleAdminLogout = () => {
     setIsAdmin(false);
     setActiveMainView('home');
-    toast.info('Logged out of admin panel.');
+    toast.info('Déconnecté du panneau administrateur.');
   };
 
   const handleTaskFormChange = (e) => {
@@ -478,23 +473,24 @@ function App() {
 
   const handleSubmitTask = async () => {
     if (!newTaskData.ID_Tache.trim()) {
-      toast.error('Task ID is required.');
+      toast.error('L\'ID de la tâche est requis.');
       return;
     }
     if (!newTaskData.Nom_Tache.trim()) {
-      toast.error('Task name is required.');
+      toast.error('Le nom de la tâche est requis.');
       return;
     }
     if (newTaskData.Points !== '' && isNaN(newTaskData.Points)) {
-      toast.error('Points must be a valid number.');
+      toast.error('Les points doivent être un nombre valide.');
       return;
     }
+    // Vérification pour éviter qu'une tâche soit à la fois un groupe et une sous-tâche
     if (newTaskData.Parent_Task_ID.trim() !== '' && newTaskData.Sous_Taches_IDs.trim() !== '') {
-        toast.error('A task cannot be both a subtask and a task group.');
+        toast.error('Une tâche ne peut pas être à la fois une sous-tâche et un groupe de tâches.');
         return;
     }
     if (newTaskData.Sous_Taches_IDs.trim() !== '' && newTaskData.Parent_Task_ID.trim() !== '') {
-        toast.error('A task cannot be both a task group and a subtask.');
+        toast.error('Une tâche ne peut pas être à la fois un groupe de tâches et une sous-tâche.');
         return;
     }
 
@@ -506,8 +502,7 @@ function App() {
         task: {
           ...newTaskData,
           Points: newTaskData.Points === '' ? '' : parseFloat(newTaskData.Points) 
-        },
-        authToken: AUTH_TOKEN 
+        }
       };
       
       const response = await fetch(API_URL, {
@@ -518,18 +513,19 @@ function App() {
       const result = await response.json();
       if (result.success) {
         toast.success(result.message);
-        fetchTaches(); 
+        fetchTaches(); // Rafraîchir la liste des tâches
         setShowAdminTaskFormModal(false); 
         setEditingTask(null);
+        // Réinitialiser le formulaire
         setNewTaskData({ 
           ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
           Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
         });
       } else {
-        toast.error(`Error: ${result.message}`);
+        toast.error(`Erreur: ${result.message}`);
       }
     } catch (err) {
-      toast.error(`An error occurred: ${err.message}`);
+      toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -547,18 +543,18 @@ function App() {
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ action: 'deleteTask', idTache: taskId, authToken: AUTH_TOKEN })
+        body: JSON.stringify({ action: 'deleteTask', idTache: taskId })
       });
       const result = await response.json();
       if (result.success) {
         toast.success(result.message);
-        fetchTaches(); 
-        fetchRealisations(); 
+        fetchTaches(); // Rafraîchir la liste des tâches
+        fetchRealisations(); // Rafraîchir les réalisations car une tâche a pu être supprimée
       } else {
-        toast.error(`Error: ${result.message}`);
+        toast.error(`Erreur: ${result.message}`);
       }
     } catch (err) {
-      toast.error(`An error occurred: ${err.message}`);
+      toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
       setShowDeleteConfirmModal(false); 
@@ -566,6 +562,7 @@ function App() {
     }
   };
 
+  // --- Fonctions d'administration des OBJECTIFS ---
   const handleObjectiveFormChange = (e) => {
     const { name, value, type, checked } = e.target;
     setNewObjectiveData(prev => ({
@@ -576,19 +573,19 @@ function App() {
 
   const handleSubmitObjective = async () => {
     if (!newObjectiveData.ID_Objectif.trim()) {
-      toast.error('Objective ID is required.');
+      toast.error('L\'ID de l\'objectif est requis.');
       return;
     }
     if (!newObjectiveData.Nom_Objectif.trim()) {
-      toast.error('Objective name is required.');
+      toast.error('Le nom de l\'objectif est requis.');
       return;
     }
     if (isNaN(parseFloat(newObjectiveData.Cible_Points))) {
-      toast.error('Target points must be a valid number.');
+      toast.error('Les points cible doivent être un nombre valide.');
       return;
     }
     if (newObjectiveData.Type_Cible === 'Par_Categorie' && !newObjectiveData.Categorie_Cible.trim()) {
-      toast.error('Target category is required for "By Category" type.');
+      toast.error('La catégorie cible est requise pour le type "Par Catégorie".');
       return;
     }
 
@@ -602,8 +599,7 @@ function App() {
           Cible_Points: parseFloat(newObjectiveData.Cible_Points),
           Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
           Est_Atteint: newObjectiveData.Est_Atteint
-        },
-        authToken: AUTH_TOKEN 
+        }
       };
       
       const response = await fetch(API_URL, {
@@ -614,18 +610,19 @@ function App() {
       const result = await response.json();
       if (result.success) {
         toast.success(result.message);
-        fetchObjectives(); 
+        fetchObjectives(); // Rafraîchir la liste des objectifs
         setShowAdminObjectiveFormModal(false); 
         setEditingObjective(null);
+        // Réinitialiser le formulaire
         setNewObjectiveData({ 
           ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '', 
           Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
         });
       } else {
-        toast.error(`Error: ${result.message}`);
+        toast.error(`Erreur: ${result.message}`);
       }
     } catch (err) {
-      toast.error(`An error occurred: ${err.message}`);
+      toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -643,17 +640,17 @@ function App() {
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ action: 'deleteObjectif', idObjectif: objectiveId, authToken: AUTH_TOKEN })
+        body: JSON.stringify({ action: 'deleteObjectif', idObjectif: objectiveId })
       });
       const result = await response.json();
       if (result.success) {
         toast.success(result.message);
-        fetchObjectives(); 
+        fetchObjectives(); // Rafraîchir la liste des objectifs
       } else {
-        toast.error(`Error: ${result.message}`);
+        toast.error(`Erreur: ${result.message}`);
       }
     } catch (err) {
-      toast.error(`An error occurred: ${err.message}`);
+      toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
       setShowDeleteObjectiveConfirmModal(false); 
@@ -662,6 +659,7 @@ function App() {
   };
 
 
+  // Effet pour charger les données initiales au montage du composant
   useEffect(() => {
     fetchTaches();
     fetchClassement();
@@ -669,14 +667,16 @@ function App() {
     fetchObjectives(); 
     fetchCongratulatoryMessages(); 
     fetchHistoricalPodiums(); 
-  }, [fetchTaches, fetchClassement, fetchRealisations, fetchObjectives, fetchCongratulatoryMessages, fetchHistoricalPodiums]);
+  }, []);
 
+  // Gère le clic sur un participant dans le classement pour afficher son profil
   const handleParticipantClick = async (participant) => {
     setSelectedParticipantProfile(participant);
     setActiveMainView('participantProfile');
     await fetchParticipantWeeklyTasks(participant.Nom_Participant);
   };
 
+  // Gère le clic sur une tâche pour ouvrir le dialogue de confirmation ou de sous-tâches
   const handleTaskClick = (task) => {
     setSelectedTask(task);
     if (task.Sous_Taches_IDs && String(task.Sous_Taches_IDs).trim() !== '') {
@@ -687,6 +687,7 @@ function App() {
     }
   };
 
+  // Vérifie si une sous-tâche est disponible (non complétée pour sa période)
   const isSubTaskAvailable = (subTask) => {
     const frequence = subTask.Frequence ? String(subTask.Frequence).toLowerCase() : 'hebdomadaire';
     const today = new Date();
@@ -697,7 +698,7 @@ function App() {
     const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
     startOfCurrentWeek.setHours(0, 0, 0, 0); 
 
-    const isCompleted = realisations.some(real => {
+    return !realisations.some(real => {
       if (String(real.ID_Tache_Effectuee || '') === String(subTask.ID_Tache)) {
         const realDate = new Date(real.Timestamp);
         realDate.setHours(0, 0, 0, 0);
@@ -712,9 +713,9 @@ function App() {
       }
       return false;
     });
-    return !isCompleted;
   };
 
+  // --- Logique des Badges ---
   const getParticipantBadges = (participant) => {
     const badges = [];
     const participantRealisations = realisations.filter(r => String(r.Nom_Participant).trim() === String(participant.Nom_Participant).trim());
@@ -722,13 +723,13 @@ function App() {
     const totalPoints = parseFloat(participant.Points_Total_Cumulatif) || 0;
     
     if (totalPoints >= 50) {
-      badges.push({ name: 'Beginner Cleaner', icon: '✨', description: 'Reached 50 cumulative points.' });
+      badges.push({ name: 'Nettoyeur Débutant', icon: '✨', description: 'Atteint 50 points cumulés.' });
     }
     if (totalPoints >= 200) {
-      badges.push({ name: 'Pro Cleaner', icon: '🌟', description: 'Reached 200 cumulative points.' });
+      badges.push({ name: 'Nettoyeur Pro', icon: '🌟', description: 'Atteint 200 points cumulés.' });
     }
     if (totalPoints >= 500) {
-      badges.push({ name: 'Master of Cleanliness', icon: '👑', description: 'Reached 500 cumulative points.' });
+      badges.push({ name: 'Maître de la Propreté', icon: '👑', description: 'Atteint 500 points cumulés.' });
     }
 
     const tasksThisWeek = participantRealisations.filter(real => {
@@ -743,30 +744,31 @@ function App() {
         return realDate >= startOfCurrentWeek;
     }).length;
     if (tasksThisWeek >= 3) {
-        badges.push({ name: 'Active This Week', icon: '🔥', description: '3 or more tasks completed this week.' });
+        badges.push({ name: 'Actif de la Semaine', icon: '🔥', description: '3 tâches ou plus complétées cette semaine.' });
     }
 
     const kitchenTasks = participantRealisations.filter(r => String(r.Categorie_Tache || '').toLowerCase() === 'cuisine').length;
     if (kitchenTasks >= 5) {
-      badges.push({ name: 'Kitchen Specialist', icon: '🍳', description: '5 kitchen tasks completed.' });
+      badges.push({ name: 'Spécialiste Cuisine', icon: '🍳', description: '5 tâches de cuisine complétées.' });
     }
 
     const roomTasks = participantRealisations.filter(r => String(r.Categorie_Tache || '').toLowerCase() === 'salle').length;
     if (roomTasks >= 5) {
-      badges.push({ name: 'Room Specialist', icon: '🛋️', description: '5 room tasks completed.' });
+      badges.push({ name: 'Spécialiste Salle', icon: '🛋️', description: '5 tâches de salle complétées.' });
     }
 
     const hasBeenFirst = historicalPodiums.some(podium => 
       podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.Nom_Participant).trim()
     );
     if (hasBeenFirst) {
-      badges.push({ name: 'Former Champion', icon: '🥇', description: 'Has already been first on the podium.' });
+      badges.push({ name: 'Ancien Champion', icon: '🥇', description: 'A déjà été premier du podium.' });
     }
 
     return badges;
   };
 
 
+  // Classes Tailwind pour l'affichage de l'urgence
   const getUrgencyClasses = (urgency) => {
     switch (urgency ? String(urgency).toLowerCase() : '') { 
         case 'haute':
@@ -780,6 +782,7 @@ function App() {
     }
   };
 
+  // Classes Tailwind pour l'affichage de la fréquence
   const getFrequencyClasses = (frequency) => {
     switch (frequency ? String(frequency).toLowerCase() : '') { 
       case 'hebdomadaire':
@@ -793,6 +796,7 @@ function App() {
     }
   };
 
+  // Classes Tailwind pour l'affichage de la catégorie
   const getCategoryClasses = (category) => {
     switch (String(category || '').toLowerCase()) { 
       case 'tous':
@@ -806,6 +810,9 @@ function App() {
     }
   };
 
+  // --- Composants de rendu ---
+
+  // Rendu de la section Podium et Tendances
   const renderPodiumSection = () => {
     if (!Array.isArray(classement) || classement.length === 0) return <p className="text-center text-lightText text-lg">Aucun classement disponible pour le moment.</p>;
 
@@ -814,7 +821,7 @@ function App() {
 
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 mb-6 sm:mb-8 shadow-2xl text-center"> 
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-secondary mb-6 sm:mb-8 whitespace-nowrap overflow-hidden text-ellipsis">🏆 Podium de la Semaine 🏆</h2> 
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-secondary mb-6 sm:mb-8 whitespace-nowrap overflow-hidden text-ellipsis">🏆 Podium de la semaine 🏆</h2> 
         <div className="flex justify-center items-end mt-4 sm:mt-6 gap-2 sm:gap-4"> 
           {/* 2ème Place */}
           {classement.length > 1 && (
@@ -864,25 +871,26 @@ function App() {
                        transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm sm:text-base" 
             onClick={() => setActiveMainView('fullRanking')} 
           >
-            Voir le Classement Complet
+            Voir le classement complet
           </button>
         )}
         {renderHighlights()} 
-        {renderObjectivesSection()} 
+        {renderObjectivesSection()} {/* Objectifs communs ici */}
       </div>
     );
   };
 
+  // Rendu de la section Tendances Actuelles
   const renderHighlights = () => {
     let mostImproved = null;
     let maxImprovement = -1;
 
-    // NOTE: La colonne 'Points_Total_Semaine_Precedente' n'existe pas dans votre feuille 'Feuille_Classement'.
-    // La fonctionnalité "Plus Amélioré" ne fonctionnera pas avec votre structure actuelle.
-    // Elle est ici pour la compatibilité avec le code précédent.
-    if (classement.length > 0) {
+    // Calcul du participant le plus amélioré (si l'historique est disponible)
+    const lastPodium = historicalPodiums.length > 0 ? historicalPodiums[0] : null;
+
+    if (lastPodium) {
         classement.forEach(currentP => {
-            const previousScore = parseFloat(currentP.Points_Total_Semaine_Precedente) || 0; 
+            const previousScore = parseFloat(currentP.Points_Total_Semaine_Precedente) || 0;
             const currentScore = parseFloat(currentP.Points_Total_Semaine_Courante) || 0;
             const improvement = currentScore - previousScore;
 
@@ -897,10 +905,11 @@ function App() {
     let maxTasksCompleted = -1;
     const tasksByParticipantThisWeek = new Map();
 
+    // Calcul du participant le plus actif cette semaine
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const dayOfWeek = today.getDay(); 
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
+    const dayOfWeek = today.getDay(); // Dimanche = 0, Lundi = 1, etc.
+    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Début de semaine (Lundi)
     const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
     startOfCurrentWeek.setHours(0, 0, 0, 0);
 
@@ -937,16 +946,16 @@ function App() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"> 
             {mostImproved && maxImprovement > 0 && (
               <div className="bg-white p-3 rounded-lg shadow-sm text-center border border-blue-50"> 
-                <h3 className="text-base font-bold text-primary mb-1">Le Plus Amélioré</h3>
+                <h3 className="text-base font-bold text-primary mb-1">Plus Amélioré</h3>
                 <p className="text-text text-sm font-semibold">{mostImproved.Nom_Participant}</p>
                 <p className="text-lightText text-xs">+{maxImprovement} pts cette semaine</p>
               </div>
             )}
             {mostActive && maxTasksCompleted > 0 && (
               <div className="bg-white p-3 rounded-lg shadow-sm text-center border border-blue-50">
-                <h3 className="text-base font-bold text-primary mb-1">Le Plus Actif</h3>
+                <h3 className="text-base font-bold text-primary mb-1">Plus Actif</h3>
                 <p className="text-text text-sm font-semibold">{mostActive.Nom_Participant}</p>
-                <p className="text-lightText text-xs">{maxTasksCompleted} tâches terminées cette semaine</p>
+                <p className="text-lightText text-xs">{maxTasksCompleted} tâches complétées cette semaine</p>
               </div>
             )}
           </div>
@@ -955,13 +964,14 @@ function App() {
     );
   };
 
+  // Rendu de la section Objectifs Communs sur la page d'accueil
   const renderObjectivesSection = () => {
     if (!Array.isArray(objectives) || objectives.length === 0) {
       return null;
     }
 
     return (
-      <div className="mt-6 border-t border-neutralBg pt-4"> 
+      <div className="mt-6 border-t border-neutralBg pt-4"> {/* Marge et bordure pour séparer des tendances */}
         <button
           onClick={() => setShowObjectivesSection(!showObjectivesSection)}
           className="w-full bg-neutralBg hover:bg-neutralBg/80 text-text font-semibold py-2 px-4 rounded-md transition duration-300 flex items-center justify-between text-sm sm:text-base"
@@ -970,7 +980,7 @@ function App() {
           <span>{showObjectivesSection ? '▲' : '▼'}</span>
         </button>
         <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showObjectivesSection ? 'max-h-screen opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
-          <div className="space-y-2"> 
+          <div className="space-y-2"> {/* Espacement plus compact */}
             {objectives.map(obj => {
               const currentPoints = parseFloat(obj.Points_Actuels) || 0;
               const targetPoints = parseFloat(obj.Cible_Points) || 0;
@@ -979,17 +989,17 @@ function App() {
 
               return (
                 <div key={obj.ID_Objectif} className={`bg-white rounded-lg p-3 shadow-sm border 
-                  ${isCompleted ? 'border-success' : 'border-primary/10'}`}> 
+                  ${isCompleted ? 'border-success' : 'border-primary/10'}`}> {/* Couleurs plus douces */}
                   <div className="flex justify-between items-center mb-1">
-                    <h3 className="text-base font-bold text-primary truncate">{obj.Nom_Objectif}</h3> 
+                    <h3 className="text-base font-bold text-primary truncate">{obj.Nom_Objectif}</h3> {/* Texte plus petit */}
                     {isCompleted ? (
                       <span className="text-success font-bold text-sm">✅ Atteint !</span>
                     ) : (
                       <span className="text-text font-semibold text-sm">{currentPoints} / {targetPoints} pts</span>
                     )}
                   </div>
-                  <p className="text-lightText text-xs mb-2 truncate">{obj.Description_Objectif}</p> 
-                  <div className="w-full bg-gray-200 rounded-full h-2"> 
+                  <p className="text-lightText text-xs mb-2 truncate">{obj.Description_Objectif}</p> {/* Texte encore plus petit */}
+                  <div className="w-full bg-gray-200 rounded-full h-2"> {/* Barre de progression plus fine */}
                     <div 
                       className={`h-2 rounded-full ${isCompleted ? 'bg-success' : 'bg-primary'}`} 
                       style={{ width: `${Math.min(progress, 100)}%` }}
@@ -1005,6 +1015,7 @@ function App() {
   };
 
 
+  // Rendu des catégories de tâches
   const renderTaskCategories = () => {
     const categories = [
       { name: 'tous', label: 'Tâches Communes' },
@@ -1034,7 +1045,7 @@ function App() {
             const isCompletedForPeriod = !isSubTaskAvailable(tache); 
 
             if (isCompletedForPeriod) {
-              return null; 
+              return null; // Ne pas afficher les tâches déjà complétées pour la période
             }
 
             const cardClasses = `bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center sm:items-center justify-between 
@@ -1052,7 +1063,7 @@ function App() {
                     </h4> 
                     {tache.isGroupTask && (
                         <span className="ml-0 sm:ml-2 px-1 py-0.5 text-[0.4rem] sm:text-xs font-semibold rounded-full bg-primary text-white shadow-sm whitespace-nowrap mt-1 sm:mt-0">
-                            Groupe de Tâches
+                            Groupe de tâches
                         </span>
                     )}
                 </div>
@@ -1119,6 +1130,7 @@ function App() {
     );
   };
 
+  // Rendu des tâches terminées
   const renderCompletedTasks = () => {
     if (!Array.isArray(realisations) || realisations.length === 0) {
       return (
@@ -1142,7 +1154,7 @@ function App() {
               <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-sm text-lightText">
                   <span>par <strong className="text-text">{real.Nom_Participant}</strong></span>
                   <span className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(real.Categorie_Tache)}`}>
-                      {real.Categorie_Tache || 'Non catégorisé'}
+                      {real.Categorie_Tache || 'Non catégorisée'}
                   </span>
                   <span>le {new Date(real.Timestamp).toLocaleDateString('fr-FR')} à {new Date(real.Timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
@@ -1150,27 +1162,28 @@ function App() {
           ))}
         </div>
         <button
-          className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-8 rounded-lg shadow-lg 
-                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm sm:text-base" 
+          className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-8 rounded-lg shadow-lg
+                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm sm:text-base"
           onClick={() => setActiveMainView('home')}
         >
-          Retour à l'Accueil
+          Retour à l'accueil
         </button>
       </div>
     );
   };
 
+  // Rendu du popup de remerciement après la validation d'une tâche
   const renderThankYouPopup = () => {
     if (!showThankYouPopup) return null; 
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4"> 
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center animate-fade-in-scale border border-primary/20"> 
-          <h3 className="text-3xl sm:text-4xl font-bold text-success mb-6 sm:mb-8">🎉 Bravo! 🎉</h3> 
+          <h3 className="text-3xl sm:text-4xl font-bold text-success mb-6 sm:mb-8">🎉 Bravo ! 🎉</h3> 
           <p className="text-lg sm:text-xl text-text mb-6 sm:mb-8">
             {showThankYouPopup.message}
             <br/>
-            Tâche: "<strong className="text-primary">{showThankYouPopup.task}</strong>" terminée par <strong className="text-secondary">{showThankYouPopup.name}</strong>.
+            Tâche: "<strong className="text-primary">{showThankYouPopup.task}</strong>" réalisée par <strong className="text-secondary">{showThankYouPopup.name}</strong>.
           </p>
           <button 
             onClick={() => setShowThankYouPopup(null)} 
@@ -1185,15 +1198,16 @@ function App() {
   };
 
 
+  // Rendu du dialogue de confirmation de tâche (pour tâches simples)
   const renderTaskDialog = () => {
     if (!selectedTask || selectedTask.isGroupTask) return null; 
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4"> 
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center animate-fade-in-scale border border-primary/20"> 
-          <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">Confirmer la Tâche</h3> 
+          <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">Confirmer la tâche</h3> 
           <p className="text-base sm:text-lg mb-4">Tâche: <strong className="text-text">{selectedTask.Nom_Tache}</strong> (<span className="font-semibold text-primary">{selectedTask.Calculated_Points} points</span>)</p>
-          <label htmlFor="participantName" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Votre Nom:</label>
+          <label htmlFor="participantName" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Votre nom:</label>
           <input
             id="participantName"
             type="text"
@@ -1210,7 +1224,7 @@ function App() {
               className="bg-success hover:bg-green-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-6 rounded-full shadow-lg 
                          transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm sm:text-base"
             >
-              {loading ? 'Soumission...' : 'Valider la Tâche'} 
+              {loading ? 'Envoi...' : 'Valider la tâche'} 
             </button>
             <button 
               onClick={() => { setSelectedTask(null); setParticipantName(''); }} 
@@ -1226,6 +1240,7 @@ function App() {
     );
   };
 
+  // Rendu du dialogue pour les tâches de groupe (avec sous-tâches)
   const renderSplitTaskDialog = () => {
     if (!showSplitTaskDialog || !selectedTask || !selectedTask.isGroupTask) {
       return null;
@@ -1239,7 +1254,7 @@ function App() {
             : [...prev, subTask]
         );
       } else {
-        toast.info(`La tâche "${subTask.Nom_Tache}" a déjà été terminée pour sa période.`);
+        toast.info(`La tâche "${subTask.Nom_Tache}" a déjà été réalisée pour sa période.`);
       }
     };
 
@@ -1255,10 +1270,10 @@ function App() {
       <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4">
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center animate-fade-in-scale border border-primary/20">
           <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">
-            Terminer: {selectedTask.Nom_Tache}
+            Compléter: {selectedTask.Nom_Tache}
           </h3>
           <p className="text-base sm:text-lg mb-4 text-lightText">
-            Sélectionnez les parties que vous avez complétées:
+            Sélectionnez les parties que vous avez réalisées :
           </p>
           
           {loading ? (
@@ -1298,7 +1313,7 @@ function App() {
             )
           )}
 
-          <label htmlFor="participantNameSplit" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Votre Nom:</label>
+          <label htmlFor="participantNameSplit" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Votre nom:</label>
           <input
             id="participantNameSplit"
             type="text"
@@ -1316,7 +1331,7 @@ function App() {
               className="bg-success hover:bg-green-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-6 rounded-full shadow-lg
                          transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm sm:text-base"
             >
-              {loading ? 'Soumission...' : 'Valider les Tâches Sélectionnées'}
+              {loading ? 'Envoi...' : 'Valider les tâches sélectionnées'}
             </button>
             <button
               onClick={handleClose}
@@ -1333,6 +1348,7 @@ function App() {
   };
 
 
+  // Rendu du profil du participant
   const renderParticipantProfile = () => {
     if (!selectedParticipantProfile) return null;
 
@@ -1348,14 +1364,14 @@ function App() {
         <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Profil de {selectedParticipantProfile.Nom_Participant}</h2>
         <div className="mb-6 p-4 bg-neutralBg rounded-xl shadow-inner"> 
           <p className="text-lg sm:text-xl font-semibold text-text">
-            Score d'Engagement Global: <span className="text-primary font-bold">{engagementPercentage}%</span>
+            Score d'implication global : <span className="text-primary font-bold">{engagementPercentage}%</span>
           </p>
           <p className="text-base sm:text-lg text-lightText mt-2">
-            Points Cumulatifs: <span className="font-bold">{participantCumulativePoints}</span>
+            Points cumulés : <span className="font-bold">{participantCumulativePoints}</span>
           </p>
           {participantBadges.length > 0 && (
             <div className="mt-4">
-              <h4 className="text-lg font-semibold text-primary mb-2">Vos Badges:</h4>
+              <h4 className="text-lg font-semibold text-primary mb-2">Vos Badges :</h4>
               <div className="flex flex-wrap justify-center gap-2">
                 {participantBadges.map(badge => (
                   <span 
@@ -1371,7 +1387,7 @@ function App() {
           )}
         </div>
 
-        <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4">Tâches terminées cette semaine:</h3>
+        <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4">Tâches réalisées cette semaine :</h3>
         {participantWeeklyTasks.length > 0 ? (
           <div className="space-y-3 text-left"> 
             {participantWeeklyTasks.map((task, index) => (
@@ -1383,7 +1399,7 @@ function App() {
                     </h4> 
                     <div className="flex items-center space-x-2 mt-1"> 
                         <span className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(task.Categorie_Tache)}`}>
-                            {task.Categorie_Tache || 'Non catégorisé'}
+                            {task.Categorie_Tache || 'Non catégorisée'}
                         </span>
                         <span className="text-sm text-lightText">
                             {new Date(task.Timestamp).toLocaleDateString('fr-FR')} 
@@ -1397,7 +1413,7 @@ function App() {
             ))}
           </div>
         ) : (
-          <p className="text-lightText text-md sm:text-lg">Aucune tâche terminée cette semaine.</p>
+          <p className="text-lightText text-md sm:text-lg">Aucune tâche réalisée cette semaine.</p>
         )}
 
         <button 
@@ -1405,12 +1421,13 @@ function App() {
                      transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm sm:text-base" 
           onClick={() => setActiveMainView('home')}
         >
-          Retour à l'Accueil
+          Retour à l'accueil
         </button>
       </div>
     );
   };
 
+  // Rendu de la modale de confirmation de réinitialisation
   const renderConfirmResetModal = () => {
     if (!showConfirmResetModal) return null;
 
@@ -1427,6 +1444,7 @@ function App() {
     );
   };
 
+  // Rendu de la modale de confirmation de suppression de tâche
   const renderDeleteConfirmModal = () => {
     if (!showDeleteConfirmModal || !taskToDelete) return null;
 
@@ -1443,6 +1461,7 @@ function App() {
     );
   };
 
+  // Rendu de la modale de confirmation de suppression d'objectif
   const renderDeleteObjectiveConfirmModal = () => {
     if (!showDeleteObjectiveConfirmModal || !objectiveToDelete) return null;
 
@@ -1459,6 +1478,7 @@ function App() {
     );
   };
 
+  // --- Fonctions d'export CSV ---
   const exportToCsv = (filename, dataArray, headers) => {
     if (!dataArray || dataArray.length === 0) {
       toast.info(`Aucune donnée à exporter pour ${filename}.`);
@@ -1499,25 +1519,26 @@ function App() {
   };
 
   const handleExportClassement = () => {
-    // En-têtes de colonnes de votre feuille Feuille_Classement
-    const headers = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Date_Mise_A_Jour'];
+    const baseHeaders = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Points_Total_Semaine_Precedente'];
+    const allHeaders = [...baseHeaders]; 
+
     const dataToExport = classement.map(p => ({
         Nom_Participant: p.Nom_Participant,
         Points_Total_Semaine_Courante: p.Points_Total_Semaine_Courante,
         Points_Total_Cumulatif: p.Points_Total_Cumulatif,
-        Date_Mise_A_Jour: p.Date_Mise_A_Jour || '' 
+        Points_Total_Semaine_Precedente: p.Points_Total_Semaine_Precedente 
     }));
 
-    exportToCsv('classement_clean_app.csv', dataToExport, headers);
+    exportToCsv('classement_clean_app.csv', dataToExport, allHeaders);
   };
 
   const handleExportRealisations = () => {
-    // En-têtes de colonnes de votre feuille Feuille_Realisations
     const headers = ['Timestamp', 'Nom_Participant', 'ID_Tache_Effectuee', 'Nom_Tache_Effectuee', 'Categorie_Tache', 'Points_Gagnes'];
     exportToCsv('realisations_clean_app.csv', realisations, headers);
   };
 
 
+  // Rendu du panneau d'administration
   const renderAdminPanel = () => {
     if (!isAdmin) {
       return null; 
@@ -1529,32 +1550,35 @@ function App() {
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl mb-6 sm:mb-8">
         <h2 className="text-2xl sm:text-3xl font-bold text-secondary mb-6 text-center">Panneau d'Administration</h2>
         
+        {/* Actions générales */}
         <div className="flex flex-wrap justify-center gap-4 mb-8 p-4 bg-neutralBg rounded-xl shadow-inner">
           <button
             onClick={() => setShowConfirmResetModal(true)}
             className={adminButtonClasses}
           >
-            Réinitialiser les Points Hebdomadaires
+            Réinitialiser Points Hebdo
           </button>
           <button
             onClick={handleExportClassement}
             className={adminButtonClasses}
           >
-            Exporter le Classement CSV
+            Exporter Classement CSV
           </button>
           <button
             onClick={handleExportRealisations}
             className={adminButtonClasses}
           >
-            Exporter les Réalisations CSV
+            Exporter Réalisations CSV
           </button>
         </div>
 
+        {/* Section Graphique des statistiques des tâches */}
         <div className="mb-8 p-4 bg-neutralBg rounded-xl shadow-inner">
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-center">Statistiques des Tâches</h3>
             <TaskStatisticsChart realisations={realisations} allRawTaches={allRawTaches} />
         </div>
 
+        {/* Section de gestion des OBJECTIFS (avec menu déroulant) */}
         <div className="mb-8 p-4 bg-neutralBg rounded-xl shadow-inner">
           <button
             onClick={() => setShowAdminObjectivesManagement(!showAdminObjectivesManagement)}
@@ -1573,9 +1597,9 @@ function App() {
                   Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
                 });
               }}
-              className={`${adminButtonClasses} !bg-accent hover:!bg-yellow-600`}
+              className={`${adminButtonClasses} w-full mb-4`}
             >
-              Ajouter un Nouvel Objectif
+              Ajouter un nouvel objectif
             </button>
 
             {showAdminObjectiveFormModal && (
@@ -1640,6 +1664,7 @@ function App() {
           </div>
         </div>
 
+        {/* Section de gestion des TÂCHES (avec menu déroulant) */}
         <div className="mb-8 p-4 bg-neutralBg rounded-xl shadow-inner">
           <button
             onClick={() => setShowAdminTasksManagement(!showAdminTasksManagement)}
@@ -1658,9 +1683,9 @@ function App() {
                   Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
                 }); 
               }}
-              className={`${adminButtonClasses} !bg-accent hover:!bg-yellow-600`}
+              className={`${adminButtonClasses} w-full mb-4`}
             >
-              Ajouter une Nouvelle Tâche
+              Ajouter une nouvelle tâche
             </button>
 
             {showAdminTaskFormModal && (
@@ -1730,6 +1755,7 @@ function App() {
   };
 
 
+  // Affichage du loader pendant le chargement initial
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4"> 
@@ -1739,13 +1765,14 @@ function App() {
     );
   }
 
+  // Affichage de l'erreur si une erreur survient
   if (error) return <div className="text-center p-8 text-xl text-error">Erreur: {error}</div>;
 
   return (
     <div className="min-h-screen bg-background font-sans p-4 sm:p-6">
       <div className="max-w-4xl mx-auto">
         <header className="relative flex flex-col items-center justify-center py-6 sm:py-8 px-4 mb-8 sm:mb-10 text-center"> 
-          <img src={`/${LOGO_FILENAME}`} alt="Clean App Challenge Logo" className="mx-auto mb-4 sm:mb-5 h-24 sm:h-32 md:h-40 w-auto drop-shadow-xl" /> 
+          <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-4 sm:mb-5 h-24 sm:h-32 md:h-40 w-auto drop-shadow-xl" /> 
           <h1 className="text-4xl sm:text-7xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1> 
           <AdminLoginButton 
             isAdmin={isAdmin} 
@@ -1776,7 +1803,7 @@ function App() {
               ${activeMainView === 'historicalPodiums' ? 'bg-primary text-white shadow-lg' : 'bg-neutralBg text-text hover:bg-accent hover:text-secondary'}`}
             onClick={() => setActiveMainView('historicalPodiums')}
           >
-            Historique du Podium
+            Historique des Podiums
           </button>
         </nav>
 
