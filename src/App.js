@@ -86,10 +86,10 @@ function App() {
   const [editingTask, setEditingTask] = useState(null);
 
   // États pour la visibilité des sections déroulantes
-  const [showHighlightsSection, setShowHighlightsSection] = useState(false); // Tendances actuelles
-  const [showObjectivesSection, setShowObjectivesSection] = useState(false); // Objectifs communs sur la page d'accueil
-  const [showAdminObjectivesManagement, setShowAdminObjectivesManagement] = useState(false); // Gestion des objectifs dans l'admin
-  const [showAdminTasksManagement, setShowAdminTasksManagement] = useState(false); // Gestion des tâches dans l'admin
+  const [showHighlightsSection, setShowHighlightsSection] = useState(false); 
+  const [showObjectivesSection, setShowObjectivesSection] = useState(false); 
+  const [showAdminObjectivesManagement, setShowAdminObjectivesManagement] = useState(false); 
+  const [showAdminTasksManagement, setShowAdminTasksManagement] = useState(false); 
 
 
   const getHeaders = () => ({
@@ -306,7 +306,6 @@ function App() {
         throw new Error(`Tâche avec l'ID ${idTacheToRecord} introuvable dans allRawTaches.`);
       }
 
-      // S'assurer que les points sont un nombre valide, même si la chaîne est vide
       const pointsToSend = parseFloat(taskToRecord.Points) || 0;
       const categoryToSend = taskToRecord.Categorie || 'Non catégorisée';
 
@@ -373,7 +372,6 @@ function App() {
     setLoading(true);
     try {
       const tasksToRecordPayload = availableSelectedSubTasks.map(subTask => {
-        // S'assurer que les points sont un nombre valide, même si la chaîne est vide
         const points = parseFloat(subTask.Points) || 0;
         const category = subTask.Categorie || 'Non catégorisée';
         return {
