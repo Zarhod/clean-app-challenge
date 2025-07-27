@@ -75,14 +75,12 @@ function App() {
   const [showAdminTasksManagement, setShowAdminTasksManagement] = useState(false); 
 
 
-  // MODIFIÉ : Ne retourne plus l'en-tête Authorization
   const getHeaders = () => ({
     'Content-Type': 'application/json'
   });
 
   const fetchTaches = useCallback(async () => {
     try {
-      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getTaches&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
@@ -92,6 +90,7 @@ function App() {
         throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const rawData = await response.json(); 
+      console.log('Frontend: Données brutes des tâches reçues:', rawData);
       
       const cleanedRawData = rawData.filter(tache => tache && tache.ID_Tache);
       setAllRawTaches(cleanedRawData); 
@@ -119,6 +118,7 @@ function App() {
         .filter(tache => String(tache.Parent_Task_ID || '').trim() === ''); 
       
       setTaches(processedAndFilteredTaches);
+      console.log('Frontend: Tâches filtrées et traitées:', processedAndFilteredTaches);
     } catch (err) {
       setError(`Erreur lors de la récupération des tâches: ${err.message}`);
       toast.error(`Erreur: ${err.message}`); 
@@ -129,7 +129,6 @@ function App() {
 
   const fetchClassement = useCallback(async () => {
     try {
-      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getClassement&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
@@ -140,10 +139,10 @@ function App() {
       }
       const rawData = await response.json(); 
       
-      console.log('Raw data from getClassement:', rawData); 
+      console.log('Frontend: Données brutes du classement reçues:', rawData); 
 
       if (!Array.isArray(rawData)) {
-        console.error('Erreur: Les données du classement ne sont pas un tableau.', rawData);
+        console.error('Frontend: Erreur: Les données du classement ne sont pas un tableau.', rawData);
         setError('Erreur: Les données du classement sont mal formatées (non-tableau).');
         toast.error('Erreur: Les données du classement sont mal formatées.');
         setClassement([]); 
@@ -158,9 +157,11 @@ function App() {
       })).sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
       
       setClassement(currentClassement);
+      console.log('Frontend: Classement formaté:', currentClassement);
 
       const globalCumulative = rawData.reduce((sum, row) => sum + (parseFloat(row.Points_Total_Cumulatif) || 0), 0); 
       setTotalGlobalCumulativePoints(globalCumulative);
+      console.log('Frontend: Points cumulatifs globaux:', globalCumulative);
 
     } catch (err) {
       setError(`Erreur lors de la récupération du classement: ${err.message}`);
@@ -170,7 +171,6 @@ function App() {
 
   const fetchRealisations = useCallback(async () => {
     try {
-      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getRealisations&authToken=${AUTH_TOKEN}`, { 
         method: 'GET',
         headers: getHeaders()
@@ -181,6 +181,7 @@ function App() {
       }
       const data = await response.json();
       setRealisations(data);
+      console.log('Frontend: Réalisations reçues:', data);
     } catch (err) {
       setError(`Erreur lors de la récupération des réalisations: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
@@ -190,7 +191,6 @@ function App() {
   const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
     setLoading(true);
     try {
-      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getParticipantWeeklyTasks&nomParticipant=${encodeURIComponent(participantName)}&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
@@ -201,6 +201,7 @@ function App() {
       }
       const data = await response.json();
       setParticipantWeeklyTasks(data);
+      console.log(`Frontend: Tâches hebdomadaires pour ${participantName} reçues:`, data);
 
     } catch (err) {
       setError(`Erreur lors de la récupération des tâches de ${participantName}: ${err.message}`);
@@ -213,7 +214,6 @@ function App() {
   const fetchSubTasks = useCallback(async (parentTaskId) => {
     setLoading(true); 
     try {
-      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getSousTaches&parentTaskId=${encodeURIComponent(parentTaskId)}&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
@@ -225,6 +225,7 @@ function App() {
       }
       const data = await response.json();
       setSubTasks(Array.isArray(data) ? data : []); 
+      console.log(`Frontend: Sous-tâches pour ${parentTaskId} reçues:`, data);
     } catch (err) {
       setError(`Erreur lors de la récupération des sous-tâches: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
@@ -236,7 +237,6 @@ function App() {
 
   const fetchObjectives = useCallback(async () => {
     try {
-      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getObjectives&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
@@ -247,6 +247,7 @@ function App() {
       }
       const data = await response.json();
       setObjectives(data);
+      console.log('Frontend: Objectifs reçus:', data);
     } catch (err) {
       setError(`Erreur lors de la récupération des objectifs: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
@@ -255,7 +256,6 @@ function App() {
 
   const fetchCongratulatoryMessages = useCallback(async () => {
     try {
-      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getCongratulatoryMessages&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
@@ -266,6 +266,7 @@ function App() {
       }
       const data = await response.json();
       setCongratulatoryMessages(data);
+      console.log('Frontend: Messages de félicitations reçus:', data);
     } catch (err) {
       setError(`Erreur lors de la récupération des messages de félicitations: ${err.message}`);
       setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); // Fallback
@@ -274,7 +275,6 @@ function App() {
 
   const fetchHistoricalPodiums = useCallback(async () => {
     try {
-      // MODIFIÉ : Ajout du token comme paramètre d'URL pour les requêtes GET
       const response = await fetch(`${API_URL}?action=getHistoricalPodiums&authToken=${AUTH_TOKEN}`, {
         method: 'GET',
         headers: getHeaders()
@@ -285,6 +285,7 @@ function App() {
       }
       const data = await response.json();
       setHistoricalPodiums(data);
+      console.log('Frontend: Podiums historiques reçus:', data);
     } catch (err) {
       setError(`Erreur lors de la récupération de l'historique des podiums: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
@@ -314,7 +315,7 @@ function App() {
         nomParticipant: participantName.trim(),
         pointsGagnes: pointsToSend,
         categorieTache: categoryToSend,
-        authToken: AUTH_TOKEN // NOUVEAU : Ajout du token au corps de la requête pour les POST
+        authToken: AUTH_TOKEN 
       };
 
       console.log('Frontend: Payload envoyé pour recordTask:', payload); 
@@ -385,7 +386,7 @@ function App() {
         action: 'recordMultipleTasks',
         tasks: tasksToRecordPayload,
         nomParticipant: participantName.trim(),
-        authToken: AUTH_TOKEN // NOUVEAU : Ajout du token au corps de la requête pour les POST
+        authToken: AUTH_TOKEN 
       };
 
       console.log('Frontend: Payload envoyé pour recordMultipleTasks:', payload); 
@@ -437,7 +438,6 @@ function App() {
   const resetWeeklyPoints = async () => {
     setLoading(true);
     try {
-      // MODIFIÉ : Ajout du token au corps de la requête pour les POST
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
@@ -523,7 +523,7 @@ function App() {
           ...newTaskData,
           Points: newTaskData.Points === '' ? '' : parseFloat(newTaskData.Points) 
         },
-        authToken: AUTH_TOKEN // NOUVEAU : Ajout du token au corps de la requête pour les POST
+        authToken: AUTH_TOKEN 
       };
       
       const response = await fetch(API_URL, {
@@ -560,7 +560,6 @@ function App() {
 
     setLoading(true);
     try {
-      // MODIFIÉ : Ajout du token au corps de la requête pour les POST
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
@@ -620,7 +619,7 @@ function App() {
           Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
           Est_Atteint: newObjectiveData.Est_Atteint
         },
-        authToken: AUTH_TOKEN // NOUVEAU : Ajout du token au corps de la requête pour les POST
+        authToken: AUTH_TOKEN 
       };
       
       const response = await fetch(API_URL, {
@@ -657,7 +656,6 @@ function App() {
 
     setLoading(true);
     try {
-      // MODIFIÉ : Ajout du token au corps de la requête pour les POST
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: getHeaders(),
@@ -681,6 +679,7 @@ function App() {
 
 
   useEffect(() => {
+    console.log('Frontend: Début du chargement initial des données...');
     fetchTaches();
     fetchClassement();
     fetchRealisations(); 
@@ -692,15 +691,18 @@ function App() {
   const handleParticipantClick = async (participant) => {
     setSelectedParticipantProfile(participant);
     setActiveMainView('participantProfile');
+    console.log('Frontend: Clic sur le participant, chargement du profil pour:', participant.Nom_Participant);
     await fetchParticipantWeeklyTasks(participant.Nom_Participant);
   };
 
   const handleTaskClick = (task) => {
     setSelectedTask(task);
     if (task.Sous_Taches_IDs && String(task.Sous_Taches_IDs).trim() !== '') {
+      console.log('Frontend: Tâche de groupe sélectionnée, récupération des sous-tâches pour ID:', task.ID_Tache);
       fetchSubTasks(task.ID_Tache); 
       setShowSplitTaskDialog(true); 
     } else {
+      console.log('Frontend: Tâche simple sélectionnée:', task.ID_Tache);
       setShowSplitTaskDialog(false); 
     }
   };
@@ -715,7 +717,7 @@ function App() {
     const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
     startOfCurrentWeek.setHours(0, 0, 0, 0); 
 
-    return !realisations.some(real => {
+    const isCompleted = realisations.some(real => {
       if (String(real.ID_Tache_Effectuee || '') === String(subTask.ID_Tache)) {
         const realDate = new Date(real.Timestamp);
         realDate.setHours(0, 0, 0, 0);
@@ -730,6 +732,8 @@ function App() {
       }
       return false;
     });
+    // console.log(`Frontend: Tâche '${subTask.Nom_Tache}' (ID: ${subTask.ID_Tache}, Fréq: ${frequence}) est disponible: ${!isCompleted}`);
+    return !isCompleted;
   };
 
   const getParticipantBadges = (participant) => {
@@ -779,7 +783,7 @@ function App() {
     if (hasBeenFirst) {
       badges.push({ name: 'Ancien Champion', icon: '🥇', description: 'A déjà été premier du podium.' });
     }
-
+    console.log(`Frontend: Badges pour ${participant.Nom_Participant}:`, badges);
     return badges;
   };
 
@@ -899,7 +903,7 @@ function App() {
     // Elle est ici pour des raisons de compatibilité avec le code précédent.
     if (classement.length > 0) {
         classement.forEach(currentP => {
-            const previousScore = parseFloat(currentP.Points_Total_Semaine_Precedente) || 0; // Sera toujours 0 avec votre structure actuelle
+            const previousScore = parseFloat(currentP.Points_Total_Semaine_Precedente) || 0; 
             const currentScore = parseFloat(currentP.Points_Total_Semaine_Courante) || 0;
             const improvement = currentScore - previousScore;
 
