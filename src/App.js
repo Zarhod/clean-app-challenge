@@ -83,7 +83,7 @@ function App() {
     Sous_Taches_IDs: '',
     Parent_Task_ID: ''
   });
-  const [editingTask, setEditingTask] = useState(null); 
+  const [editingTask, setEditingTask] = null; // Changed from useState(null) to null directly as it's set by handleEditTask
 
   // États pour la visibilité des sections déroulantes
   const [showHighlightsSection, setShowHighlightsSection] = useState(false); // Tendances actuelles
@@ -143,7 +143,7 @@ function App() {
     } finally {
       setLoading(false); 
     }
-  }, [setAllRawTaches, setTaches, setError, setLoading]); // getHeaders est stable, donc pas besoin de le mettre ici
+  }, [setAllRawTaches, setTaches, setError, setLoading]);
 
   const fetchClassement = useCallback(async () => {
     try {
