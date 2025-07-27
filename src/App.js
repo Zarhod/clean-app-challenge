@@ -13,8 +13,10 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
 // --- CONFIGURATION DE L'API ---
+// Cette URL est celle de votre Cloudflare Worker qui redirige vers Google Apps Script.
 const API_URL = 'https://clean-app-challenge-api.jassairbus.workers.dev/'; 
-const AUTH_TOKEN = '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2'; // <<< VÉRIFIEZ CE TOKEN !       
+// Ce token DOIT être identique dans App.js, le Cloudflare Worker et Google Apps Script.
+const AUTH_TOKEN = '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2';        
 
 // Nom du fichier logo (assurez-vous qu'il est dans le dossier public/)
 const LOGO_FILENAME = 'logo.png'; 
@@ -308,7 +310,7 @@ function App() {
         categorieTache: categoryToSend
       };
 
-      console.log('Payload envoyé pour recordTask:', payload); 
+      console.log('Frontend: Payload envoyé pour recordTask:', payload); 
 
       const response = await fetch(API_URL, {
         method: 'POST',
@@ -378,7 +380,7 @@ function App() {
         nomParticipant: participantName.trim()
       };
 
-      console.log('Payload envoyé pour recordMultipleTasks:', payload); 
+      console.log('Frontend: Payload envoyé pour recordMultipleTasks:', payload); 
 
       const response = await fetch(API_URL, {
         method: 'POST',
