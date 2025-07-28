@@ -14,7 +14,7 @@ import OverallRankingModal from './OverallRankingModal';
 import confetti from 'canvas-confetti'; // Import canvas-confetti directly for logo effect
 
 import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/React-toastify.css'; 
+import 'react-toastify/dist/ReactToastify.css'; // <-- CORRECTION ICI : 'ReactToastify.css' avec 'T' majuscule
 
 // --- CONFIGURATION DE L'API ---
 // Utilisez des variables d'environnement pour la production.
