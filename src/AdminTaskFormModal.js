@@ -11,15 +11,15 @@ import React from 'react';
  */
 function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading, editingTask }) {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4">
-      <div className="bg-card rounded-3xl p-5 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md md:max-w-lg text-center animate-fade-in-scale border border-primary/20 mx-auto">
-        <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">
+    <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-2"> {/* Reduced overall padding */}
+      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl w-full max-w-[95%] sm:max-w-md md:max-w-lg text-center animate-fade-in-scale border border-primary/20 mx-auto"> {/* Adjusted max-w for smaller screens, reduced padding */}
+        <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4"> {/* Reduced heading size */}
           {editingTask ? 'Modifier la Tâche' : 'Ajouter une Nouvelle Tâche'}
         </h3>
 
         {/* Conteneur du formulaire avec défilement pour les petits écrans */}
-        <div className="max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
-          <div className="space-y-4 text-left">
+        <div className="max-h-[55vh] overflow-y-auto custom-scrollbar pr-2"> {/* Reduced max-h */}
+          <div className="space-y-3 text-left"> {/* Slightly reduced vertical spacing */}
             <div>
               <label htmlFor="ID_Tache" className="block text-text font-medium mb-1 text-sm">ID Tâche:</label>
               <input
