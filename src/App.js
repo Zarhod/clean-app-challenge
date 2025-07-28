@@ -14,7 +14,7 @@ import OverallRankingModal from './OverallRankingModal';
 import confetti from 'canvas-confetti'; // Import canvas-confetti directly for logo effect
 
 import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css'; // <-- CORRECTION ICI : 'ReactToastify.css' avec 'T' majuscule
+import 'react-toastify/dist/ReactToastify.css'; 
 
 // --- CONFIGURATION DE L'API ---
 // Utilisez des variables d'environnement pour la production.
@@ -746,6 +746,27 @@ function App() {
     return !isCompleted;
   };
 
+  // NEW: Helper function to check if all subtasks of a group task are completed
+  const areAllSubtasksCompleted = useCallback((groupTask) => {
+    if (!groupTask.isGroupTask || !groupTask.Sous_Taches_IDs) {
+        return false; // Not a group task or no subtasks defined
+    }
+    const subTaskIds = String(groupTask.Sous_Taches_IDs).split(',').map(id => id.trim());
+    
+    // Get the actual subtask objects from allRawTaches
+    const associatedSubtasks = allRawTaches.filter(t => subTaskIds.includes(String(t.ID_Tache)));
+
+    if (associatedSubtasks.length === 0) {
+        // If a group task has no defined subtasks, it means there's nothing to complete.
+        // So, we can consider it "completed" in terms of its subtasks.
+        return true; 
+    }
+
+    // Check if ALL associated subtasks are NOT available (i.e., are completed)
+    return associatedSubtasks.every(subTask => !isSubTaskAvailable(subTask));
+  }, [allRawTaches, realisations]); // Dependencies: allRawTaches and realisations are needed by isSubTaskAvailable
+
+
   // Easter Egg logic
   const handleLogoClick = () => {
     setLogoClickCount(prevCount => {
@@ -905,7 +926,13 @@ function App() {
     const medals = ['🥇', '🥈', '🥉'];
 
     // Calculate remaining tasks
-    const remainingTasksCount = taches.filter(tache => isSubTaskAvailable(tache)).length;
+    // Updated logic: filter based on whether the task itself (if not group) or all its subtasks (if group) are available
+    const remainingTasksCount = taches.filter(tache => {
+        if (tache.isGroupTask) {
+            return !areAllSubtasksCompleted(tache);
+        }
+        return isSubTaskAvailable(tache);
+    }).length;
 
     // Sort the classement by weekly points for this view
     const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
@@ -1129,9 +1156,16 @@ function App() {
       return (
         <div className="space-y-3">
           {tasks.map(tache => {
-            const isCompletedForPeriod = !isSubTaskAvailable(tache); 
+            let shouldHideTask = false;
+            if (tache.isGroupTask) {
+                // For group tasks, hide if ALL its subtasks are completed
+                shouldHideTask = areAllSubtasksCompleted(tache);
+            } else {
+                // For regular tasks, hide if the task itself is not available (i.e., completed)
+                shouldHideTask = !isSubTaskAvailable(tache); 
+            }
 
-            if (isCompletedForPeriod) {
+            if (shouldHideTask) {
               return null; 
             }
 
@@ -1190,28 +1224,28 @@ function App() {
           ))}
         </div>
 
-        {ponctuelTasks.filter(t => isSubTaskAvailable(t)).length > 0 && ( 
+        {ponctuelTasks.filter(tache => !(!tache.isGroupTask && !isSubTaskAvailable(tache)) && !(tache.isGroupTask && areAllSubtasksCompleted(tache))).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Ponctuelles</h3> 
             {renderTasksList(ponctuelTasks)}
           </div>
         )}
 
-        {quotidienTasks.filter(t => isSubTaskAvailable(t)).length > 0 && ( 
+        {quotidienTasks.filter(tache => !(!tache.isGroupTask && !isSubTaskAvailable(tache)) && !(tache.isGroupTask && areAllSubtasksCompleted(tache))).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Quotidiennes</h3> 
             {renderTasksList(quotidienTasks)}
           </div>
         )}
 
-        {hebdomadaireTasks.filter(t => isSubTaskAvailable(t)).length > 0 && ( 
+        {hebdomadaireTasks.filter(tache => !(!tache.isGroupTask && !isSubTaskAvailable(tache)) && !(tache.isGroupTask && areAllSubtasksCompleted(tache))).length > 0 && ( 
           <div className="mb-6"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Hebdomadaires</h3> 
             {renderTasksList(hebdomadaireTasks)}
           </div>
         )}
 
-        {currentCategoryTasks.filter(t => isSubTaskAvailable(t)).length === 0 && (
+        {currentCategoryTasks.filter(tache => !(!tache.isGroupTask && !isSubTaskAvailable(tache)) && !(tache.isGroupTask && areAllSubtasksCompleted(tache))).length === 0 && (
           <p className="text-center text-lightText text-lg py-4">Aucune tâche disponible dans cette catégorie.</p>
         )}
       </div>
