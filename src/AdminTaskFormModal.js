@@ -41,16 +41,7 @@ function AdminTaskFormModal({
                 required
               />
             </div>
-            <div className="sm:col-span-2">
-              <label className="block text-text text-sm font-medium mb-1 text-left">Description:</label>
-              <textarea
-                name="Description"
-                value={taskData.Description}
-                onChange={onFormChange}
-                placeholder="Description détaillée de la tâche"
-                className="w-full p-2.5 border border-gray-300 rounded-lg h-20 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-              ></textarea>
-            </div>
+            {/* Le champ Description a été supprimé ici */}
             <div>
               <label className="block text-text text-sm font-medium mb-1 text-left">Points:</label>
               <input
@@ -59,7 +50,7 @@ function AdminTaskFormModal({
                 value={taskData.Points}
                 onChange={onFormChange}
                 placeholder="Ex: 10"
-                className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]" // Added min-h
+                className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]"
                 required
               />
             </div>
@@ -69,7 +60,7 @@ function AdminTaskFormModal({
                 name="Frequence"
                 value={taskData.Frequence}
                 onChange={onFormChange}
-                className="w-full p-2.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]" // Added min-h
+                className="w-full p-2.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]"
               >
                 <option value="Hebdomadaire">Hebdomadaire</option>
                 <option value="Quotidien">Quotidien</option>
@@ -82,7 +73,7 @@ function AdminTaskFormModal({
                 name="Urgence"
                 value={taskData.Urgence}
                 onChange={onFormChange}
-                className="w-full p-2.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]" // Added min-h
+                className="w-full p-2.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]"
               >
                 <option value="Faible">Faible</option>
                 <option value="Moyenne">Moyenne</option>
@@ -95,7 +86,7 @@ function AdminTaskFormModal({
                 name="Categorie"
                 value={taskData.Categorie}
                 onChange={onFormChange}
-                className="w-full p-2.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]" // Added min-h
+                className="w-full p-2.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]"
               >
                 <option value="Tous">Tous</option>
                 <option value="Salle">Salle</option>

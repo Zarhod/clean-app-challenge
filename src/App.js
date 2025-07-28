@@ -10,7 +10,7 @@ import AdminObjectiveFormModal from './AdminObjectiveFormModal';
 import ListAndInfoModal from './ListAndInfoModal'; 
 import ExportSelectionModal from './ExportSelectionModal'; 
 import RankingCard from './RankingCard'; 
-import OverallRankingModal from './TypicalOverallRankingModal'; // Corrected import path
+import OverallRankingModal from './OverallRankingModal'; // <-- CORRECTION ICI: Chemin d'importation correct
 import confetti from 'canvas-confetti'; // Import canvas-confetti directly for logo effect
 
 import { ToastContainer, toast } from 'react-toastify';
