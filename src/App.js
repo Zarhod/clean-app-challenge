@@ -11,7 +11,7 @@ import ListAndInfoModal from './ListAndInfoModal';
 import ExportSelectionModal from './ExportSelectionModal'; 
 import RankingCard from './RankingCard'; 
 import OverallRankingModal from './OverallRankingModal'; 
-import ReportTaskModal from './ReportTaskModal'; // NOUVEL IMPORT
+import ReportTaskModal from './ReportTaskModal'; 
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -88,6 +88,7 @@ function App() {
   const [reportedTaskDetails, setReportedTaskDetails] = useState(null); // { id, name, participant }
 
   // Easter Egg states
+  // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
   const [showChickEmoji, setShowChickEmoji] = useState(false);
   const logoClickTimerRef = useRef(null); 
@@ -170,7 +171,7 @@ function App() {
         Points_Total_Semaine_Courante: parseFloat(row.Points_Total_Semaine_Courante) || 0, 
         Points_Total_Cumulatif: parseFloat(row.Points_Total_Cumulatif) || 0,
         Points_Total_Semaine_Precedente: parseFloat(row.Points_Total_Semaine_Precedente || 0) || 0,
-        Date_Mise_A_Jour: row.Date_Mise_A_Jour || '' // Assurez-vous que cette colonne est présente
+        Date_Mise_A_Jour: row.Date_Mise_A_Jour || '' 
       })).sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
       
       setClassement(currentClassement);
@@ -1865,8 +1866,9 @@ function App() {
   };
 
   const renderFullRankingCards = () => {
-    const podiumColors = ['bg-podium-gold', 'bg-podium-silver', 'bg-podium-bronze']; 
-    const medals = ['🥇', '🥈', '🥉'];
+    // Suppression des déclarations inutiles de podiumColors et medals ici
+    // const podiumColors = ['bg-podium-gold', 'bg-podium-silver', 'bg-podium-bronze']; 
+    // const medals = ['🥇', '🥈', '🥉'];
 
     if (!Array.isArray(classement) || classement.length === 0) {
       return (
