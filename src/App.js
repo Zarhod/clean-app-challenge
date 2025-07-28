@@ -10,7 +10,7 @@ import AdminObjectiveFormModal from './AdminObjectiveFormModal';
 import ListAndInfoModal from './ListAndInfoModal'; 
 import ExportSelectionModal from './ExportSelectionModal'; 
 import RankingCard from './RankingCard'; 
-import OverallRankingModal from './OverallRankingModal'; // <-- CORRECTION ICI: Chemin d'importation correct
+import OverallRankingModal from './OverallRankingModal'; 
 import confetti from 'canvas-confetti'; // Import canvas-confetti directly for logo effect
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -708,17 +708,8 @@ function App() {
     await fetchParticipantWeeklyTasks(participant.Nom_Participant);
   };
 
-  const handleTaskClick = (task) => {
-    setSelectedTask(task);
-    if (task.Sous_Taches_IDs && String(task.Sous_Taches_IDs).trim() !== '') {
-      fetchSubTasks(task.ID_Tache); 
-      setShowSplitTaskDialog(true); 
-    } else {
-      setShowSplitTaskDialog(false); 
-    }
-  };
-
-  const isSubTaskAvailable = (subTask) => {
+  // Correction ici: isSubTaskAvailable est maintenant un useCallback
+  const isSubTaskAvailable = useCallback((subTask) => {
     const frequence = subTask.Frequence ? String(subTask.Frequence).toLowerCase() : 'hebdomadaire';
     const today = new Date();
     today.setHours(0, 0, 0, 0); 
@@ -744,6 +735,16 @@ function App() {
       return false;
     });
     return !isCompleted;
+  }, [realisations]); // realisations est une dépendance nécessaire ici
+
+  const handleTaskClick = (task) => {
+    setSelectedTask(task);
+    if (task.Sous_Taches_IDs && String(task.Sous_Taches_IDs).trim() !== '') {
+      fetchSubTasks(task.ID_Tache); 
+      setShowSplitTaskDialog(true); 
+    } else {
+      setShowSplitTaskDialog(false); 
+    }
   };
 
   // NEW: Helper function to check if all subtasks of a group task are completed
@@ -764,7 +765,7 @@ function App() {
 
     // Check if ALL associated subtasks are NOT available (i.e., are completed)
     return associatedSubtasks.every(subTask => !isSubTaskAvailable(subTask));
-  }, [allRawTaches, realisations, isSubTaskAvailable]); // <-- CORRECTION ICI: Ajout de isSubTaskAvailable
+  }, [allRawTaches, isSubTaskAvailable]); // isSubTaskAvailable est maintenant une dépendance stable
 
   // Easter Egg logic
   const handleLogoClick = () => {
