@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
-import FullRankingTable from './FullRankingTable'; 
 import HistoricalPodiums from './HistoricalPodiums'; 
 import AdminLoginButton from './AdminLoginButton'; 
 import AdminTaskFormModal from './AdminTaskFormModal'; 
@@ -8,19 +7,29 @@ import ConfirmActionModal from './ConfirmActionModal';
 import ConfettiOverlay from './ConfettiOverlay'; 
 import TaskStatisticsChart from './TaskStatisticsChart'; 
 import AdminObjectiveFormModal from './AdminObjectiveFormModal'; 
+import ListAndInfoModal from './ListAndInfoModal'; 
+import ExportSelectionModal from './ExportSelectionModal'; 
+import RankingCard from './RankingCard'; 
+import OverallRankingModal from './OverallRankingModal'; 
+import confetti from 'canvas-confetti'; // Import canvas-confetti directly for logo effect
 
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
 // --- CONFIGURATION DE L'API ---
-// REMPLACEZ CETTE URL PAR L'URL DE VOTRE PROPRE CLOUDFLARE WORKER APRÈS L'AVOIR DÉPLOYÉ
-const API_URL = 'https://clean-app-challenge-api.jassairbus.workers.dev/'; 
-const AUTH_TOKEN = '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2'; // CE TOKEN DOIT CORRESPONDRE À CELUI DU WORKER ET DU GOOGLE APPS SCRIPT       
+// Utilisez des variables d'environnement pour la production.
+// Pour le développement local, créez un fichier .env à la racine de votre projet:
+// REACT_APP_API_URL=https://clean-app-challenge-api.jassairbus.workers.dev/
+// REACT_APP_AUTH_TOKEN=6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2
+const API_URL = process.env.REACT_APP_API_URL || 'https://clean-app-challenge-api.jassairbus.workers.dev/'; 
+const AUTH_TOKEN = process.env.REACT_APP_AUTH_TOKEN || '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2'; 
 
 // Nom du fichier logo (assurez-vous qu'il est dans le dossier public/)
 const LOGO_FILENAME = 'logo.png'; 
 
-// Mot de passe administrateur (IMPORTANT: À changer pour la production !)
+// MOT DE PASSE ADMINISTRATEUR - EXTRÊMEMENT INSÉCURE EN PRODUCTION !
+// CE MOT DE PAS PASSE EST VISIBLE DANS LE CODE CLIENT.
+// N'UTILISEZ CECI QUE POUR LE DÉVELOPPEMENT LOCAL OU DES DÉMOS NON-SENSIBLES.
 const ADMIN_PASSWORD = 'Bombardier111'; 
 
 function App() {
@@ -36,7 +45,7 @@ function App() {
   const [selectedTask, setSelectedTask] = useState(null); 
   const [participantName, setParticipantName] = useState(''); 
   const [showThankYouPopup, setShowThankYouPopup] = useState(null); 
-  const [showConfetti, setShowConfetti] = useState(false); 
+  const [showConfetti, setShowConfetti] = useState(false); // For thank you popup confetti
   
   const [activeMainView, setActiveMainView] = useState('home'); 
   const [activeTaskCategory, setActiveTaskCategory] = useState('tous'); 
@@ -50,10 +59,18 @@ function App() {
   const [selectedSubTasks, setSelectedSubTasks] = useState([]); 
   
   const [showConfirmResetModal, setShowConfirmResetModal] = useState(false); 
+  
+  // Admin Task Modals
   const [showAdminTaskFormModal, setShowAdminTaskFormModal] = useState(false); 
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false); 
   const [taskToDelete, setTaskToDelete] = useState(null); 
+  const [newTaskData, setNewTaskData] = useState({ 
+    ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
+    Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
+  });
+  const [editingTask, setEditingTask] = useState(null);
 
+  // Admin Objective Modals
   const [showAdminObjectiveFormModal, setShowAdminObjectiveFormModal] = useState(false); 
   const [newObjectiveData, setNewObjectiveData] = useState({ 
     ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '',
@@ -64,17 +81,18 @@ function App() {
   const [objectiveToDelete, setObjectiveToDelete] = useState(null); 
 
   const [isAdmin, setIsAdmin] = useState(false);
-  const [newTaskData, setNewTaskData] = useState({ 
-    ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
-    Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
-  });
-  const [editingTask, setEditingTask] = useState(null);
 
-  const [showHighlightsSection, setShowHighlightsSection] = useState(false); 
-  const [showObjectivesSection, setShowObjectivesSection] = useState(false); 
-  const [showAdminObjectivesManagement, setShowAdminObjectivesManagement] = useState(false); 
-  const [showAdminTasksManagement, setShowAdminTasksManagement] = useState(false); 
+  const [showHighlightsModal, setShowHighlightsModal] = useState(false);
+  const [showObjectivesModal, setShowObjectivesModal] = useState(false);
+  const [showAdminObjectivesListModal, setShowAdminObjectivesListModal] = useState(false);
+  const [showAdminTasksListModal, setShowAdminTasksListModal] = useState(false);
+  const [showExportSelectionModal, setShowExportSelectionModal] = useState(false); 
+  const [showOverallRankingModal, setShowOverallRankingModal] = useState(false); 
 
+  // Easter Egg states
+  const [logoClickCount, setLogoClickCount] = useState(0);
+  const [showChickEmoji, setShowChickEmoji] = useState(false);
+  const logoClickTimerRef = useRef(null); // To reset click count if clicks are too slow
 
   const getHeaders = () => ({
     'Content-Type': 'application/json'
@@ -333,7 +351,7 @@ function App() {
         if (!isSubTask) { 
           const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
           setShowThankYouPopup({ name: participantName.trim(), task: completedTask ? completedTask.Nom_Tache : 'Tâche inconnue', message: randomMessage }); 
-          setShowConfetti(true); 
+          setShowConfetti(true); // This is for the thank you popup confetti
           setParticipantName('');
           setSelectedTask(null); 
         }
@@ -394,7 +412,7 @@ function App() {
         const completedTaskNames = availableSelectedSubTasks.map(st => st.Nom_Tache).join(', ');
         const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
         setShowThankYouPopup({ name: participantName.trim(), task: completedTaskNames, message: randomMessage });
-        setShowConfetti(true); 
+        setShowConfetti(true); // This is for the thank you popup confetti
 
         for (const subTask of availableSelectedSubTasks) {
             const fullSubTaskData = allRawTaches.find(t => String(t.ID_Tache) === String(subTask.ID_Tache));
@@ -456,8 +474,9 @@ function App() {
     }
   };
 
+  // Logique de connexion admin simplifiée (SANS SÉCURITÉ)
   const handleAdminLogin = (passwordInput) => {
-    if (passwordInput === ADMIN_PASSWORD) {
+    if (passwordInput === ADMIN_PASSWORD) { // Vérification du mot de passe en dur
       setIsAdmin(true);
       setActiveMainView('adminPanel');
       toast.success('Connecté en tant qu\'administrateur !');
@@ -466,11 +485,18 @@ function App() {
     }
   };
 
+  // Logique de déconnexion admin simplifiée (SANS SÉCURITÉ)
   const handleAdminLogout = () => {
     setIsAdmin(false);
     setActiveMainView('home');
     toast.info('Déconnecté du panneau administrateur.');
   };
+
+  // Pas de vérification de session persistante (SANS SÉCURITÉ)
+  useEffect(() => {
+    // Pas de logique de token JWT ici, l'état isAdmin est géré par la session du navigateur
+  }, []);
+
 
   const handleTaskFormChange = (e) => {
     const { name, value } = e.target;
@@ -719,56 +745,116 @@ function App() {
     return !isCompleted;
   };
 
-  const getParticipantBadges = (participant) => {
+  // Easter Egg logic
+  const handleLogoClick = () => {
+    setLogoClickCount(prevCount => {
+      const newCount = prevCount + 1;
+      
+      // Reset click count if clicks are too slow
+      if (logoClickTimerRef.current) {
+        clearTimeout(logoClickTimerRef.current);
+      }
+      logoClickTimerRef.current = setTimeout(() => {
+        setLogoClickCount(0);
+      }, 500); // Reset after 500ms of inactivity
+
+      if (newCount >= 5) {
+        setLogoClickCount(0); // Reset count after activating
+        clearTimeout(logoClickTimerRef.current); // Clear the reset timer
+
+        // Trigger confetti from the top center
+        confetti({
+          particleCount: 150,
+          spread: 90,
+          origin: { y: 0.2, x: 0.5 }, // From the top center, slightly lower to appear from logo
+          colors: ['#a8e6cf', '#dcedc1', '#ffd3b6', '#ffaaa5', '#ff8b94', '#6a0dad', '#800080', '#ffc0cb', '#0000ff'] // Custom colors
+        });
+
+        setShowChickEmoji(true); // Change to chick
+        setTimeout(() => {
+          setShowChickEmoji(false); // Change back to logo after 20 seconds
+        }, 20000); 
+      }
+      return newCount;
+    });
+  };
+
+  // Nouveau système de badges
+  const getParticipantBadges = useCallback((participant) => {
     const badges = [];
     const participantRealisations = realisations.filter(r => String(r.Nom_Participant).trim() === String(participant.Nom_Participant).trim());
     
     const totalPoints = parseFloat(participant.Points_Total_Cumulatif) || 0;
-    
-    if (totalPoints >= 50) {
-      badges.push({ name: 'Nettoyeur Débutant', icon: '✨', description: 'Atteint 50 points cumulés.' });
-    }
-    if (totalPoints >= 200) {
-      badges.push({ name: 'Nettoyeur Pro', icon: '🌟', description: 'Atteint 200 points cumulés.' });
-    }
-    if (totalPoints >= 500) {
-      badges.push({ name: 'Maître de la Propreté', icon: '👑', description: 'Atteint 500 points cumulés.' });
-    }
+    const weeklyPoints = parseFloat(participant.Points_Total_Semaine_Courante) || 0;
 
+    // Badge: Premier Pas (première tâche complétée)
+    if (participantRealisations.length > 0 && !badges.some(b => b.name === 'Premier Pas')) {
+        badges.push({ name: 'Premier Pas', icon: '🐣', description: 'A complété sa première tâche.' });
+    }
+    
+    // Badge: Actif de la Semaine (>= 3 tâches hebdomadaires complétées cette semaine)
     const tasksThisWeek = participantRealisations.filter(real => {
         const realDate = new Date(real.Timestamp);
-        realDate.setHours(0, 0, 0, 0);
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const dayOfWeek = today.getDay();
-        const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-        const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
-        startOfCurrentWeek.setHours(0, 0, 0, 0);
-        return realDate >= startOfCurrentWeek;
+        const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1))); // Lundi de la semaine courante
+        return realDate >= startOfWeek;
     }).length;
-    if (tasksThisWeek >= 3) {
-        badges.push({ name: 'Actif de la Semaine', icon: '🔥', description: '3 tâches ou plus complétées cette semaine.' });
+    if (tasksThisWeek >= 3 && !badges.some(b => b.name === 'Actif de la Semaine')) {
+        badges.push({ name: 'Actif de la Semaine', icon: '⚡', description: '3 tâches ou plus complétées cette semaine.' });
     }
 
+    // Badge: Spécialiste Cuisine (>= 5 tâches de cuisine complétées)
     const kitchenTasks = participantRealisations.filter(r => String(r.Categorie_Tache || '').toLowerCase() === 'cuisine').length;
-    if (kitchenTasks >= 5) {
-      badges.push({ name: 'Spécialiste Cuisine', icon: '🍳', description: '5 tâches de cuisine complétées.' });
+    if (kitchenTasks >= 5 && !badges.some(b => b.name === 'Chef Propre')) {
+      badges.push({ name: 'Chef Propre', icon: '🍳', description: '5 tâches de cuisine complétées.' });
     }
 
+    // Badge: Spécialiste Salle (>= 5 tâches de salle complétées)
     const roomTasks = participantRealisations.filter(r => String(r.Categorie_Tache || '').toLowerCase() === 'salle').length;
-    if (roomTasks >= 5) {
-      badges.push({ name: 'Spécialiste Salle', icon: '🛋️', description: '5 tâches de salle complétées.' });
+    if (roomTasks >= 5 && !badges.some(b => b.name === 'Maître de Salon')) {
+      badges.push({ name: 'Maître de Salon', icon: '🛋️', description: '5 tâches de salle complétées.' });
     }
 
-    const hasBeenFirst = historicalPodiums.some(podium => 
-      podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.Nom_Participant).trim()
+    // Badge: Grand Nettoyeur (>= 100 points cumulés)
+    if (totalPoints >= 100 && !badges.some(b => b.name === 'Grand Nettoyeur')) {
+      badges.push({ name: 'Grand Nettoyeur', icon: '✨', description: 'Atteint 100 points cumulés.' });
+    }
+    // Badge: Champion de la Propreté (>= 500 points cumulés)
+    if (totalPoints >= 500 && !badges.some(b => b.name === 'Champion de la Propreté')) {
+      badges.push({ name: 'Champion de la Propreté', icon: '🏆', description: 'Atteint 500 points cumulés.' });
+    }
+    // Badge: Légende de la Propreté (>= 1000 points cumulés)
+    if (totalPoints >= 1000 && !badges.some(b => b.name === 'Légende de la Propreté')) {
+      badges.push({ name: 'Légende de la Propreté', icon: '🌟', description: 'Atteint 1000 points cumulés.' });
+    }
+
+    // Badge: Vainqueur Hebdomadaire (a été 1er au classement hebdomadaire au moins une fois)
+    const hasBeenWeeklyWinner = historicalPodiums.some(podium => 
+        podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.Nom_Participant).trim()
     );
-    if (hasBeenFirst) {
-      badges.push({ name: 'Ancien Champion', icon: '🥇', description: 'A déjà été premier du podium.' });
+    if (hasBeenWeeklyWinner && !badges.some(b => b.name === 'Vainqueur Hebdomadaire')) {
+        badges.push({ name: 'Vainqueur Hebdomadaire', icon: '🥇', description: 'A été premier du podium hebdomadaire.' });
+    }
+
+    // Badge: Imbattable (a été 1er au classement hebdomadaire 3 fois ou plus)
+    const weeklyWins = historicalPodiums.filter(podium => 
+        podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.Nom_Participant).trim()
+    ).length;
+    if (weeklyWins >= 3 && !badges.some(b => b.name === 'Imbattable')) {
+        badges.push({ name: 'Imbattable', icon: '👑', description: 'A été premier du podium hebdomadaire 3 fois ou plus.' });
+    }
+
+    // Badge: Esprit d'équipe (a complété au moins une tâche de groupe)
+    const hasCompletedGroupTask = participantRealisations.some(r => {
+        const taskDef = allRawTaches.find(t => String(t.ID_Tache) === String(r.ID_Tache_Effectuee));
+        return taskDef && (taskDef.Parent_Task_ID || (taskDef.Sous_Taches_IDs && taskDef.Sous_Taches_IDs.trim() !== ''));
+    });
+    if (hasCompletedGroupTask && !badges.some(b => b.name === 'Esprit d\'équipe')) {
+        badges.push({ name: 'Esprit d\'équipe', icon: '🤝', description: 'A complété une tâche de groupe.' });
     }
 
     return badges;
-  };
+  }, [realisations, historicalPodiums, allRawTaches]); 
 
 
   const getUrgencyClasses = (urgency) => {
@@ -811,78 +897,105 @@ function App() {
   };
 
   const renderPodiumSection = () => {
-    if (!Array.isArray(classement) || classement.length === 0) return <p className="text-center text-lightText text-lg">Aucun classement disponible pour le moment.</p>;
-
     const podiumColors = ['bg-podium-gold', 'bg-podium-silver', 'bg-podium-bronze']; 
     const medals = ['🥇', '🥈', '🥉'];
 
+    // Calculate remaining tasks
+    const remainingTasksCount = taches.filter(tache => isSubTaskAvailable(tache)).length;
+
+    // Sort the classement by weekly points for this view
+    const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
+    const top3 = sortedClassement.slice(0, 3);
+
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 mb-6 sm:mb-8 shadow-2xl text-center"> 
+        <p className="text-lg sm:text-xl font-semibold text-text mb-4">
+          Tâches restantes: <span className="text-primary font-bold">{remainingTasksCount}</span>
+        </p>
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-secondary mb-6 sm:mb-8 whitespace-nowrap overflow-hidden text-ellipsis">🏆 Podium de la Semaine 🏆</h2> 
-        <div className="flex justify-center items-end mt-4 sm:mt-6 gap-2 sm:gap-4"> 
-          {/* 2ème Place */}
-          {classement.length > 1 && (
-            <div 
-              key={classement[1].Nom_Participant || `anon-silver`} 
-              className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
-                ${podiumColors[1]} order-1 w-1/3 sm:w-auto`} 
-              onClick={() => handleParticipantClick(classement[1])} 
-            >
-              <span className={`text-3xl sm:text-5xl mb-0.5 sm:mb-1`}>{medals[1]}</span> 
-              <p className="font-bold text-xs sm:text-lg mb-0.5 text-text truncate w-full px-1 text-center">{classement[1].Nom_Participant}</p> 
-              <p className="text-xs sm:text-base text-lightText">{classement[1].Points_Total_Semaine_Courante} pts</p> 
-            </div>
-          )}
+        
+        {/* Conditional rendering for the podium itself */}
+        {Array.isArray(classement) && classement.length > 0 ? (
+          <>
+            <div className="flex justify-center items-end mt-4 sm:mt-6 gap-2 sm:gap-4"> 
+              {/* 2ème Place */}
+              {top3.length > 1 && (
+                <div 
+                  key={top3[1].Nom_Participant || `anon-silver`} 
+                  className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
+                    ${podiumColors[1]} order-1 w-1/3 sm:w-auto min-w-[80px]`} 
+                  onClick={() => handleParticipantClick(top3[1])} 
+                >
+                  <span className={`text-3xl sm:text-5xl mb-0.5 sm:mb-1`}>{medals[1]}</span> 
+                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3[1].Nom_Participant}</p> 
+                  <p className="text-xs sm:text-base text-lightText">{top3[1].Points_Total_Semaine_Courante} pts</p> 
+                </div>
+              )}
 
-          {/* 1ère Place */}
-          {classement.length > 0 && (
-            <div 
-              key={classement[0].Nom_Participant || `anon-gold`} 
-              className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
-                ${podiumColors[0]} order-2 w-1/3 sm:w-auto -translate-y-2`} 
-              onClick={() => handleParticipantClick(classement[0])} 
-            >
-              <span className={`text-5xl sm:text-6xl mb-0.5 sm:mb-1`}>{medals[0]}</span> 
-              <p className="font-bold text-xs sm:text-lg mb-0.5 text-text truncate w-full px-1 text-center">{classement[0].Nom_Participant}</p> 
-              <p className="text-xs sm:text-base text-lightText">{classement[0].Points_Total_Semaine_Courante} pts</p> 
-            </div>
-          )}
+              {/* 1ère Place */}
+              {top3.length > 0 && (
+                <div 
+                  key={top3[0].Nom_Participant || `anon-gold`} 
+                  className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
+                    ${podiumColors[0]} order-2 w-1/3 sm:w-auto -translate-y-2 min-w-[80px]`} 
+                  onClick={() => handleParticipantClick(top3[0])} 
+                >
+                  <span className={`text-5xl sm:text-6xl mb-0.5 sm:mb-1`}>{medals[0]}</span> 
+                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3[0].Nom_Participant}</p> 
+                  <p className="text-xs sm:text-base text-lightText">{top3[0].Points_Total_Semaine_Courante} pts</p> 
+                </div>
+              )}
 
-          {/* 3ème Place */}
-          {classement.length > 2 && (
-            <div 
-              key={classement[2].Nom_Participant || `anon-bronze`} 
-              className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
-                ${podiumColors[2]} order-3 w-1/3 sm:w-auto`} 
-              onClick={() => handleParticipantClick(classement[2])} 
-            >
-              <span className={`text-3xl sm:text-5xl mb-0.5 sm:mb-1`}>{medals[2]}</span> 
-              <p className="font-bold text-xs sm:text-lg mb-0.5 text-text truncate w-full px-1 text-center">{classement[2].Nom_Participant}</p> 
-              <p className="text-xs sm:text-base text-lightText">{classement[2].Points_Total_Semaine_Courante} pts</p> 
+              {/* 3ème Place */}
+              {top3.length > 2 && (
+                <div 
+                  key={top3[2].Nom_Participant || `anon-bronze`} 
+                  className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
+                    ${podiumColors[2]} order-3 w-1/3 sm:w-auto min-w-[80px]`} 
+                  onClick={() => handleParticipantClick(top3[2])} 
+                >
+                  <span className={`text-3xl sm:text-5xl mb-0.5 sm:mb-1`}>{medals[2]}</span> 
+                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3[2].Nom_Participant}</p> 
+                  <p className="text-xs sm:text-base text-lightText">{top3[2].Points_Total_Semaine_Courante} pts</p> 
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        {classement.length > 0 && (
-          <button 
-            className="mt-6 sm:mt-8 bg-success hover:bg-green-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-8 rounded-lg shadow-lg 
-                       transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm sm:text-base" 
-            onClick={() => setActiveMainView('fullRanking')} 
-          >
-            Voir le Classement Complet
-          </button>
+
+            <button 
+                className="mt-6 sm:mt-8 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md 
+                           transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
+                onClick={() => setActiveMainView('fullRanking')} 
+              >
+                Voir le Classement Complet
+              </button>
+          </>
+        ) : (
+          <p className="text-center text-lightText text-lg py-4">Soyez le premier à marquer des points cette semaine !</p>
         )}
-        {renderHighlights()} 
-        {renderObjectivesSection()} 
+        
+        {/* NOUVEAUX BOUTONS POUR LES MODALES DE LA PAGE PRINCIPALE */}
+        <div className="flex flex-wrap justify-center gap-2 sm:gap-4 mt-4 border-t border-neutralBg pt-4">
+            <button
+                onClick={() => setShowHighlightsModal(true)}
+                className="bg-neutralBg hover:bg-neutralBg/80 text-text font-semibold py-1.5 px-3 rounded-md transition duration-300 flex items-center justify-center text-xs sm:text-sm flex-1 min-w-[130px]" 
+            >
+                ✨ Tendances Actuelles ✨
+            </button>
+            <button
+                onClick={() => setShowObjectivesModal(true)}
+                className="bg-neutralBg hover:bg-neutralBg/80 text-text font-semibold py-1.5 px-3 rounded-md transition duration-300 flex items-center justify-center text-xs sm:text-sm flex-1 min-w-[130px]" 
+            >
+                🎯 Objectifs Communs 🎯
+            </button>
+        </div>
       </div>
     );
   };
 
-  const renderHighlights = () => {
+  const renderHighlightsContent = () => {
     let mostImproved = null;
     let maxImprovement = -1;
 
-    // NOTE: La colonne 'Points_Total_Semaine_Precedente' doit exister dans votre feuille 'Feuille_Classement'
-    // pour que la fonctionnalité "Plus Amélioré" fonctionne correctement.
     if (classement.length > 0) {
         classement.forEach(currentP => {
             const previousScore = parseFloat(currentP.Points_Total_Semaine_Precedente) || 0; 
@@ -924,20 +1037,11 @@ function App() {
     });
 
     if (!mostImproved && !mostActive) {
-        return null; 
+        return <p className="text-center text-lightText text-md py-2">Aucune tendance disponible pour le moment.</p>;
     }
 
     return (
-      <div className="mt-6 border-t border-neutralBg pt-4"> 
-        <button
-          onClick={() => setShowHighlightsSection(!showHighlightsSection)}
-          className="w-full bg-neutralBg hover:bg-neutralBg/80 text-text font-semibold py-2 px-4 rounded-md transition duration-300 flex items-center justify-between text-sm sm:text-base"
-        >
-          <span>✨ Tendances Actuelles ✨</span>
-          <span>{showHighlightsSection ? '▲' : '▼'}</span>
-        </button>
-        <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showHighlightsSection ? 'max-h-screen opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"> 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"> 
             {mostImproved && maxImprovement > 0 && (
               <div className="bg-white p-3 rounded-lg shadow-sm text-center border border-blue-50"> 
                 <h3 className="text-base font-bold text-primary mb-1">Le Plus Amélioré</h3>
@@ -952,57 +1056,44 @@ function App() {
                 <p className="text-lightText text-xs">{maxTasksCompleted} tâches terminées cette semaine</p>
               </div>
             )}
-          </div>
         </div>
-      </div>
     );
   };
 
-  const renderObjectivesSection = () => {
+  const renderObjectivesContent = () => {
     if (!Array.isArray(objectives) || objectives.length === 0) {
-      return null;
+      return <p className="text-center text-lightText text-md py-2">Aucun objectif disponible pour le moment.</p>;
     }
 
     return (
-      <div className="mt-6 border-t border-neutralBg pt-4"> 
-        <button
-          onClick={() => setShowObjectivesSection(!showObjectivesSection)}
-          className="w-full bg-neutralBg hover:bg-neutralBg/80 text-text font-semibold py-2 px-4 rounded-md transition duration-300 flex items-center justify-between text-sm sm:text-base"
-        >
-          <span>🎯 Objectifs Communs 🎯</span>
-          <span>{showObjectivesSection ? '▲' : '▼'}</span>
-        </button>
-        <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showObjectivesSection ? 'max-h-screen opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
-          <div className="space-y-2"> 
-            {objectives.map(obj => {
-              const currentPoints = parseFloat(obj.Points_Actuels) || 0;
-              const targetPoints = parseFloat(obj.Cible_Points) || 0;
-              const progress = targetPoints > 0 ? (currentPoints / targetPoints) * 100 : 0;
-              const isCompleted = obj.Est_Atteint === true || String(obj.Est_Atteint).toLowerCase() === 'true' || currentPoints >= targetPoints;
+      <div className="space-y-2"> 
+        {objectives.map(obj => {
+          const currentPoints = parseFloat(obj.Points_Actuels) || 0;
+          const targetPoints = parseFloat(obj.Cible_Points) || 0;
+          const progress = targetPoints > 0 ? (currentPoints / targetPoints) * 100 : 0;
+          const isCompleted = obj.Est_Atteint === true || String(obj.Est_Atteint).toLowerCase() === 'true' || currentPoints >= targetPoints;
 
-              return (
-                <div key={obj.ID_Objectif} className={`bg-white rounded-lg p-3 shadow-sm border 
-                  ${isCompleted ? 'border-success' : 'border-primary/10'}`}> 
-                  <div className="flex justify-between items-center mb-1">
-                    <h3 className="text-base font-bold text-primary truncate">{obj.Nom_Objectif}</h3> 
-                    {isCompleted ? (
-                      <span className="text-success font-bold text-sm">✅ Atteint !</span>
-                    ) : (
-                      <span className="text-text font-semibold text-sm">{currentPoints} / {targetPoints} pts</span>
-                    )}
-                  </div>
-                  <p className="text-lightText text-xs mb-2 truncate">{obj.Description_Objectif}</p> 
-                  <div className="w-full bg-gray-200 rounded-full h-2"> 
-                    <div 
-                      className={`h-2 rounded-full ${isCompleted ? 'bg-success' : 'bg-primary'}`} 
-                      style={{ width: `${Math.min(progress, 100)}%` }}
-                    ></div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+          return (
+            <div key={obj.ID_Objectif} className={`bg-white rounded-lg p-3 shadow-sm border 
+              ${isCompleted ? 'border-success' : 'border-primary/10'}`}> 
+              <div className="flex justify-between items-center mb-1">
+                <h3 className="text-base font-bold text-primary truncate">{obj.Nom_Objectif}</h3> 
+                {isCompleted ? (
+                  <span className="text-success font-bold text-sm">✅ Atteint !</span>
+                ) : (
+                  <span className="text-text font-semibold text-sm">{currentPoints} / {targetPoints} pts</span>
+                )}
+              </div>
+              <p className="text-lightText text-xs mb-2 truncate">{obj.Description_Objectif}</p> 
+              <div className="w-full bg-gray-200 rounded-full h-2"> 
+                <div 
+                  className={`h-2 rounded-full ${isCompleted ? 'bg-success' : 'bg-primary'}`} 
+                  style={{ width: `${Math.min(progress, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   };
@@ -1054,7 +1145,7 @@ function App() {
                         {tache.Nom_Tache}
                     </h4> 
                     {tache.isGroupTask && (
-                        <span className="ml-0 sm:ml-2 px-1 py-0.5 text-[0.4rem] sm:text-xs font-semibold rounded-full bg-primary text-white shadow-sm whitespace-nowrap mt-1 sm:mt-0">
+                        <span className="ml-0 sm:ml-2 px-1 py-0.5 text-[0.6rem] sm:text-xs font-semibold rounded-full bg-primary text-white shadow-sm whitespace-nowrap mt-1 sm:mt-0"> 
                             Groupe de Tâches
                         </span>
                     )}
@@ -1066,7 +1157,8 @@ function App() {
                     <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${getFrequencyClasses(tache.Frequence)}`}> 
                         {tache.Frequence || 'Hebdomadaire'}
                     </span>
-                    <div className="border border-primary text-primary font-bold text-xs sm:text-base px-1.5 py-0.5 rounded-md bg-primary/10"> 
+                    {/* Sober points box */}
+                    <div className="border border-gray-300 text-gray-700 font-bold text-xs sm:text-base px-1.5 py-0.5 rounded-md bg-gray-100"> 
                         {tache.Calculated_Points} pts
                     </div>
                 </div>
@@ -1153,8 +1245,8 @@ function App() {
           ))}
         </div>
         <button
-          className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-8 rounded-lg shadow-lg 
-                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm sm:text-base" 
+          className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg 
+                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
           onClick={() => setActiveMainView('home')}
         >
           Retour à l'Accueil
@@ -1167,8 +1259,8 @@ function App() {
     if (!showThankYouPopup) return null; 
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4"> 
-        <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center animate-fade-in-scale border border-primary/20"> 
+      <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4"> 
+        <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto"> 
           <h3 className="text-3xl sm:text-4xl font-bold text-success mb-6 sm:mb-8">🎉 Bravo ! 🎉</h3> 
           <p className="text-lg sm:text-xl text-text mb-6 sm:mb-8">
             {showThankYouPopup.message}
@@ -1177,8 +1269,8 @@ function App() {
           </p>
           <button 
             onClick={() => setShowThankYouPopup(null)} 
-            className="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-8 rounded-full shadow-lg 
-                       transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm sm:text-base"
+            className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg 
+                       transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
           >
             Super !
           </button>
@@ -1192,8 +1284,8 @@ function App() {
     if (!selectedTask || selectedTask.isGroupTask) return null; 
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4"> 
-        <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center animate-fade-in-scale border border-primary/20"> 
+      <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4"> 
+        <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto"> 
           <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">Confirmer la Tâche</h3> 
           <p className="text-base sm:text-lg mb-4">Tâche: <strong className="text-text">{selectedTask.Nom_Tache}</strong> (<span className="font-semibold text-primary">{selectedTask.Calculated_Points} points</span>)</p>
           <label htmlFor="participantName" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Votre Nom:</label>
@@ -1203,23 +1295,23 @@ function App() {
             value={participantName}
             onChange={(e) => setParticipantName(e.target.value)}
             placeholder="Entrez votre nom"
-            className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm sm:text-base"
+            className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
             autoFocus
           />
           <div className="flex flex-col gap-3 sm:gap-4 mt-4"> 
             <button 
               onClick={() => recordTask(selectedTask.ID_Tache)} 
               disabled={loading}
-              className="bg-success hover:bg-green-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-6 rounded-full shadow-lg 
-                         transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm sm:text-base"
+              className="bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg 
+                         transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
             >
               {loading ? 'Soumission...' : 'Valider la Tâche'} 
             </button>
             <button 
               onClick={() => { setSelectedTask(null); setParticipantName(''); }} 
               disabled={loading}
-              className="bg-error hover:bg-red-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-6 rounded-full shadow-lg 
-                         transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm sm:text-base"
+              className="bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg 
+                         transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
             >
               Annuler
             </button>
@@ -1255,8 +1347,8 @@ function App() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4">
-        <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center animate-fade-in-scale border border-primary/20">
+      <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4"> 
+        <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto"> 
           <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">
             Terminer: {selectedTask.Nom_Tache}
           </h3>
@@ -1271,7 +1363,7 @@ function App() {
             </div>
           ) : (
             Array.isArray(subTasks) && subTasks.length > 0 ? (
-              <div className="space-y-3 mb-6 text-left">
+              <div className="space-y-3 mb-6 text-left max-h-60 overflow-y-auto custom-scrollbar"> 
                 {subTasks.map(subTask => {
                   const available = isSubTaskAvailable(subTask);
                   const isChecked = selectedSubTasks.some(t => String(t.ID_Tache) === String(subTask.ID_Tache));
@@ -1308,7 +1400,7 @@ function App() {
             value={participantName}
             onChange={(e) => setParticipantName(e.target.value)}
             placeholder="Entrez votre nom"
-            className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm sm:text-base"
+            className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
             autoFocus
           />
 
@@ -1316,16 +1408,16 @@ function App() {
             <button
               onClick={recordMultipleTasks}
               disabled={loading || selectedSubTasks.length === 0}
-              className="bg-success hover:bg-green-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-6 rounded-full shadow-lg
-                         transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm sm:text-base"
+              className="bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                         transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
             >
               {loading ? 'Soumission...' : 'Valider les Tâches Sélectionnées'}
             </button>
             <button
               onClick={handleClose}
               disabled={loading}
-              className="bg-error hover:bg-red-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-6 rounded-full shadow-lg
-                         transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm sm:text-base"
+              className="bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                         transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
             >
               Annuler
             </button>
@@ -1364,7 +1456,7 @@ function App() {
                   <span 
                     key={badge.name} 
                     title={badge.description} 
-                    className="bg-primary/20 text-primary px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 shadow-sm"
+                    className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 shadow-sm" 
                   >
                     {badge.icon} {badge.name}
                   </span>
@@ -1404,8 +1496,8 @@ function App() {
         )}
 
         <button 
-          className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-8 rounded-lg shadow-lg 
-                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm sm:text-base" 
+          className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg 
+                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
           onClick={() => setActiveMainView('home')}
         >
           Retour à l'Accueil
@@ -1502,7 +1594,6 @@ function App() {
   };
 
   const handleExportClassement = () => {
-    // En-têtes de colonnes de votre feuille Feuille_Classement
     const headers = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Points_Total_Semaine_Precedente', 'Date_Mise_A_Jour'];
     const dataToExport = classement.map(p => ({
         Nom_Participant: p.Nom_Participant,
@@ -1511,14 +1602,149 @@ function App() {
         Points_Total_Semaine_Precedente: p.Points_Total_Semaine_Precedente || 0,
         Date_Mise_A_Jour: p.Date_Mise_A_Jour || '' 
     }));
-
     exportToCsv('classement_clean_app.csv', dataToExport, headers);
+    setShowExportSelectionModal(false); 
   };
 
   const handleExportRealisations = () => {
-    // En-têtes de colonnes de votre feuille Feuille_Realisations
     const headers = ['Timestamp', 'Nom_Participant', 'ID_Tache_Effectuee', 'Nom_Tache_Effectuee', 'Categorie_Tache', 'Points_Gagnes'];
     exportToCsv('realisations_clean_app.csv', realisations, headers);
+    setShowExportSelectionModal(false); 
+  };
+
+  const renderAdminObjectivesListModal = () => {
+    // This modal now only displays the list. Form modals are separate.
+    if (!showAdminObjectivesListModal) return null;
+
+    return (
+      <ListAndInfoModal title="Gestion des Objectifs" onClose={() => setShowAdminObjectivesListModal(false)} sizeClass="max-w-full sm:max-w-md md:max-w-lg">
+        <button
+          onClick={() => {
+            setShowAdminObjectivesListModal(false); // Close list modal
+            setEditingObjective(null);
+            setNewObjectiveData({ 
+              ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '',
+              Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
+            });
+            setShowAdminObjectiveFormModal(true); // Open form modal
+          }}
+          className="bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full mb-4 text-sm" 
+        >
+          Ajouter un Nouvel Objectif
+        </button>
+
+        <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">Tous les Objectifs</h4>
+        {loading ? (
+          <div className="flex justify-center items-center py-4">
+            <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
+            <p className="ml-3 text-lightText">Chargement des objectifs...</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {objectives.length === 0 ? (
+              <p className="text-center text-lightText text-lg">Aucun objectif disponible.</p>
+            ) : (
+              objectives.map(obj => (
+                <div key={obj.ID_Objectif} className="bg-white rounded-lg p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm border border-neutralBg/50">
+                  <div className="flex-1 min-w-0 mb-2 sm:mb-0">
+                    <p className="font-bold text-text text-lg truncate">{obj.Nom_Objectif} <span className="text-sm text-lightText">({obj.ID_Objectif})</span></p>
+                    <p className="text-sm text-lightText">Cible: {obj.Cible_Points} | Actuel: {obj.Points_Actuels} | Type: {obj.Type_Cible} {obj.Categorie_Cible && `(${obj.Categorie_Cible})`}</p>
+                    <p className="text-sm text-lightText">Atteint: {obj.Est_Atteint ? 'Oui' : 'Non'}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
+                    <button
+                      onClick={() => {
+                        setShowAdminObjectivesListModal(false); // Close list modal
+                        setEditingObjective(obj);
+                        setNewObjectiveData(obj);
+                        setShowAdminObjectiveFormModal(true); // Open form modal
+                      }}
+                      className="bg-accent hover:bg-yellow-600 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs"
+                    >
+                      Modifier
+                    </button>
+                    <button
+                      onClick={() => handleDeleteObjective(obj.ID_Objectif)}
+                      className="bg-error hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </ListAndInfoModal>
+    );
+  };
+
+  const renderAdminTasksListModal = () => {
+    // This modal now only displays the list. Form modals are separate.
+    if (!showAdminTasksListModal) return null;
+
+    return (
+      <ListAndInfoModal title="Gestion des Tâches" onClose={() => setShowAdminTasksListModal(false)} sizeClass="max-w-full sm:max-w-md md:max-w-lg">
+        <button
+          onClick={() => { 
+            setShowAdminTasksListModal(false); // Close list modal
+            setEditingTask(null); 
+            setNewTaskData({ 
+              ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
+              Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
+            }); 
+            setShowAdminTaskFormModal(true); // Open form modal
+          }}
+          className="bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full mb-4 text-sm" 
+        >
+          Ajouter une Nouvelle Tâche
+        </button>
+
+        <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">Toutes les Tâches</h4>
+        {loading ? (
+          <div className="flex justify-center items-center py-4">
+            <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
+            <p className="ml-3 text-lightText">Chargement des tâches...</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {allRawTaches.length === 0 ? (
+              <p className="text-center text-lightText text-lg">Aucune tâche disponible.</p>
+            ) : (
+              allRawTaches.map(task => (
+                <div key={task.ID_Tache} className="bg-white rounded-lg p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm border border-neutralBg/50">
+                  <div className="flex-1 min-w-0 mb-2 sm:mb-0">
+                    <p className="font-bold text-text text-lg truncate">{task.Nom_Tache} <span className="text-sm text-lightText">({task.ID_Tache})</span></p>
+                    <p className="text-sm text-lightText">Points: {task.Points} | Fréq: {task.Frequence} | Urg: {task.Urgence} | Cat: {task.Categorie}</p>
+                    {task.Sous_Taches_IDs && <p className="text-xs text-lightText">Sous-tâches: {task.Sous_Taches_IDs}</p>}
+                    {task.Parent_Task_ID && <p className="text-xs text-lightText">Parent: {task.Parent_Task_ID}</p>}
+                  </div>
+                  <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
+                    <button
+                      onClick={() => { 
+                        setShowAdminTasksListModal(false); // Close list modal
+                        setEditingTask(task); 
+                        setNewTaskData(task); 
+                        setShowAdminTaskFormModal(true); // Open form modal
+                      }}
+                      className="bg-accent hover:bg-yellow-600 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs"
+                    >
+                      Modifier
+                    </button>
+                    <button
+                      onClick={() => handleDeleteTask(task.ID_Tache)}
+                      className="bg-error hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </ListAndInfoModal>
+    );
   };
 
 
@@ -1527,207 +1753,101 @@ function App() {
       return null; 
     }
 
-    const adminButtonClasses = "bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300";
+    const adminButtonClasses = "bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"; 
 
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl mb-6 sm:mb-8">
         <h2 className="text-2xl sm:text-3xl font-bold text-secondary mb-6 text-center">Panneau d'Administration</h2>
         
-        <div className="flex flex-wrap justify-center gap-4 mb-8 p-4 bg-neutralBg rounded-xl shadow-inner">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 p-3 bg-neutralBg rounded-xl shadow-inner"> 
+          <button
+              onClick={() => setShowAdminObjectivesListModal(true)}
+              className={`${adminButtonClasses} col-span-1`}
+          >
+              Gérer les Objectifs
+          </button>
+          <button
+              onClick={() => setShowAdminTasksListModal(true)}
+              className={`${adminButtonClasses} col-span-1`}
+          >
+              Gérer les Tâches
+          </button>
+          <button
+            onClick={() => setShowExportSelectionModal(true)}
+            className={`${adminButtonClasses} col-span-1`}
+          >
+            Exporter les Données (CSV)
+          </button>
           <button
             onClick={() => setShowConfirmResetModal(true)}
-            className={adminButtonClasses}
+            className={`bg-error hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`} 
           >
             Réinitialiser les Points Hebdomadaires
           </button>
-          <button
-            onClick={handleExportClassement}
-            className={adminButtonClasses}
-          >
-            Exporter le Classement CSV
-          </button>
-          <button
-            onClick={handleExportRealisations}
-            className={adminButtonClasses}
-          >
-            Exporter les Réalisations CSV
-          </button>
         </div>
 
-        <div className="mb-8 p-4 bg-neutralBg rounded-xl shadow-inner">
+        <div className="mb-6 p-3 bg-neutralBg rounded-xl shadow-inner"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-center">Statistiques des Tâches</h3>
             <TaskStatisticsChart realisations={realisations} allRawTaches={allRawTaches} />
         </div>
+      </div>
+    );
+  };
 
-        <div className="mb-8 p-4 bg-neutralBg rounded-xl shadow-inner">
+  // Nouveau rendu pour le classement complet (cartes)
+  const renderFullRankingCards = () => {
+    const podiumColors = ['bg-podium-gold', 'bg-podium-silver', 'bg-podium-bronze']; 
+    const medals = ['🥇', '🥈', '🥉'];
+
+    if (!Array.isArray(classement) || classement.length === 0) {
+      return (
+        <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8">
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Classement Complet</h2>
+          <p className="text-center text-lightText text-lg">Aucun classement disponible pour le moment.</p>
           <button
-            onClick={() => setShowAdminObjectivesManagement(!showAdminObjectivesManagement)}
-            className="w-full bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-md transition duration-300 flex items-center justify-between text-sm sm:text-base mb-4"
+            className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg
+                       transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
+            onClick={() => setActiveMainView('home')}
           >
-            <span>🎯 Gestion des Objectifs 🎯</span>
-            <span>{showAdminObjectivesManagement ? '▲' : '▼'}</span>
+            Retour à l'accueil
           </button>
-          <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showAdminObjectivesManagement ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'}`}>
-            <button
-              onClick={() => {
-                setShowAdminObjectiveFormModal(true);
-                setEditingObjective(null);
-                setNewObjectiveData({ 
-                  ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '',
-                  Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
-                });
-              }}
-              className={`${adminButtonClasses} w-full mb-4`}
-            >
-              Ajouter un Nouvel Objectif
-            </button>
-
-            {showAdminObjectiveFormModal && (
-              <AdminObjectiveFormModal
-                objectiveData={newObjectiveData}
-                onFormChange={handleObjectiveFormChange}
-                onSubmit={handleSubmitObjective}
-                onClose={() => {
-                  setShowAdminObjectiveFormModal(false);
-                  setEditingObjective(null);
-                  setNewObjectiveData({
-                    ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '',
-                    Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
-                  });
-                }}
-                loading={loading}
-                editingObjective={editingObjective}
-              />
-            )}
-
-            <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">Tous les Objectifs</h4>
-            {loading ? (
-              <div className="flex justify-center items-center py-4">
-                <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
-                <p className="ml-3 text-lightText">Chargement des objectifs...</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {objectives.length === 0 ? (
-                  <p className="text-center text-lightText text-lg">Aucun objectif disponible.</p>
-                ) : (
-                  objectives.map(obj => (
-                    <div key={obj.ID_Objectif} className="bg-white rounded-lg p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm border border-neutralBg/50">
-                      <div className="flex-1 min-w-0 mb-2 sm:mb-0">
-                        <p className="font-bold text-text text-lg truncate">{obj.Nom_Objectif} <span className="text-sm text-lightText">({obj.ID_Objectif})</span></p>
-                        <p className="text-sm text-lightText">Cible: {obj.Cible_Points} | Actuel: {obj.Points_Actuels} | Type: {obj.Type_Cible} {obj.Categorie_Cible && `(${obj.Categorie_Cible})`}</p>
-                        <p className="text-sm text-lightText">Atteint: {obj.Est_Atteint ? 'Oui' : 'Non'}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
-                        <button
-                          onClick={() => {
-                            setEditingObjective(obj);
-                            setNewObjectiveData(obj);
-                            setShowAdminObjectiveFormModal(true);
-                          }}
-                          className={`${adminButtonClasses} !bg-accent hover:!bg-yellow-600`}
-                        >
-                          Modifier
-                        </button>
-                        <button
-                          onClick={() => handleDeleteObjective(obj.ID_Objectif)}
-                          className={`${adminButtonClasses} !bg-error hover:!bg-red-700`}
-                        >
-                          Supprimer
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
         </div>
+      );
+    }
 
-        <div className="mb-8 p-4 bg-neutralBg rounded-xl shadow-inner">
+    // Sort the classement by weekly points for this view
+    const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
+
+    return (
+      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8">
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Classement Hebdomadaire Complet</h2>
+        <div className="flex flex-col gap-3 mb-6 items-center"> {/* Changed to flex-col for vertical stacking */}
+          {sortedClassement.map((participant, index) => (
+            <RankingCard
+              key={participant.Nom_Participant}
+              participant={participant}
+              rank={index + 1}
+              type="weekly" 
+              onParticipantClick={handleParticipantClick}
+              getParticipantBadges={getParticipantBadges}
+            />
+          ))}
+        </div>
+        <div className="flex flex-col sm:flex-row justify-center gap-3 mt-4"> 
           <button
-            onClick={() => setShowAdminTasksManagement(!showAdminTasksManagement)}
-            className="w-full bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-md transition duration-300 flex items-center justify-between text-sm sm:text-base mb-4"
+            className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg
+                       transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
+            onClick={() => setActiveMainView('home')}
           >
-            <span>📝 Gestion des Tâches 📝</span>
-            <span>{showAdminTasksManagement ? '▲' : '▼'}</span>
+            Retour à l'accueil
           </button>
-          <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showAdminTasksManagement ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0'}`}>
-            <button
-              onClick={() => { 
-                setShowAdminTaskFormModal(true); 
-                setEditingTask(null); 
-                setNewTaskData({ 
-                  ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
-                  Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
-                }); 
-              }}
-              className={`${adminButtonClasses} w-full mb-4`}
-            >
-              Ajouter une Nouvelle Tâche
-            </button>
-
-            {showAdminTaskFormModal && (
-              <AdminTaskFormModal
-                taskData={newTaskData}
-                onFormChange={handleTaskFormChange}
-                onSubmit={handleSubmitTask}
-                onClose={() => { 
-                  setShowAdminTaskFormModal(false); 
-                  setEditingTask(null); 
-                  setNewTaskData({
-                    ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
-                    Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
-                  }); 
-                }}
-                loading={loading}
-                editingTask={editingTask}
-              />
-            )}
-
-            <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">Toutes les Tâches</h4>
-            {loading ? (
-              <div className="flex justify-center items-center py-4">
-                <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
-                <p className="ml-3 text-lightText">Chargement des tâches...</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {allRawTaches.length === 0 ? (
-                  <p className="text-center text-lightText text-lg">Aucune tâche disponible.</p>
-                ) : (
-                  allRawTaches.map(task => (
-                    <div key={task.ID_Tache} className="bg-white rounded-lg p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm border border-neutralBg/50">
-                      <div className="flex-1 min-w-0 mb-2 sm:mb-0">
-                        <p className="font-bold text-text text-lg truncate">{task.Nom_Tache} <span className="text-sm text-lightText">({task.ID_Tache})</span></p>
-                        <p className="text-sm text-lightText">Points: {task.Points} | Fréq: {task.Frequence} | Urg: {task.Urgence} | Cat: {task.Categorie}</p>
-                        {task.Sous_Taches_IDs && <p className="text-xs text-lightText">Sous-tâches: {task.Sous_Taches_IDs}</p>}
-                        {task.Parent_Task_ID && <p className="text-xs text-lightText">Parent: {task.Parent_Task_ID}</p>}
-                      </div>
-                      <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
-                        <button
-                          onClick={() => { 
-                            setEditingTask(task); 
-                            setNewTaskData(task); 
-                            setShowAdminTaskFormModal(true); 
-                          }}
-                          className={`${adminButtonClasses} !bg-accent hover:!bg-yellow-600`}
-                        >
-                          Modifier
-                        </button>
-                        <button
-                          onClick={() => handleDeleteTask(task.ID_Tache)}
-                          className={`${adminButtonClasses} !bg-error hover:!bg-red-700`}
-                        >
-                          Supprimer
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
+          <button
+            className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg shadow-lg
+                       transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
+            onClick={() => setShowOverallRankingModal(true)}
+          >
+            Voir le Classement Général
+          </button>
         </div>
       </div>
     );
@@ -1746,60 +1866,59 @@ function App() {
   if (error) return <div className="text-center p-8 text-xl text-error">Erreur: {error}</div>;
 
   return (
-    <div className="min-h-screen bg-background font-sans p-4 sm:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-background-light to-background-dark font-sans p-4 sm:p-6"> 
       <div className="max-w-4xl mx-auto">
-        <header className="relative flex flex-col items-center justify-center py-6 sm:py-8 px-4 mb-8 sm:mb-10 text-center"> 
-          <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-4 sm:mb-5 h-24 sm:h-32 md:h-40 w-auto drop-shadow-xl" /> 
-          <h1 className="text-4xl sm:text-7xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1> 
+        <header className="relative flex flex-col items-center justify-center py-4 sm:py-6 px-4 mb-6 sm:mb-8 text-center"> 
+          {showChickEmoji ? (
+            <span className="text-7xl sm:text-8xl mb-3 sm:mb-4 cursor-pointer" onClick={handleLogoClick}>🐣</span>
+          ) : (
+            <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-20 sm:h-28 md:h-36 w-auto drop-shadow-xl cursor-pointer" onClick={handleLogoClick} /> 
+          )}
+          <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1> 
           <AdminLoginButton 
             isAdmin={isAdmin} 
             onLogin={handleAdminLogin} 
             onLogout={handleAdminLogout} 
             onOpenAdminPanel={() => setActiveMainView('adminPanel')} 
-            buttonClass="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300" 
           />
         </header>
 
-        <nav className="flex justify-center gap-2 sm:gap-6 mb-8 sm:mb-10 flex-wrap"> 
-          <button
-            className={`py-2.5 px-6 sm:py-3 sm:px-7 rounded-lg font-bold text-sm sm:text-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-md
-              ${activeMainView === 'home' ? 'bg-primary text-white shadow-lg' : 'bg-neutralBg text-text hover:bg-accent hover:text-secondary'}`}
-            onClick={() => setActiveMainView('home')}
-          >
-            Accueil
-          </button>
-          <button
-            className={`py-2.5 px-6 sm:py-3 sm:px-7 rounded-lg font-bold text-sm sm:text-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-md
-              ${activeMainView === 'completedTasks' ? 'bg-primary text-white shadow-lg' : 'bg-neutralBg text-text hover:bg-accent hover:text-secondary'}`}
-            onClick={() => setActiveMainView('completedTasks')}
-          >
-            Tâches Terminées
-          </button>
-          <button
-            className={`py-2.5 px-6 sm:py-3 sm:px-7 rounded-lg font-bold text-sm sm:text-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-md
-              ${activeMainView === 'historicalPodiums' ? 'bg-primary text-white shadow-lg' : 'bg-neutralBg text-text hover:bg-accent hover:text-secondary'}`}
-            onClick={() => setActiveMainView('historicalPodiums')}
-          >
-            Historique des Podiums
-          </button>
+        <nav className="flex justify-center mb-6 sm:mb-8"> 
+          <div className="bg-neutralBg rounded-full p-1.5 flex justify-center gap-4 sm:gap-6 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto"> {/* Increased gap */}
+            <button
+              className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
+                ${activeMainView === 'home' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
+              onClick={() => setActiveMainView('home')}
+            >
+              Accueil
+            </button>
+            <button
+              className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
+                ${activeMainView === 'completedTasks' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
+              onClick={() => setActiveMainView('completedTasks')}
+            >
+              Tâches Terminées
+            </button>
+            <button
+              className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
+                ${activeMainView === 'historicalPodiums' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
+              onClick={() => setActiveMainView('historicalPodiums')}
+            >
+              Historique
+            </button> 
+          </div>
         </nav>
 
         <main>
           {activeMainView === 'home' && (
             <>
               {renderPodiumSection()} 
-              <hr className="my-8 sm:my-10 border-t-2 border-neutralBg" /> 
+              <hr className="my-6 sm:my-8 border-t-2 border-neutralBg" /> 
               {renderTaskCategories()}
             </>
           )}
           {activeMainView === 'fullRanking' && (
-            <FullRankingTable 
-              classement={classement} 
-              onClose={() => setActiveMainView('home')} 
-              onParticipantClick={handleParticipantClick} 
-              realisations={realisations} 
-              historicalPodiums={historicalPodiums} 
-            />
+            renderFullRankingCards()
           )}
           {activeMainView === 'historicalPodiums' && (
             <HistoricalPodiums historicalPodiums={historicalPodiums} onClose={() => setActiveMainView('home')} />
@@ -1824,6 +1943,71 @@ function App() {
         {renderDeleteConfirmModal()} 
         {renderDeleteObjectiveConfirmModal()} 
         <ConfettiOverlay show={showConfetti} onComplete={() => setShowConfetti(false)} /> 
+
+        {showHighlightsModal && (
+            <ListAndInfoModal title="Tendances Actuelles" onClose={() => setShowHighlightsModal(false)} sizeClass="max-w-xs sm:max-w-md"> 
+                {renderHighlightsContent()}
+            </ListAndInfoModal>
+        )}
+        {showObjectivesModal && (
+            <ListAndInfoModal title="Objectifs Communs" onClose={() => setShowObjectivesModal(false)} sizeClass="max-w-xs sm:max-w-md"> 
+                {renderObjectivesContent()}
+            </ListAndInfoModal>
+        )}
+        {showAdminObjectivesListModal && renderAdminObjectivesListModal()}
+        {showAdminTasksListModal && renderAdminTasksListModal()}
+        {showExportSelectionModal && (
+            <ExportSelectionModal
+                onClose={() => setShowExportSelectionModal(false)}
+                onExportClassement={handleExportClassement}
+                onExportRealisations={handleExportRealisations}
+            />
+        )}
+        {showOverallRankingModal && (
+          <OverallRankingModal
+            classement={classement}
+            onClose={() => setShowOverallRankingModal(false)}
+            onParticipantClick={handleParticipantClick}
+            getParticipantBadges={getParticipantBadges}
+          />
+        )}
+
+        {/* Admin Form Modals (rendered outside list modals for proper layering) */}
+        {showAdminObjectiveFormModal && (
+          <AdminObjectiveFormModal
+            objectiveData={newObjectiveData}
+            onFormChange={handleObjectiveFormChange}
+            onSubmit={handleSubmitObjective}
+            onClose={() => {
+              setShowAdminObjectiveFormModal(false);
+              setEditingObjective(null);
+              setNewObjectiveData({
+                ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '',
+                Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
+              });
+            }}
+            loading={loading}
+            editingObjective={editingObjective}
+          />
+        )}
+        {showAdminTaskFormModal && (
+          <AdminTaskFormModal
+            taskData={newTaskData}
+            onFormChange={handleTaskFormChange}
+            onSubmit={handleSubmitTask}
+            onClose={() => { 
+              setShowAdminTaskFormModal(false); 
+              setEditingTask(null); 
+              setNewTaskData({
+                ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
+                Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
+              }); 
+            }}
+            loading={loading}
+            editingTask={editingTask}
+          />
+        )}
+
       </div>
       {/* Conteneur pour les notifications toast */}
       <ToastContainer 

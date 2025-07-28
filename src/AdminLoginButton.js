@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-function AdminLoginButton({ isAdmin, onLogin, onLogout, onOpenAdminPanel, buttonClass }) {
+function AdminLoginButton({ isAdmin, onLogin, onLogout, onOpenAdminPanel }) { 
   const [showLogin, setShowLogin] = useState(false);
   const [password, setPassword] = useState('');
 
@@ -11,18 +11,20 @@ function AdminLoginButton({ isAdmin, onLogin, onLogout, onOpenAdminPanel, button
     setShowLogin(false);
   };
 
+  const commonButtonClasses = "bg-gray-700 hover:bg-gray-800 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs sm:text-sm";
+
   if (isAdmin) {
     return (
-      <div className="absolute top-4 right-4 flex flex-col sm:flex-row gap-2">
+      <div className="absolute top-2 right-2 sm:top-3 sm:right-3 flex flex-col sm:flex-row gap-1 sm:gap-2 z-10"> 
         <button
           onClick={onOpenAdminPanel}
-          className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm sm:text-base"
+          className={`${commonButtonClasses}`}
         >
           Panneau Admin
         </button>
         <button
           onClick={onLogout}
-          className={`${buttonClass || 'bg-gray-600 hover:bg-gray-700'} text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm sm:text-base`}
+          className={`${commonButtonClasses}`}
         >
           Déconnexion
         </button>
@@ -31,16 +33,16 @@ function AdminLoginButton({ isAdmin, onLogin, onLogout, onOpenAdminPanel, button
   }
 
   return (
-    <div className="absolute top-4 right-4">
+    <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10"> 
       <button
         onClick={() => setShowLogin(!showLogin)}
-        className={`${buttonClass || 'bg-gray-600 hover:bg-gray-700'} text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm sm:text-base`}
+        className={`${commonButtonClasses}`}
       >
         Admin
       </button>
       {showLogin && (
-        <div className="absolute right-0 mt-2 p-4 bg-card rounded-lg shadow-xl z-10 w-64">
-          <form onSubmit={handleLoginSubmit} className="flex flex-col gap-3">
+        <div className="absolute right-0 mt-2 p-3 bg-card rounded-lg shadow-xl z-20 w-56 sm:w-64 border border-primary/20">
+          <form onSubmit={handleLoginSubmit} className="flex flex-col gap-2">
             <input
               type="password"
               placeholder="Mot de passe admin"

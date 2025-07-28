@@ -3,30 +3,45 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 /**
  * Composant pour afficher les statistiques des tâches sous forme de graphique.
- * Affiche le nombre de réalisations par catégorie de tâche.
+ * Affiche les points totaux par catégorie de tâche.
  * @param {Object[]} realisations - Tableau de toutes les réalisations.
- * @param {Object[]} allRawTaches - Tableau de toutes les tâches brutes pour obtenir les catégories.
+ * @param {Object[]} allRawTaches - Tableau de toutes les tâches brutes pour obtenir les catégories et points.
  */
 function TaskStatisticsChart({ realisations, allRawTaches }) {
-  // Calculer le nombre de réalisations par catégorie
-  const categoryCompletionCounts = {};
+  // Ensure allRawTaches is an array before processing
+  if (!Array.isArray(allRawTaches) || allRawTaches.length === 0) {
+    return (
+      <div className="bg-neutralBg p-4 rounded-2xl mb-6 shadow-inner border border-primary/20">
+        <h3 className="text-xl font-bold text-primary mb-4 text-center">Points Totaux par Catégorie de Tâche</h3> 
+        <p className="text-center text-lightText text-lg py-4">Aucune donnée de tâche disponible pour les statistiques.</p>
+      </div>
+    );
+  }
+
+  // Créer une carte pour un accès rapide aux points des tâches par ID
+  const tachesPointsMap = new Map(allRawTaches.map(tache => [String(tache.ID_Tache), parseFloat(tache.Points) || 0]));
+
+  // Calculer les points totaux par catégorie
+  const categoryPointsCounts = {};
   realisations.forEach(real => {
     const category = real.Categorie_Tache || 'Non catégorisée';
-    categoryCompletionCounts[category] = (categoryCompletionCounts[category] || 0) + 1;
+    const pointsGagnes = parseFloat(real.Points_Gagnes) || 0; 
+    
+    categoryPointsCounts[category] = (categoryPointsCounts[category] || 0) + pointsGagnes;
   });
 
   // Convertir en tableau pour Recharts
-  const chartData = Object.keys(categoryCompletionCounts).map(category => ({
+  const chartData = Object.keys(categoryPointsCounts).map(category => ({
     name: category,
-    "Tâches Complétées": categoryCompletionCounts[category],
+    "Points Totaux": categoryPointsCounts[category],
   }));
 
-  // Trier par nombre de tâches complétées (décroissant)
-  chartData.sort((a, b) => b["Tâches Complétées"] - a["Tâches Complétées"]);
+  // Trier par points totaux (décroissant)
+  chartData.sort((a, b) => b["Points Totaux"] - a["Points Totaux"]);
 
   return (
     <div className="bg-neutralBg p-4 rounded-2xl mb-6 shadow-inner border border-primary/20">
-      <h3 className="text-xl font-bold text-primary mb-4 text-center">Statistiques des Tâches par Catégorie</h3>
+      <h3 className="text-xl font-bold text-primary mb-4 text-center">Points Totaux par Catégorie de Tâche</h3> 
       {chartData.length > 0 ? (
         <ResponsiveContainer width="100%" height={300}>
           <BarChart
@@ -43,7 +58,7 @@ function TaskStatisticsChart({ realisations, allRawTaches }) {
               <Label value="Catégorie de Tâche" position="bottom" offset={5} fill="#555" />
             </XAxis>
             <YAxis stroke="#555">
-              <Label value="Nombre de Tâches" angle={-90} position="insideLeft" offset={-10} fill="#555" style={{ textAnchor: 'middle' }} />
+              <Label value="Points Totaux" angle={-90} position="insideLeft" offset={-10} fill="#555" style={{ textAnchor: 'middle' }} /> 
             </YAxis>
             <Tooltip 
               cursor={{ fill: 'rgba(0,0,0,0.1)' }} 
@@ -51,11 +66,11 @@ function TaskStatisticsChart({ realisations, allRawTaches }) {
               labelStyle={{ fontWeight: 'bold', color: '#333' }}
               itemStyle={{ color: '#666' }}
             />
-            <Bar dataKey="Tâches Complétées" fill="#4CAF50" radius={[10, 10, 0, 0]} />
+            <Bar dataKey="Points Totaux" fill="#4CAF50" radius={[10, 10, 0, 0]} /> 
           </BarChart>
         </ResponsiveContainer>
       ) : (
-        <p className="text-center text-lightText text-md py-2">Aucune donnée de tâche complétée pour le graphique.</p>
+        <p className="text-center text-lightText text-lg py-4">Aucune donnée de tâche complétée pour les statistiques.</p>
       )}
     </div>
   );
