@@ -14,7 +14,7 @@ import OverallRankingModal from './OverallRankingModal';
 import confetti from 'canvas-confetti'; // Import canvas-confetti directly for logo effect
 
 import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css'; 
+import 'react-toastify/dist/React-toastify.css'; 
 
 // --- CONFIGURATION DE L'API ---
 // Utilisez des variables d'environnement pour la production.
@@ -90,7 +90,8 @@ function App() {
   const [showOverallRankingModal, setShowOverallRankingModal] = useState(false); 
 
   // Easter Egg states
-  const [logoClickCount, setLogoClickCount] = useState(0);
+  // eslint-disable-next-line no-unused-vars
+  const [logoClickCount, setLogoClickCount] = useState(0); // logoClickCount is used in setLogoClickCount
   const [showChickEmoji, setShowChickEmoji] = useState(false);
   const logoClickTimerRef = useRef(null); // To reset click count if clicks are too slow
 
@@ -785,7 +786,8 @@ function App() {
     const participantRealisations = realisations.filter(r => String(r.Nom_Participant).trim() === String(participant.Nom_Participant).trim());
     
     const totalPoints = parseFloat(participant.Points_Total_Cumulatif) || 0;
-    const weeklyPoints = parseFloat(participant.Points_Total_Semaine_Courante) || 0;
+    // Removed 'weeklyPoints' as it was unused
+    // const weeklyPoints = parseFloat(participant.Points_Total_Semaine_Courante) || 0;
 
     // Badge: Premier Pas (première tâche complétée)
     if (participantRealisations.length > 0 && !badges.some(b => b.name === 'Premier Pas')) {
@@ -897,7 +899,9 @@ function App() {
   };
 
   const renderPodiumSection = () => {
+    // eslint-disable-next-line no-unused-vars
     const podiumColors = ['bg-podium-gold', 'bg-podium-silver', 'bg-podium-bronze']; 
+    // eslint-disable-next-line no-unused-vars
     const medals = ['🥇', '🥈', '🥉'];
 
     // Calculate remaining tasks
@@ -1796,7 +1800,9 @@ function App() {
 
   // Nouveau rendu pour le classement complet (cartes)
   const renderFullRankingCards = () => {
+    // eslint-disable-next-line no-unused-vars
     const podiumColors = ['bg-podium-gold', 'bg-podium-silver', 'bg-podium-bronze']; 
+    // eslint-disable-next-line no-unused-vars
     const medals = ['🥇', '🥈', '🥉'];
 
     if (!Array.isArray(classement) || classement.length === 0) {
