@@ -10,7 +10,7 @@ import AdminObjectiveFormModal from './AdminObjectiveFormModal';
 import ListAndInfoModal from './ListAndInfoModal'; 
 import ExportSelectionModal from './ExportSelectionModal'; 
 import RankingCard from './RankingCard'; 
-import OverallRankingModal from './OverallRankingModal'; 
+import OverallRankingModal from './TypicalOverallRankingModal'; // Corrected import path
 import confetti from 'canvas-confetti'; // Import canvas-confetti directly for logo effect
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -764,8 +764,7 @@ function App() {
 
     // Check if ALL associated subtasks are NOT available (i.e., are completed)
     return associatedSubtasks.every(subTask => !isSubTaskAvailable(subTask));
-  }, [allRawTaches, realisations]); // Dependencies: allRawTaches and realisations are needed by isSubTaskAvailable
-
+  }, [allRawTaches, realisations, isSubTaskAvailable]); // <-- CORRECTION ICI: Ajout de isSubTaskAvailable
 
   // Easter Egg logic
   const handleLogoClick = () => {
