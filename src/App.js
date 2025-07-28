@@ -11,25 +11,19 @@ import ListAndInfoModal from './ListAndInfoModal';
 import ExportSelectionModal from './ExportSelectionModal'; 
 import RankingCard from './RankingCard'; 
 import OverallRankingModal from './OverallRankingModal'; 
-import confetti from 'canvas-confetti'; // Import canvas-confetti directly for logo effect
+import ReportTaskModal from './ReportTaskModal'; // NOUVEL IMPORT
+import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
 // --- CONFIGURATION DE L'API ---
-// Utilisez des variables d'environnement pour la production.
-// Pour le développement local, créez un fichier .env à la racine de votre projet:
-// REACT_APP_API_URL=https://clean-app-challenge-api.jassairbus.workers.dev/
-// REACT_APP_AUTH_TOKEN=6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2
 const API_URL = process.env.REACT_APP_API_URL || 'https://clean-app-challenge-api.jassairbus.workers.dev/'; 
 const AUTH_TOKEN = process.env.REACT_APP_AUTH_TOKEN || '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2'; 
 
-// Nom du fichier logo (assurez-vous qu'il est dans le dossier public/)
 const LOGO_FILENAME = 'logo.png'; 
 
 // MOT DE PASSE ADMINISTRATEUR - EXTRÊMEMENT INSÉCURE EN PRODUCTION !
-// CE MOT DE PAS PASSE EST VISIBLE DANS LE CODE CLIENT.
-// N'UTILISEZ CECI QUE POUR LE DÉVELOPPEMENT LOCAL OU DES DÉMOS NON-SENSIBLES.
 const ADMIN_PASSWORD = 'Bombardier111'; 
 
 function App() {
@@ -45,7 +39,7 @@ function App() {
   const [selectedTask, setSelectedTask] = useState(null); 
   const [participantName, setParticipantName] = useState(''); 
   const [showThankYouPopup, setShowThankYouPopup] = useState(null); 
-  const [showConfetti, setShowConfetti] = useState(false); // For thank you popup confetti
+  const [showConfetti, setShowConfetti] = useState(false); 
   
   const [activeMainView, setActiveMainView] = useState('home'); 
   const [activeTaskCategory, setActiveTaskCategory] = useState('tous'); 
@@ -89,11 +83,14 @@ function App() {
   const [showExportSelectionModal, setShowExportSelectionModal] = useState(false); 
   const [showOverallRankingModal, setShowOverallRankingModal] = useState(false); 
 
+  // NOUVEAUX ÉTATS POUR LE SIGNALEMENT
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportedTaskDetails, setReportedTaskDetails] = useState(null); // { id, name, participant }
+
   // Easter Egg states
-  // eslint-disable-next-line no-unused-vars
-  const [logoClickCount, setLogoClickCount] = useState(0); // logoClickCount is used in setLogoClickCount
+  const [logoClickCount, setLogoClickCount] = useState(0); 
   const [showChickEmoji, setShowChickEmoji] = useState(false);
-  const logoClickTimerRef = useRef(null); // To reset click count if clicks are too slow
+  const logoClickTimerRef = useRef(null); 
 
   const getHeaders = () => ({
     'Content-Type': 'application/json'
@@ -172,7 +169,8 @@ function App() {
         Nom_Participant: row.Nom_Participant,
         Points_Total_Semaine_Courante: parseFloat(row.Points_Total_Semaine_Courante) || 0, 
         Points_Total_Cumulatif: parseFloat(row.Points_Total_Cumulatif) || 0,
-        Points_Total_Semaine_Precedente: parseFloat(row.Points_Total_Semaine_Precedente || 0) || 0 
+        Points_Total_Semaine_Precedente: parseFloat(row.Points_Total_Semaine_Precedente || 0) || 0,
+        Date_Mise_A_Jour: row.Date_Mise_A_Jour || '' // Assurez-vous que cette colonne est présente
       })).sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
       
       setClassement(currentClassement);
@@ -352,7 +350,7 @@ function App() {
         if (!isSubTask) { 
           const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
           setShowThankYouPopup({ name: participantName.trim(), task: completedTask ? completedTask.Nom_Tache : 'Tâche inconnue', message: randomMessage }); 
-          setShowConfetti(true); // This is for the thank you popup confetti
+          setShowConfetti(true); 
           setParticipantName('');
           setSelectedTask(null); 
         }
@@ -406,14 +404,14 @@ function App() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const result = await response.json();
       if (result.success) {
         const completedTaskNames = availableSelectedSubTasks.map(st => st.Nom_Tache).join(', ');
         const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
         setShowThankYouPopup({ name: participantName.trim(), task: completedTaskNames, message: randomMessage });
-        setShowConfetti(true); // This is for the thank you popup confetti
+        setShowConfetti(true); 
 
         for (const subTask of availableSelectedSubTasks) {
             const fullSubTaskData = allRawTaches.find(t => String(t.ID_Tache) === String(subTask.ID_Tache));
@@ -453,7 +451,7 @@ function App() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
       }
       const result = await response.json();
       if (result.success) {
@@ -477,7 +475,7 @@ function App() {
 
   // Logique de connexion admin simplifiée (SANS SÉCURITÉ)
   const handleAdminLogin = (passwordInput) => {
-    if (passwordInput === ADMIN_PASSWORD) { // Vérification du mot de passe en dur
+    if (passwordInput === ADMIN_PASSWORD) { 
       setIsAdmin(true);
       setActiveMainView('adminPanel');
       toast.success('Connecté en tant qu\'administrateur !');
@@ -493,7 +491,6 @@ function App() {
     toast.info('Déconnecté du panneau administrateur.');
   };
 
-  // Pas de vérification de session persistante (SANS SÉCURITÉ)
   useEffect(() => {
     // Pas de logique de token JWT ici, l'état isAdmin est géré par la session du navigateur
   }, []);
@@ -692,6 +689,65 @@ function App() {
     }
   };
 
+  // NOUVELLE FONCTION: Gérer le clic sur le bouton "Signaler"
+  const handleReportClick = (taskRealisation) => {
+    setReportedTaskDetails({
+      id: taskRealisation.ID_Tache_Effectuee,
+      name: taskRealisation.Nom_Tache_Effectuee,
+      participant: taskRealisation.Nom_Participant
+    });
+    setShowReportModal(true);
+  };
+
+  // NOUVELLE FONCTION: Soumettre le signalement
+  const submitReport = async (reporterNameInput) => {
+    if (!reporterNameInput.trim()) {
+      toast.warn('Veuillez entrer votre nom pour signaler la tâche.');
+      return;
+    }
+    if (!reportedTaskDetails) return;
+
+    setLoading(true);
+    try {
+      const payload = {
+        action: 'reportTask',
+        reportedTaskId: reportedTaskDetails.id,
+        reportedParticipantName: reportedTaskDetails.participant,
+        reporterName: reporterNameInput.trim(),
+        authToken: AUTH_TOKEN
+      };
+
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
+      }
+      const result = await response.json();
+      if (result.success) {
+        toast.success(result.message);
+        // Re-fetch data to reflect changes (task reset, points deduction)
+        fetchClassement();
+        fetchRealisations();
+        fetchTaches(); // Pour que la tâche réapparaisse si elle a été réinitialisée
+        fetchObjectives();
+      } else {
+        toast.error(`Erreur: ${result.message}`);
+      }
+    } catch (err) {
+      setError(`Erreur lors du signalement de la tâche: ${err.message}`);
+      toast.error(`Une erreur est survenue lors du signalement: ${err.message}`);
+    } finally {
+      setLoading(false);
+      setShowReportModal(false);
+      setReportedTaskDetails(null);
+    }
+  };
+
 
   useEffect(() => {
     fetchTaches();
@@ -708,7 +764,6 @@ function App() {
     await fetchParticipantWeeklyTasks(participant.Nom_Participant);
   };
 
-  // Correction ici: isSubTaskAvailable est maintenant un useCallback
   const isSubTaskAvailable = useCallback((subTask) => {
     const frequence = subTask.Frequence ? String(subTask.Frequence).toLowerCase() : 'hebdomadaire';
     const today = new Date();
@@ -735,7 +790,7 @@ function App() {
       return false;
     });
     return !isCompleted;
-  }, [realisations]); // realisations est une dépendance nécessaire ici
+  }, [realisations]); 
 
   const handleTaskClick = (task) => {
     setSelectedTask(task);
@@ -747,111 +802,93 @@ function App() {
     }
   };
 
-  // NEW: Helper function to check if all subtasks of a group task are completed
   const areAllSubtasksCompleted = useCallback((groupTask) => {
     if (!groupTask.isGroupTask || !groupTask.Sous_Taches_IDs) {
-        return false; // Not a group task or no subtasks defined
+        return false; 
     }
     const subTaskIds = String(groupTask.Sous_Taches_IDs).split(',').map(id => id.trim());
     
-    // Get the actual subtask objects from allRawTaches
     const associatedSubtasks = allRawTaches.filter(t => subTaskIds.includes(String(t.ID_Tache)));
 
     if (associatedSubtasks.length === 0) {
-        // If a group task has no defined subtasks, it means there's nothing to complete.
-        // So, we can consider it "completed" in terms of its subtasks.
         return true; 
     }
 
-    // Check if ALL associated subtasks are NOT available (i.e., are completed)
     return associatedSubtasks.every(subTask => !isSubTaskAvailable(subTask));
-  }, [allRawTaches, isSubTaskAvailable]); // isSubTaskAvailable est maintenant une dépendance stable
+  }, [allRawTaches, isSubTaskAvailable]); 
 
   // Easter Egg logic
   const handleLogoClick = () => {
     setLogoClickCount(prevCount => {
       const newCount = prevCount + 1;
       
-      // Reset click count if clicks are too slow
       if (logoClickTimerRef.current) {
         clearTimeout(logoClickTimerRef.current);
       }
       logoClickTimerRef.current = setTimeout(() => {
         setLogoClickCount(0);
-      }, 500); // Reset after 500ms of inactivity
+      }, 500); 
 
       if (newCount >= 5) {
-        setLogoClickCount(0); // Reset count after activating
-        clearTimeout(logoClickTimerRef.current); // Clear the reset timer
+        setLogoClickCount(0); 
+        clearTimeout(logoClickTimerRef.current); 
 
-        // Trigger confetti from the top center
         confetti({
           particleCount: 150,
           spread: 90,
-          origin: { y: 0.2, x: 0.5 }, // From the top center, slightly lower to appear from logo
-          colors: ['#a8e6cf', '#dcedc1', '#ffd3b6', '#ffaaa5', '#ff8b94', '#6a0dad', '#800080', '#ffc0cb', '#0000ff'] // Custom colors
+          origin: { y: 0.2, x: 0.5 }, 
+          colors: ['#a8e6cf', '#dcedc1', '#ffd3b6', '#ffaaa5', '#ff8b94', '#6a0dad', '#800080', '#ffc0cb', '#0000ff'] 
         });
 
-        setShowChickEmoji(true); // Change to chick
+        setShowChickEmoji(true); 
         setTimeout(() => {
-          setShowChickEmoji(false); // Change back to logo after 20 seconds
+          setShowChickEmoji(false); 
         }, 20000); 
       }
       return newCount;
     });
   };
 
-  // Nouveau système de badges
   const getParticipantBadges = useCallback((participant) => {
     const badges = [];
     const participantRealisations = realisations.filter(r => String(r.Nom_Participant).trim() === String(participant.Nom_Participant).trim());
     
     const totalPoints = parseFloat(participant.Points_Total_Cumulatif) || 0;
-    // Removed 'weeklyPoints' as it was unused
-    // const weeklyPoints = parseFloat(participant.Points_Total_Semaine_Courante) || 0;
 
-    // Badge: Premier Pas (première tâche complétée)
     if (participantRealisations.length > 0 && !badges.some(b => b.name === 'Premier Pas')) {
         badges.push({ name: 'Premier Pas', icon: '🐣', description: 'A complété sa première tâche.' });
     }
     
-    // Badge: Actif de la Semaine (>= 3 tâches hebdomadaires complétées cette semaine)
     const tasksThisWeek = participantRealisations.filter(real => {
         const realDate = new Date(real.Timestamp);
         const today = new Date();
-        const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1))); // Lundi de la semaine courante
+        const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1))); 
         return realDate >= startOfWeek;
     }).length;
     if (tasksThisWeek >= 3 && !badges.some(b => b.name === 'Actif de la Semaine')) {
         badges.push({ name: 'Actif de la Semaine', icon: '⚡', description: '3 tâches ou plus complétées cette semaine.' });
     }
 
-    // Badge: Spécialiste Cuisine (>= 5 tâches de cuisine complétées)
     const kitchenTasks = participantRealisations.filter(r => String(r.Categorie_Tache || '').toLowerCase() === 'cuisine').length;
     if (kitchenTasks >= 5 && !badges.some(b => b.name === 'Chef Propre')) {
       badges.push({ name: 'Chef Propre', icon: '🍳', description: '5 tâches de cuisine complétées.' });
     }
 
-    // Badge: Spécialiste Salle (>= 5 tâches de salle complétées)
     const roomTasks = participantRealisations.filter(r => String(r.Categorie_Tache || '').toLowerCase() === 'salle').length;
     if (roomTasks >= 5 && !badges.some(b => b.name === 'Maître de Salon')) {
       badges.push({ name: 'Maître de Salon', icon: '🛋️', description: '5 tâches de salle complétées.' });
     }
 
-    // Badge: Grand Nettoyeur (>= 100 points cumulés)
     if (totalPoints >= 100 && !badges.some(b => b.name === 'Grand Nettoyeur')) {
       badges.push({ name: 'Grand Nettoyeur', icon: '✨', description: 'Atteint 100 points cumulés.' });
     }
-    // Badge: Champion de la Propreté (>= 500 points cumulés)
     if (totalPoints >= 500 && !badges.some(b => b.name === 'Champion de la Propreté')) {
       badges.push({ name: 'Champion de la Propreté', icon: '🏆', description: 'Atteint 500 points cumulés.' });
     }
-    // Badge: Légende de la Propreté (>= 1000 points cumulés)
     if (totalPoints >= 1000 && !badges.some(b => b.name === 'Légende de la Propreté')) {
       badges.push({ name: 'Légende de la Propreté', icon: '🌟', description: 'Atteint 1000 points cumulés.' });
     }
 
-    // Badge: Vainqueur Hebdomadaire (a été 1er au classement hebdomadaire au moins une fois)
     const hasBeenWeeklyWinner = historicalPodiums.some(podium => 
         podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.Nom_Participant).trim()
     );
@@ -859,7 +896,6 @@ function App() {
         badges.push({ name: 'Vainqueur Hebdomadaire', icon: '🥇', description: 'A été premier du podium hebdomadaire.' });
     }
 
-    // Badge: Imbattable (a été 1er au classement hebdomadaire 3 fois ou plus)
     const weeklyWins = historicalPodiums.filter(podium => 
         podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.Nom_Participant).trim()
     ).length;
@@ -867,7 +903,6 @@ function App() {
         badges.push({ name: 'Imbattable', icon: '👑', description: 'A été premier du podium hebdomadaire 3 fois ou plus.' });
     }
 
-    // Badge: Esprit d'équipe (a complété au moins une tâche de groupe)
     const hasCompletedGroupTask = participantRealisations.some(r => {
         const taskDef = allRawTaches.find(t => String(t.ID_Tache) === String(r.ID_Tache_Effectuee));
         return taskDef && (taskDef.Parent_Task_ID || (taskDef.Sous_Taches_IDs && taskDef.Sous_Taches_IDs.trim() !== ''));
@@ -920,13 +955,9 @@ function App() {
   };
 
   const renderPodiumSection = () => {
-    // eslint-disable-next-line no-unused-vars
     const podiumColors = ['bg-podium-gold', 'bg-podium-silver', 'bg-podium-bronze']; 
-    // eslint-disable-next-line no-unused-vars
     const medals = ['🥇', '🥈', '🥉'];
 
-    // Calculate remaining tasks
-    // Updated logic: filter based on whether the task itself (if not group) or all its subtasks (if group) are available
     const remainingTasksCount = taches.filter(tache => {
         if (tache.isGroupTask) {
             return !areAllSubtasksCompleted(tache);
@@ -934,7 +965,6 @@ function App() {
         return isSubTaskAvailable(tache);
     }).length;
 
-    // Sort the classement by weekly points for this view
     const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
     const top3 = sortedClassement.slice(0, 3);
 
@@ -945,7 +975,6 @@ function App() {
         </p>
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-secondary mb-6 sm:mb-8 whitespace-nowrap overflow-hidden text-ellipsis">🏆 Podium de la Semaine 🏆</h2> 
         
-        {/* Conditional rendering for the podium itself */}
         {Array.isArray(classement) && classement.length > 0 ? (
           <>
             <div className="flex justify-center items-end mt-4 sm:mt-6 gap-2 sm:gap-4"> 
@@ -1004,7 +1033,6 @@ function App() {
           <p className="text-center text-lightText text-lg py-4">Soyez le premier à marquer des points cette semaine !</p>
         )}
         
-        {/* NOUVEAUX BOUTONS POUR LES MODALES DE LA PAGE PRINCIPALE */}
         <div className="flex flex-wrap justify-center gap-2 sm:gap-4 mt-4 border-t border-neutralBg pt-4">
             <button
                 onClick={() => setShowHighlightsModal(true)}
@@ -1158,10 +1186,8 @@ function App() {
           {tasks.map(tache => {
             let shouldHideTask = false;
             if (tache.isGroupTask) {
-                // For group tasks, hide if ALL its subtasks are completed
                 shouldHideTask = areAllSubtasksCompleted(tache);
             } else {
-                // For regular tasks, hide if the task itself is not available (i.e., completed)
                 shouldHideTask = !isSubTaskAvailable(tache); 
             }
 
@@ -1195,7 +1221,6 @@ function App() {
                     <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${getFrequencyClasses(tache.Frequence)}`}> 
                         {tache.Frequence || 'Hebdomadaire'}
                     </span>
-                    {/* Sober points box */}
                     <div className="border border-gray-300 text-gray-700 font-bold text-xs sm:text-base px-1.5 py-0.5 rounded-md bg-gray-100"> 
                         {tache.Calculated_Points} pts
                     </div>
@@ -1268,17 +1293,26 @@ function App() {
         <div className="space-y-3 text-left"> 
           {realisations.map((real, index) => (
             <div key={real.Timestamp + real.Nom_Participant + index} 
-                 className="bg-card rounded-2xl p-3 sm:p-4 flex flex-col shadow-lg border border-blue-100"> 
-              <h4 className="text-secondary text-base sm:text-xl font-extrabold leading-tight mb-1">
-                  {real.Nom_Tache_Effectuee}
-              </h4>
-              <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-sm text-lightText">
-                  <span>par <strong className="text-text">{real.Nom_Participant}</strong></span>
-                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(real.Categorie_Tache)}`}>
-                      {real.Categorie_Tache || 'Non catégorisé'}
-                  </span>
-                  <span>le {new Date(real.Timestamp).toLocaleDateString('fr-FR')} à {new Date(real.Timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                 className="bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-lg border border-blue-100"> 
+              <div className="flex-1 min-w-0 mb-2 sm:mb-0"> 
+                  <h4 className="text-secondary text-base sm:text-xl font-extrabold leading-tight mb-1">
+                      {real.Nom_Tache_Effectuee}
+                  </h4>
+                  <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-sm text-lightText">
+                      <span>par <strong className="text-text">{real.Nom_Participant}</strong></span>
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(real.Categorie_Tache)}`}>
+                          {real.Categorie_Tache || 'Non catégorisé'}
+                      </span>
+                      <span>le {new Date(real.Timestamp).toLocaleDateString('fr-FR')} à {new Date(real.Timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
               </div>
+              {/* NOUVEAU BOUTON "Signaler" */}
+              <button
+                onClick={() => handleReportClick(real)}
+                className="ml-0 sm:ml-4 mt-2 sm:mt-0 bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs flex-shrink-0"
+              >
+                Signaler
+              </button>
             </div>
           ))}
         </div>
@@ -1651,20 +1685,19 @@ function App() {
   };
 
   const renderAdminObjectivesListModal = () => {
-    // This modal now only displays the list. Form modals are separate.
     if (!showAdminObjectivesListModal) return null;
 
     return (
       <ListAndInfoModal title="Gestion des Objectifs" onClose={() => setShowAdminObjectivesListModal(false)} sizeClass="max-w-full sm:max-w-md md:max-w-lg">
         <button
           onClick={() => {
-            setShowAdminObjectivesListModal(false); // Close list modal
+            setShowAdminObjectivesListModal(false); 
             setEditingObjective(null);
             setNewObjectiveData({ 
               ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '',
               Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
             });
-            setShowAdminObjectiveFormModal(true); // Open form modal
+            setShowAdminObjectiveFormModal(true); 
           }}
           className="bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full mb-4 text-sm" 
         >
@@ -1692,10 +1725,10 @@ function App() {
                   <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
                     <button
                       onClick={() => {
-                        setShowAdminObjectivesListModal(false); // Close list modal
+                        setShowAdminObjectivesListModal(false); 
                         setEditingObjective(obj);
                         setNewObjectiveData(obj);
-                        setShowAdminObjectiveFormModal(true); // Open form modal
+                        setShowAdminObjectiveFormModal(true); 
                       }}
                       className="bg-accent hover:bg-yellow-600 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs"
                     >
@@ -1718,20 +1751,19 @@ function App() {
   };
 
   const renderAdminTasksListModal = () => {
-    // This modal now only displays the list. Form modals are separate.
     if (!showAdminTasksListModal) return null;
 
     return (
       <ListAndInfoModal title="Gestion des Tâches" onClose={() => setShowAdminTasksListModal(false)} sizeClass="max-w-full sm:max-w-md md:max-w-lg">
         <button
           onClick={() => { 
-            setShowAdminTasksListModal(false); // Close list modal
+            setShowAdminTasksListModal(false); 
             setEditingTask(null); 
             setNewTaskData({ 
               ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
               Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
             }); 
-            setShowAdminTaskFormModal(true); // Open form modal
+            setShowAdminTaskFormModal(true); 
           }}
           className="bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full mb-4 text-sm" 
         >
@@ -1760,10 +1792,10 @@ function App() {
                   <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
                     <button
                       onClick={() => { 
-                        setShowAdminTasksListModal(false); // Close list modal
+                        setShowAdminTasksListModal(false); 
                         setEditingTask(task); 
                         setNewTaskData(task); 
-                        setShowAdminTaskFormModal(true); // Open form modal
+                        setShowAdminTaskFormModal(true); 
                       }}
                       className="bg-accent hover:bg-yellow-600 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs"
                     >
@@ -1832,11 +1864,8 @@ function App() {
     );
   };
 
-  // Nouveau rendu pour le classement complet (cartes)
   const renderFullRankingCards = () => {
-    // eslint-disable-next-line no-unused-vars
     const podiumColors = ['bg-podium-gold', 'bg-podium-silver', 'bg-podium-bronze']; 
-    // eslint-disable-next-line no-unused-vars
     const medals = ['🥇', '🥈', '🥉'];
 
     if (!Array.isArray(classement) || classement.length === 0) {
@@ -1855,13 +1884,12 @@ function App() {
       );
     }
 
-    // Sort the classement by weekly points for this view
     const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
 
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8">
         <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Classement Hebdomadaire Complet</h2>
-        <div className="flex flex-col gap-3 mb-6 items-center"> {/* Changed to flex-col for vertical stacking */}
+        <div className="flex flex-col gap-3 mb-6 items-center"> 
           {sortedClassement.map((participant, index) => (
             <RankingCard
               key={participant.Nom_Participant}
@@ -1924,7 +1952,7 @@ function App() {
         </header>
 
         <nav className="flex justify-center mb-6 sm:mb-8"> 
-          <div className="bg-neutralBg rounded-full p-1.5 flex justify-center gap-4 sm:gap-6 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto"> {/* Increased gap */}
+          <div className="bg-neutralBg rounded-full p-1.5 flex justify-center gap-4 sm:gap-6 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto"> 
             <button
               className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
                 ${activeMainView === 'home' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
@@ -2012,7 +2040,17 @@ function App() {
           />
         )}
 
-        {/* Admin Form Modals (rendered outside list modals for proper layering) */}
+        {/* NOUVELLE MODAL POUR LE SIGNALEMENT */}
+        {showReportModal && (
+          <ReportTaskModal
+            show={showReportModal}
+            onClose={() => { setShowReportModal(false); setReportedTaskDetails(null); }}
+            onSubmit={submitReport}
+            reportedTaskDetails={reportedTaskDetails}
+            loading={loading}
+          />
+        )}
+
         {showAdminObjectiveFormModal && (
           <AdminObjectiveFormModal
             objectiveData={newObjectiveData}
@@ -2049,7 +2087,6 @@ function App() {
         )}
 
       </div>
-      {/* Conteneur pour les notifications toast */}
       <ToastContainer 
         position="top-right"
         autoClose={5000}
