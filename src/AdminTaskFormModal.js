@@ -1,66 +1,71 @@
 import React from 'react';
 
-function AdminTaskFormModal({ 
-  taskData, 
-  onFormChange, 
-  onSubmit, 
-  onClose, 
-  loading, 
-  editingTask 
-}) {
+/**
+ * Composant de modal pour l'ajout ou la modification d'une tâche.
+ * @param {Object} taskData - Les données actuelles du formulaire de tâche.
+ * @param {function} onFormChange - Fonction de rappel pour gérer les changements du formulaire.
+ * @param {function} onSubmit - Fonction de rappel pour soumettre le formulaire.
+ * @param {function} onClose - Fonction de rappel pour fermer le modal.
+ * @param {boolean} loading - Indique si une opération est en cours (pour désactiver les boutons).
+ * @param {Object|null} editingTask - L'objet tâche si nous sommes en mode édition, sinon null.
+ */
+function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading, editingTask }) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4">
-      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-2xl text-center animate-fade-in-scale border border-primary/20">
+      <div className="bg-card rounded-3xl p-5 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md md:max-w-lg text-center animate-fade-in-scale border border-primary/20 mx-auto">
         <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">
-          {editingTask ? 'Modifier la tâche' : 'Ajouter une nouvelle tâche'}
+          {editingTask ? 'Modifier la Tâche' : 'Ajouter une Nouvelle Tâche'}
         </h3>
-        <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+
+        {/* Conteneur du formulaire avec défilement pour les petits écrans */}
+        <div className="max-h-[70vh] overflow-y-auto custom-scrollbar pr-2"> {/* Added max-h and overflow */}
+          <div className="space-y-4 text-left">
             <div>
-              <label className="block text-text text-sm font-medium mb-1 text-left">ID Tâche (Unique):</label>
+              <label htmlFor="ID_Tache" className="block text-text font-medium mb-1 text-sm">ID Tâche:</label>
               <input
+                id="ID_Tache"
                 type="text"
                 name="ID_Tache"
                 value={taskData.ID_Tache}
                 onChange={onFormChange}
-                placeholder="Ex: T001, ST001"
-                className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                disabled={!!editingTask} // Disable ID editing for existing tasks
-                required
+                placeholder="Ex: TACHE001"
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                disabled={!!editingTask} {/* Disable ID editing for existing tasks */}
               />
             </div>
             <div>
-              <label className="block text-text text-sm font-medium mb-1 text-left">Nom Tâche:</label>
+              <label htmlFor="Nom_Tache" className="block text-text font-medium mb-1 text-sm">Nom Tâche:</label>
               <input
+                id="Nom_Tache"
                 type="text"
                 name="Nom_Tache"
                 value={taskData.Nom_Tache}
                 onChange={onFormChange}
                 placeholder="Ex: Nettoyer la cuisine"
-                className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                required
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
               />
             </div>
-            {/* Le champ Description a été supprimé ici */}
+            {/* Description est intentionnellement omise ici si elle a été retirée du frontend */}
             <div>
-              <label className="block text-text text-sm font-medium mb-1 text-left">Points:</label>
+              <label htmlFor="Points" className="block text-text font-medium mb-1 text-sm">Points:</label>
               <input
+                id="Points"
                 type="number"
                 name="Points"
                 value={taskData.Points}
                 onChange={onFormChange}
                 placeholder="Ex: 10"
-                className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]"
-                required
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
               />
             </div>
             <div>
-              <label className="block text-text text-sm font-medium mb-1 text-left">Fréquence:</label>
+              <label htmlFor="Frequence" className="block text-text font-medium mb-1 text-sm">Fréquence:</label>
               <select
+                id="Frequence"
                 name="Frequence"
                 value={taskData.Frequence}
                 onChange={onFormChange}
-                className="w-full p-2.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]"
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
               >
                 <option value="Hebdomadaire">Hebdomadaire</option>
                 <option value="Quotidien">Quotidien</option>
@@ -68,12 +73,13 @@ function AdminTaskFormModal({
               </select>
             </div>
             <div>
-              <label className="block text-text text-sm font-medium mb-1 text-left">Urgence:</label>
+              <label htmlFor="Urgence" className="block text-text font-medium mb-1 text-sm">Urgence:</label>
               <select
+                id="Urgence"
                 name="Urgence"
                 value={taskData.Urgence}
                 onChange={onFormChange}
-                className="w-full p-2.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]"
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
               >
                 <option value="Faible">Faible</option>
                 <option value="Moyenne">Moyenne</option>
@@ -81,59 +87,64 @@ function AdminTaskFormModal({
               </select>
             </div>
             <div>
-              <label className="block text-text text-sm font-medium mb-1 text-left">Catégorie:</label>
+              <label htmlFor="Categorie" className="block text-text font-medium mb-1 text-sm">Catégorie:</label>
               <select
+                id="Categorie"
                 name="Categorie"
                 value={taskData.Categorie}
                 onChange={onFormChange}
-                className="w-full p-2.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]"
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
               >
                 <option value="Tous">Tous</option>
-                <option value="Salle">Salle</option>
                 <option value="Cuisine">Cuisine</option>
+                <option value="Salle">Salle</option>
               </select>
             </div>
             <div>
-              <label className="block text-text text-sm font-medium mb-1 text-left">IDs Sous-Tâches (csv):</label>
+              <label htmlFor="Sous_Taches_IDs" className="block text-text font-medium mb-1 text-sm">IDs Sous-Tâches (séparés par virgule):</label>
               <input
+                id="Sous_Taches_IDs"
                 type="text"
                 name="Sous_Taches_IDs"
                 value={taskData.Sous_Taches_IDs}
                 onChange={onFormChange}
-                placeholder="Ex: ST001,ST002 (pour les tâches de groupe)"
-                className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                placeholder="Ex: ST001, ST002"
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
               />
             </div>
             <div>
-              <label className="block text-text text-sm font-medium mb-1 text-left">ID Tâche Parent (si sous-tâche):</label>
+              <label htmlFor="Parent_Task_ID" className="block text-text font-medium mb-1 text-sm">ID Tâche Parent:</label>
               <input
+                id="Parent_Task_ID"
                 type="text"
                 name="Parent_Task_ID"
                 value={taskData.Parent_Task_ID}
                 onChange={onFormChange}
-                placeholder="Ex: T001 (si c'est une sous-tâche)"
-                className="w-full p-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                placeholder="Ex: GT001"
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
               />
             </div>
           </div>
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              type="submit"
-              className="bg-primary hover:bg-secondary text-white font-semibold py-2.5 px-6 rounded-full shadow-lg transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
-              disabled={loading}
-            >
-              {loading ? 'Envoi...' : (editingTask ? 'Mettre à jour' : 'Ajouter')}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2.5 px-6 rounded-full shadow-lg transition duration-300 text-sm"
-              disabled={loading}
-            >
-              Annuler
-            </button>
-          </div>
-        </form>
+        </div> {/* Fin du conteneur scrollable */}
+
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6"> {/* Responsive buttons */}
+          <button
+            onClick={onSubmit}
+            disabled={loading}
+            className="flex-1 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                       transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+          >
+            {loading ? 'Soumission...' : (editingTask ? 'Modifier' : 'Ajouter')}
+          </button>
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                       transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+          >
+            Annuler
+          </button>
+        </div>
       </div>
     </div>
   );
