@@ -30,7 +30,7 @@ function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading
                 onChange={onFormChange}
                 placeholder="Ex: TACHE001"
                 className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                disabled={!!editingTask} {/* Disable ID editing for existing tasks */}
+                disabled={!!editingTask} // Désactive l'édition de l'ID pour les tâches existantes
               />
             </div>
             <div>
