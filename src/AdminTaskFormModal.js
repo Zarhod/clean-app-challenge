@@ -18,7 +18,7 @@ function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading
         </h3>
 
         {/* Conteneur du formulaire avec défilement pour les petits écrans */}
-        <div className="max-h-[70vh] overflow-y-auto custom-scrollbar pr-2"> {/* Added max-h and overflow */}
+        <div className="max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
           <div className="space-y-4 text-left">
             <div>
               <label htmlFor="ID_Tache" className="block text-text font-medium mb-1 text-sm">ID Tâche:</label>
