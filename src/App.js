@@ -13,7 +13,7 @@ import ListAndInfoModal from './ListAndInfoModal';
 import RankingCard from './RankingCard'; 
 import OverallRankingModal from './OverallRankingModal'; 
 import ReportTaskModal from './ReportTaskModal'; 
-import { AuthModal } from './Auth'; // <-- Correction ici: import nommé
+import AuthModal from './Auth'; // <-- Correction ici: import par défaut
 import AdminUserManagementModal from './AdminUserManagementModal'; 
 import confetti from 'canvas-confetti'; 
 
@@ -65,21 +65,21 @@ function AppContent() {
   
   const [showAdminTaskFormModal, setShowAdminTaskFormModal] = useState(false); 
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false); 
-  const [taskToDelete, setTaskToDelete] = null; 
+  const [taskToDelete, setTaskToDelete] = useState(null); 
   const [newTaskData, setNewTaskData] = useState({ 
     ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
     Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
   });
-  const [editingTask, setEditingTask] = null;
+  const [editingTask, setEditingTask] = useState(null);
 
   const [showAdminObjectiveFormModal, setShowAdminObjectiveFormModal] = useState(false); 
   const [newObjectiveData, setNewObjectiveData] = useState({ 
     ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '',
     Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false 
   });
-  const [editingObjective, setEditingObjective] = null; 
+  const [editingObjective, setEditingObjective] = useState(null); 
   const [showDeleteObjectiveConfirmModal, setShowDeleteObjectiveConfirmModal] = useState(false); 
-  const [objectiveToDelete, setObjectiveToDelete] = null; 
+  const [objectiveToDelete, setObjectiveToDelete] = useState(null); 
 
   const [showHighlightsModal, setShowHighlightsModal] = useState(false);
   const [showObjectivesModal, setShowObjectivesModal] = useState(false);
@@ -377,16 +377,17 @@ function AppContent() {
         });
       }
 
-      const completedTask = taches.find(t => t.ID_Tache === idTacheToRecord);
-      if (completedTask && String(completedTask.Frequence || '').toLowerCase() === 'ponctuel') {
-          toast.success(`Tâche ponctuelle "${completedTask.Nom_Tache}" enregistrée.`);
+      // Si la tâche est ponctuelle, la supprimer de la collection 'tasks'
+      if (String(taskToRecord.Frequence || '').toLowerCase() === 'ponctuel') {
+          await deleteDoc(doc(db, "tasks", taskToRecord.id)); // Utiliser taskToRecord.id qui est l'ID du document Firestore
+          toast.success(`Tâche ponctuelle "${taskToRecord.Nom_Tache}" enregistrée et supprimée.`);
       } else {
-          toast.success(`Tâche "${completedTask ? completedTask.Nom_Tache : 'inconnue'}" enregistrée avec succès.`);
+          toast.success(`Tâche "${taskToRecord.Nom_Tache}" enregistrée avec succès.`);
       }
 
       if (!isSubTask) { 
         const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
-        setShowThankYouPopup({ name: currentUser.displayName || currentUser.email, task: completedTask ? completedTask.Nom_Tache : 'Tâche inconnue', message: randomMessage }); 
+        setShowThankYouPopup({ name: currentUser.displayName || currentUser.email, task: taskToRecord.Nom_Tache, message: randomMessage }); 
         setShowConfetti(true); 
         setSelectedTask(null); 
       }
@@ -419,11 +420,18 @@ function AppContent() {
     setLoading(true);
     try {
       let totalPointsGained = 0;
-      const tasksToRecordPayload = availableSelectedSubTasks.map(subTask => {
+      const tasksToDelete = []; // Pour stocker les tâches ponctuelles à supprimer
+
+      const batchPromises = availableSelectedSubTasks.map(subTask => {
         const points = parseFloat(subTask.Points) || 0;
         const category = subTask.Categorie || 'Non catégorisée';
         totalPointsGained += points;
-        return {
+
+        if (String(subTask.Frequence || '').toLowerCase() === 'ponctuel') {
+          tasksToDelete.push(subTask.id); // Stocker l'ID du document Firestore
+        }
+
+        return addDoc(collection(db, "realizations"), {
           taskId: subTask.ID_Tache,
           userId: currentUser.uid,
           nomParticipant: currentUser.displayName || currentUser.email,
@@ -431,11 +439,14 @@ function AppContent() {
           categorieTache: category,
           pointsGagnes: points,
           timestamp: new Date().toISOString()
-        };
+        });
       });
-
-      const batchPromises = tasksToRecordPayload.map(taskData => addDoc(collection(db, "realizations"), taskData));
       await Promise.all(batchPromises);
+
+      // Supprimer les tâches ponctuelles après l'enregistrement des réalisations
+      const deletePromises = tasksToDelete.map(taskId => deleteDoc(doc(db, "tasks", taskId)));
+      await Promise.all(deletePromises);
+
 
       const userDocRef = doc(db, "users", currentUser.uid);
       const userDocSnap = await getDoc(userDocRef);
@@ -873,6 +884,10 @@ function AppContent() {
         } else if (frequence === 'hebdomadaire') {
           return realDate >= startOfCurrentWeek;
         } else if (frequence === 'ponctuel') {
+          // For 'ponctuel' tasks, once completed, they are no longer available.
+          // The task document itself will be deleted from 'tasks' collection,
+          // so this check primarily serves for group tasks where subtasks might be 'ponctuel'
+          // but the parent task remains until all subtasks are done.
           return true; 
         }
       }
@@ -906,13 +921,14 @@ function AppContent() {
     }
     const subTaskIds = String(groupTask.Sous_Taches_IDs).split(',').map(id => id.trim());
     
-    const associatedSubtasks = allRawTaches.filter(t => subTaskIds.includes(String(t.ID_Tache)));
+    // Filter allRawTaches to get only the actual subtasks that still exist in the database
+    const existingSubtasks = allRawTaches.filter(t => subTaskIds.includes(String(t.ID_Tache)));
 
-    if (associatedSubtasks.length === 0) {
-        return true; 
+    if (existingSubtasks.length === 0) {
+        return true; // All subtasks (that existed) are considered completed/deleted
     }
 
-    return associatedSubtasks.every(subTask => !isSubTaskAvailable(subTask));
+    return existingSubtasks.every(subTask => !isSubTaskAvailable(subTask));
   }, [allRawTaches, isSubTaskAvailable]); 
 
   // Helper function to determine if a task should be hidden
