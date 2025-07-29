@@ -28,7 +28,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
 // Importations Firebase
-import { db, auth, app } from './firebase'; 
+import { db, auth } from './firebase'; 
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, writeBatch, onSnapshot } from 'firebase/firestore'; 
 import { signOut } from 'firebase/auth';
 
