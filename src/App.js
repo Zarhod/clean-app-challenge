@@ -15,10 +15,11 @@ import OverallRankingModal from './OverallRankingModal';
 import ReportTaskModal from './ReportTaskModal'; 
 import AuthModal from './Auth'; // Import par défaut
 import AdminUserManagementModal from './AdminUserManagementModal'; 
+import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; // Nouvelle importation
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css'; 
+import 'react-toastify/dist/React-toastify.css'; 
 
 // Importations Firebase
 import { db, auth } from './firebase';
@@ -88,6 +89,7 @@ function AppContent() {
   const [showExportSelectionModal, setShowExportSelectionModal] = useState(false); 
   const [showOverallRankingModal, setShowOverallRankingModal] = useState(false); 
   const [showAdminUserManagementModal, setShowAdminUserManagementModal] = useState(false); 
+  const [showAdminCongratulatoryMessagesModal, setShowAdminCongratulatoryMessagesModal] = useState(false); // Nouveau état pour la modale messages
 
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportedTaskDetails, setReportedTaskDetails] = useState(null); 
@@ -1132,10 +1134,8 @@ function AppContent() {
     }).length;
 
     const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
-    const top3 = sortedClassement.slice(0, 3);
-
-    // Vérifier si au moins un participant a des points > 0 pour afficher le podium
-    const hasPointsInPodium = sortedClassement.some(p => parseFloat(p.Points_Total_Semaine_Courante) > 0);
+    // Filtrer pour n'afficher que les participants avec des points > 0
+    const top3WithPoints = sortedClassement.filter(p => parseFloat(p.Points_Total_Semaine_Courante) > 0).slice(0, 3);
 
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 mb-6 sm:mb-8 shadow-2xl text-center"> 
@@ -1144,48 +1144,48 @@ function AppContent() {
         </p>
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-secondary mb-6 sm:mb-8 whitespace-nowrap overflow-hidden text-ellipsis">🏆 Podium de la Semaine 🏆</h2> 
         
-        {Array.isArray(classement) && classement.length > 0 && hasPointsInPodium ? ( // Condition ajoutée ici
+        {Array.isArray(classement) && top3WithPoints.length > 0 ? ( // Condition mise à jour ici
           <>
             <div className="flex justify-center items-end mt-4 sm:mt-6 gap-2 sm:gap-4"> 
               {/* 2ème Place */}
-              {top3.length > 1 && (
+              {top3WithPoints.length > 1 && (
                 <div 
-                  key={top3[1].Nom_Participant || `anon-silver`} 
+                  key={top3WithPoints[1].Nom_Participant || `anon-silver`} 
                   className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
                     ${podiumColors[1]} order-1 w-1/3 sm:w-auto min-w-[80px]`} 
-                  onClick={() => handleParticipantClick(top3[1])} 
+                  onClick={() => handleParticipantClick(top3WithPoints[1])} 
                 >
                   <span className={`text-3xl sm:text-5xl mb-0.5 sm:mb-1`}>{medals[1]}</span> 
-                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3[1].Nom_Participant}</p> 
-                  <p className="text-xs sm:text-base text-lightText">{top3[1].Points_Total_Semaine_Courante} pts</p> 
+                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[1].Nom_Participant}</p> 
+                  <p className="text-xs sm:text-base text-lightText">{top3WithPoints[1].Points_Total_Semaine_Courante} pts</p> 
                 </div>
               )}
 
               {/* 1ère Place */}
-              {top3.length > 0 && (
+              {top3WithPoints.length > 0 && (
                 <div 
-                  key={top3[0].Nom_Participant || `anon-gold`} 
+                  key={top3WithPoints[0].Nom_Participant || `anon-gold`} 
                   className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
                     ${podiumColors[0]} order-2 w-1/3 sm:w-auto -translate-y-2 min-w-[80px]`} 
-                  onClick={() => handleParticipantClick(top3[0])} 
+                  onClick={() => handleParticipantClick(top3WithPoints[0])} 
                 >
                   <span className={`text-5xl sm:text-6xl mb-0.5 sm:mb-1`}>{medals[0]}</span> 
-                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3[0].Nom_Participant}</p> 
-                  <p className="text-xs sm:text-base text-lightText">{top3[0].Points_Total_Semaine_Courante} pts</p> 
+                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[0].Nom_Participant}</p> 
+                  <p className="text-xs sm:text-base text-lightText">{top3WithPoints[0].Points_Total_Semaine_Courante} pts</p> 
                 </div>
               )}
 
               {/* 3ème Place */}
-              {top3.length > 2 && (
+              {top3WithPoints.length > 2 && (
                 <div 
-                  key={top3[2].Nom_Participant || `anon-bronze`} 
+                  key={top3WithPoints[2].Nom_Participant || `anon-bronze`} 
                   className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
                     ${podiumColors[2]} order-3 w-1/3 sm:w-auto min-w-[80px]`} 
-                  onClick={() => handleParticipantClick(top3[2])} 
+                  onClick={() => handleParticipantClick(top3WithPoints[2])} 
                 >
                   <span className={`text-3xl sm:text-5xl mb-0.5 sm:mb-1`}>{medals[2]}</span> 
-                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3[2].Nom_Participant}</p> 
-                  <p className="text-xs sm:text-base text-lightText">{top3[2].Points_Total_Semaine_Courante} pts</p> 
+                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[2].Nom_Participant}</p> 
+                  <p className="text-xs sm:text-base text-lightText">{top3WithPoints[2].Points_Total_Semaine_Courante} pts</p> 
                 </div>
               )}
             </div>
@@ -2094,15 +2094,16 @@ function AppContent() {
     }
 
     const adminButtonClasses = "bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"; 
+    const subtleAdminButtonClasses = "bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs";
+
 
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl mb-6 sm:mb-8">
         <h2 className="text-2xl sm:text-3xl font-bold text-secondary mb-6 text-center">Panneau d'Administration</h2>
         
         <div className="flex flex-col gap-4 mb-6">
-          {/* Container 1: Gestion des Tâches & Objectifs */}
+          {/* Container 1: Gestion des Tâches & Objectifs (sans titre) */}
           <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
-            <h3 className="text-lg font-bold text-primary mb-3 text-center">Gestion des Tâches & Objectifs</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                   onClick={() => setShowAdminObjectivesListModal(true)}
@@ -2119,9 +2120,8 @@ function AppContent() {
             </div>
           </div>
 
-          {/* Container 2: Gestion des Utilisateurs */}
+          {/* Container 2: Gestion des Utilisateurs (sans titre) */}
           <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
-            <h3 className="text-lg font-bold text-primary mb-3 text-center">Gestion des Utilisateurs</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={() => setShowAdminUserManagementModal(true)} 
@@ -2130,27 +2130,33 @@ function AppContent() {
                 Gérer les Utilisateurs
               </button>
               <button
-                onClick={() => setShowGlobalDataViewModal(true)} // Nouveau bouton
+                onClick={() => setShowAdminCongratulatoryMessagesModal(true)} // Nouveau bouton
                 className={`${adminButtonClasses} col-span-1`}
               >
-                Vision Globale de la BDD
+                Gérer les Messages de Félicitation
               </button>
             </div>
           </div>
 
-          {/* Container 3: Outils Avancés */}
-          <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
-            <h3 className="text-lg font-bold text-primary mb-3 text-center">Outils Avancés</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Container 3: Outils Avancés (plus petit et moins visible) */}
+          <div className="bg-neutralBg/50 rounded-xl p-3 shadow-inner border border-gray-200"> {/* Plus subtil */}
+            <h3 className="text-base font-bold text-primary mb-3 text-center">Outils Avancés</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2"> {/* Espacement réduit */}
+              <button
+                onClick={() => setShowGlobalDataViewModal(true)} // Déplacé ici
+                className={`${subtleAdminButtonClasses} col-span-1`}
+              >
+                Vision Globale de la BDD
+              </button>
               <button
                 onClick={() => setShowExportSelectionModal(true)}
-                className={`${adminButtonClasses} col-span-1`}
+                className={`${subtleAdminButtonClasses} col-span-1`}
               >
                 Exporter les Données (CSV)
               </button>
               <button
                 onClick={() => setShowConfirmResetModal(true)}
-                className={`bg-error hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`} 
+                className={`bg-error/80 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`} 
               >
                 Réinitialiser les Points Hebdomadaires
               </button>
@@ -2325,26 +2331,26 @@ function AppContent() {
           )}
           <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1> 
           {/* Nouveau bloc pour le profil utilisateur et le bouton admin */}
-          <div className="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2 bg-card p-2 rounded-lg shadow-md"> {/* Encadré et empilé */}
+          <div className="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2 bg-card p-2 rounded-lg shadow-md border border-primary/20"> {/* Encadré et empilé */}
             {currentUser && (
               <>
                 <button
                   onClick={() => handleParticipantClick({ Nom_Participant: currentUser.displayName || currentUser.email })}
-                  className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap"
+                  className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap w-full"
                 >
                   Bonjour, {currentUser.displayName || currentUser.email}
                 </button>
                 {isAdmin && (
                   <button
                     onClick={() => setActiveMainView('adminPanel')}
-                    className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap"
+                    className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-1.5 px-3 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-xs whitespace-nowrap w-full"
                   >
                     Console Admin
                   </button>
                 )}
                 <button
                   onClick={handleAuthAction}
-                  className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap"
+                  className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1.5 px-3 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-xs whitespace-nowrap w-full"
                 >
                   Déconnexion
                 </button>
@@ -2488,6 +2494,12 @@ function AppContent() {
           <AdminUserManagementModal
             onClose={() => setShowAdminUserManagementModal(false)}
             realisations={realisations} 
+          />
+        )}
+
+        {showAdminCongratulatoryMessagesModal && isAdmin && (
+          <AdminCongratulatoryMessagesModal
+            onClose={() => setShowAdminCongratulatoryMessagesModal(false)}
           />
         )}
 

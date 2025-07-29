@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { auth, db } from './firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore'; // 'getDoc' a été retiré car non utilisé
+import { doc, setDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 
 const AuthModal = ({ onClose }) => {
@@ -17,7 +17,7 @@ const AuthModal = ({ onClose }) => {
     setLoading(true);
     try {
       if (isLogin) {
-        // Connexion
+        // Tentative de connexion
         await signInWithEmailAndPassword(auth, email, password);
         toast.success('Connexion réussie !');
       } else {
@@ -25,15 +25,13 @@ const AuthModal = ({ onClose }) => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // Mettre à jour le profil de l'utilisateur avec le displayName
         await updateProfile(user, { displayName: displayName });
 
-        // Créer un document utilisateur dans Firestore
         const userDocRef = doc(db, "users", user.uid);
         await setDoc(userDocRef, {
           displayName: displayName,
           email: email,
-          isAdmin: false, // Par défaut, non admin
+          isAdmin: false,
           dateJoined: new Date().toISOString(),
           weeklyPoints: 0,
           totalCumulativePoints: 0,
@@ -41,7 +39,7 @@ const AuthModal = ({ onClose }) => {
         });
         toast.success('Inscription réussie et profil créé !');
       }
-      onClose(); // Fermer la modale après succès
+      onClose();
     } catch (error) {
       console.error("Erreur d'authentification:", error);
       let errorMessage = "Une erreur est survenue lors de l'authentification.";
@@ -51,19 +49,27 @@ const AuthModal = ({ onClose }) => {
         errorMessage = 'Format d\'email invalide.';
       } else if (error.code === 'auth/weak-password') {
         errorMessage = 'Le mot de passe est trop faible (6 caractères minimum).';
-      } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        errorMessage = 'Email ou mot de passe incorrect.';
+      } else if (error.code === 'auth/user-not-found') {
+        // Si l'utilisateur n'est pas trouvé lors de la connexion, basculer vers l'inscription
+        toast.info('Compte non trouvé. Veuillez vous inscrire.');
+        setIsLogin(false); // Bascule vers le mode inscription
+        setLoading(false); // Réinitialise le chargement pour permettre l'inscription
+        return; // Sortir de la fonction pour ne pas afficher d'erreur supplémentaire
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Mot de passe incorrect.';
       }
       toast.error(errorMessage);
     } finally {
-      setLoading(false);
+      if (isLogin || error.code !== 'auth/user-not-found') { // Ne pas masquer le loader si on bascule vers l'inscription
+        setLoading(false);
+      }
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
-      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-sm text-center animate-fade-in-scale border border-primary/20 mx-auto">
-        <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-6">
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-sm text-center animate-fade-in-scale border border-primary/20 mx-auto transform transition-all duration-300 ease-in-out scale-100 hover:scale-[1.01]">
+        <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-6 drop-shadow-sm">
           {isLogin ? 'Connexion' : 'Inscription'}
         </h2>
         <form onSubmit={handleAuth} className="space-y-4">
@@ -77,7 +83,7 @@ const AuthModal = ({ onClose }) => {
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Votre nom d'utilisateur"
                 required={!isLogin}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm transition duration-200 ease-in-out hover:border-primary/50"
               />
             </div>
           )}
@@ -90,7 +96,7 @@ const AuthModal = ({ onClose }) => {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Votre email"
               required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm transition duration-200 ease-in-out hover:border-primary/50"
             />
           </div>
           <div>
@@ -102,29 +108,31 @@ const AuthModal = ({ onClose }) => {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Votre mot de passe"
               required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm transition duration-200 ease-in-out hover:border-primary/50"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary hover:bg-secondary text-white font-semibold py-3 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-base"
+            className="w-full bg-primary hover:bg-secondary text-white font-semibold py-3 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-base tracking-wide"
           >
             {loading ? 'Chargement...' : (isLogin ? 'Se connecter' : 'S\'inscrire')}
           </button>
         </form>
-        <button
-          onClick={() => setIsLogin(!isLogin)}
-          className="mt-4 text-primary hover:underline text-sm"
-        >
-          {isLogin ? 'Pas de compte ? S\'inscrire' : 'Déjà un compte ? Se connecter'}
-        </button>
-        <button
-          onClick={onClose}
-          className="mt-6 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-        >
-          Fermer
-        </button>
+        <div className="flex flex-col items-center mt-4 space-y-2"> {/* Utilisation de flex-col et space-y pour empiler */}
+            <button
+              onClick={() => setIsLogin(!isLogin)}
+              className="text-primary hover:underline text-sm font-medium"
+            >
+              {isLogin ? 'Pas de compte ? S\'inscrire' : 'Déjà un compte ? Se connecter'}
+            </button>
+            <button
+              onClick={onClose}
+              className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-sm"
+            >
+              Fermer
+            </button>
+        </div>
       </div>
     </div>
   );
