@@ -13,8 +13,8 @@ import ListAndInfoModal from './ListAndInfoModal';
 import RankingCard from './RankingCard'; 
 import OverallRankingModal from './OverallRankingModal'; 
 import ReportTaskModal from './ReportTaskModal'; 
-import AuthModal from './Auth'; 
-import AdminUserManagementModal from './AdminUserManagementModal'; // Nouvelle importation pour la gestion des utilisateurs
+import { AuthModal } from './Auth'; // <-- Correction ici: import nommé
+import AdminUserManagementModal from './AdminUserManagementModal'; 
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -65,21 +65,21 @@ function AppContent() {
   
   const [showAdminTaskFormModal, setShowAdminTaskFormModal] = useState(false); 
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false); 
-  const [taskToDelete, setTaskToDelete] = useState(null); 
+  const [taskToDelete, setTaskToDelete] = null; 
   const [newTaskData, setNewTaskData] = useState({ 
     ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
     Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
   });
-  const [editingTask, setEditingTask] = useState(null);
+  const [editingTask, setEditingTask] = null;
 
   const [showAdminObjectiveFormModal, setShowAdminObjectiveFormModal] = useState(false); 
   const [newObjectiveData, setNewObjectiveData] = useState({ 
     ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '',
     Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false 
   });
-  const [editingObjective, setEditingObjective] = useState(null); 
+  const [editingObjective, setEditingObjective] = null; 
   const [showDeleteObjectiveConfirmModal, setShowDeleteObjectiveConfirmModal] = useState(false); 
-  const [objectiveToDelete, setObjectiveToDelete] = useState(null); 
+  const [objectiveToDelete, setObjectiveToDelete] = null; 
 
   const [showHighlightsModal, setShowHighlightsModal] = useState(false);
   const [showObjectivesModal, setShowObjectivesModal] = useState(false);
@@ -87,7 +87,7 @@ function AppContent() {
   const [showAdminTasksListModal, setShowAdminTasksListModal] = useState(false);
   const [showExportSelectionModal, setShowExportSelectionModal] = useState(false); 
   const [showOverallRankingModal, setShowOverallRankingModal] = useState(false); 
-  const [showAdminUserManagementModal, setShowAdminUserManagementModal] = useState(false); // Nouveau state pour la modale de gestion des utilisateurs
+  const [showAdminUserManagementModal, setShowAdminUserManagementModal] = useState(false); 
 
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportedTaskDetails, setReportedTaskDetails] = useState(null); 
@@ -1979,7 +1979,7 @@ function AppContent() {
             Réinitialiser les Points Hebdomadaires
           </button>
           <button
-            onClick={() => setShowAdminUserManagementModal(true)} // Nouveau bouton
+            onClick={() => setShowAdminUserManagementModal(true)} 
             className={`${adminButtonClasses} col-span-1`}
           >
             Gérer les Utilisateurs
@@ -2023,7 +2023,7 @@ function AppContent() {
               participant={participant}
               rank={index + 1}
               type="weekly" 
-              onParticipantClick={handleParticipantClick} // Assurez-vous que cette prop est bien gérée dans RankingCard
+              onParticipantClick={handleParticipantClick} 
               getParticipantBadges={getParticipantBadges}
             />
           ))}
@@ -2090,18 +2090,17 @@ function AppContent() {
   // 2. Si aucun utilisateur n'est connecté, afficher une vue simplifiée avec le bouton de connexion
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background-light to-background-dark font-sans p-4 sm:p-6 flex flex-col items-center justify-center text-center">
+      <div className="min-h-screen bg-gradient-to-br from-background-light to-background-dark font-sans p-4 sm:p-6">
         <header className="relative flex flex-col items-center justify-center py-4 sm:py-6 px-4 mb-6 sm:mb-8 text-center">
           <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-20 sm:h-28 md:h-36 w-auto drop-shadow-xl" />
           <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1>
-          {/* Remplacement de AdminLoginButton par la logique de connexion/inscription */}
           <div className="absolute top-4 right-4 z-10">
             <button onClick={handleAuthAction} className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm">
               Se connecter / S'inscrire
             </button>
           </div>
         </header>
-        <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center border border-primary/20">
+        <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center border border-primary/20 mx-auto">
           <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-4">Bienvenue !</h2>
           <p className="text-lg text-text mb-6">
             Veuillez vous connecter ou créer un compte pour accéder à toutes les fonctionnalités de l'application.
@@ -2313,11 +2312,10 @@ function AppContent() {
           <AuthModal onClose={() => setShowAuthModal(false)} />
         )}
 
-        {/* Nouvelle modale pour la gestion des utilisateurs */}
         {showAdminUserManagementModal && isAdmin && (
           <AdminUserManagementModal
             onClose={() => setShowAdminUserManagementModal(false)}
-            realisations={realisations} // Passer les réalisations pour calculer le nombre de tâches
+            realisations={realisations} 
           />
         )}
 
