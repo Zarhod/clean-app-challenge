@@ -15,6 +15,8 @@ const AuthModal = ({ onClose }) => {
   const handleAuth = async (e) => {
     e.preventDefault();
     setLoading(true);
+    let shouldHideLoading = true; // Drapeau pour contrôler l'état de chargement
+
     try {
       if (isLogin) {
         // Tentative de connexion
@@ -39,7 +41,7 @@ const AuthModal = ({ onClose }) => {
         });
         toast.success('Inscription réussie et profil créé !');
       }
-      onClose();
+      onClose(); // Fermer la modale après succès
     } catch (error) {
       console.error("Erreur d'authentification:", error);
       let errorMessage = "Une erreur est survenue lors de l'authentification.";
@@ -53,14 +55,15 @@ const AuthModal = ({ onClose }) => {
         // Si l'utilisateur n'est pas trouvé lors de la connexion, basculer vers l'inscription
         toast.info('Compte non trouvé. Veuillez vous inscrire.');
         setIsLogin(false); // Bascule vers le mode inscription
-        setLoading(false); // Réinitialise le chargement pour permettre l'inscription
-        return; // Sortir de la fonction pour ne pas afficher d'erreur supplémentaire
+        shouldHideLoading = false; // Ne pas masquer le loader immédiatement
       } else if (error.code === 'auth/wrong-password') {
         errorMessage = 'Mot de passe incorrect.';
       }
-      toast.error(errorMessage);
+      if (shouldHideLoading) { // N'afficher l'erreur que si on ne bascule pas vers l'inscription
+        toast.error(errorMessage);
+      }
     } finally {
-      if (isLogin || error.code !== 'auth/user-not-found') { // Ne pas masquer le loader si on bascule vers l'inscription
+      if (shouldHideLoading) {
         setLoading(false);
       }
     }
