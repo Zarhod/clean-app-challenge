@@ -17,7 +17,6 @@ import AuthModal from './Auth'; // Import par défaut
 import AdminUserManagementModal from './AdminUserManagementModal'; 
 import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; 
 import WeeklyRecapModal from './WeeklyRecapModal'; 
-// import ImportTasksModal from './ImportTasksModal'; // SUPPRIMÉ: Plus d'importation Excel
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -25,7 +24,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 // Importations Firebase
 import { db, auth } from './firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc } from 'firebase/firestore'; 
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, writeBatch } from 'firebase/firestore'; // Ajout de writeBatch
 import { signOut } from 'firebase/auth';
 
 // Importation du contexte utilisateur
@@ -65,6 +64,8 @@ function AppContent() {
   const [selectedSubTasks, setSelectedSubTasks] = useState([]); 
   
   const [showConfirmResetModal, setShowConfirmResetModal] = useState(false); 
+  // Nouvel état pour la réinitialisation des réalisations
+  const [showConfirmResetRealisationsModal, setShowConfirmResetRealisationsModal] = useState(false);
   
   const [showAdminTaskFormModal, setShowAdminTaskFormModal] = useState(false); 
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false); 
@@ -113,10 +114,6 @@ function AppContent() {
   const [showWeeklyRecapModal, setShowWeeklyRecapModal] = useState(false);
   const [weeklyRecapData, setWeeklyRecapData] = useState(null);
   
-  // SUPPRIMÉ: Pas besoin de l'état pour l'importation de tâches
-  // const [showImportTasksModal, setShowImportTasksModal] = useState(false);
-
-
   // Met à jour participantName si currentUser change
   useEffect(() => {
     if (currentUser) {
@@ -556,17 +553,17 @@ function AppContent() {
 
       const usersQuery = query(collection(db, "users"));
       const usersSnapshot = await getDocs(usersQuery);
-      const batch = []; 
+      const batch = writeBatch(db); // Utilisation d'un batch pour les mises à jour
 
       usersSnapshot.docs.forEach(userDoc => {
         const userRef = doc(db, "users", userDoc.id);
         const userData = userDoc.data();
-        batch.push(updateDoc(userRef, {
+        batch.update(userRef, {
           weeklyPoints: 0,
           previousWeeklyPoints: userData.weeklyPoints || 0 
-        }));
+        });
       });
-      await Promise.all(batch); 
+      await batch.commit(); // Exécute le batch
 
       toast.success('Points hebdomadaires réinitialisés et podium enregistré.');
       // Re-fetch all data after reset
@@ -580,10 +577,60 @@ function AppContent() {
         fetchReports()
       ]);
     } catch (err) {
-      toast.error(`Une erreur est survenue lors de la réinitialisation: ${err.message}`);
+      toast.error(`Une erreur est survenue lors de la réinitialisation des points hebdomadaires: ${err.message}`);
     } finally {
       setLoading(false);
       setShowConfirmResetModal(false); 
+    }
+  };
+
+  const resetRealisations = async () => {
+    if (!isAdmin) {
+      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const realisationsQuery = query(collection(db, "realizations"));
+      const realisationsSnapshot = await getDocs(realisationsQuery);
+      const batchDeleteRealisations = writeBatch(db);
+
+      realisationsSnapshot.docs.forEach(realDoc => {
+        batchDeleteRealisations.delete(doc(db, "realizations", realDoc.id));
+      });
+      await batchDeleteRealisations.commit();
+
+      // Réinitialiser les points de tous les utilisateurs à 0
+      const usersQuery = query(collection(db, "users"));
+      const usersSnapshot = await getDocs(usersQuery);
+      const batchResetUsers = writeBatch(db);
+
+      usersSnapshot.docs.forEach(userDoc => {
+        const userRef = doc(db, "users", userDoc.id);
+        batchResetUsers.update(userRef, {
+          weeklyPoints: 0,
+          totalCumulativePoints: 0,
+          previousWeeklyPoints: 0 // Réinitialiser également les points de la semaine précédente
+        });
+      });
+      await batchResetUsers.commit();
+
+      toast.success('Toutes les réalisations et les points des utilisateurs ont été réinitialisés.');
+      // Re-fetch all data to reflect the changes
+      await Promise.all([ 
+        fetchTaches(),
+        fetchClassement(),
+        fetchRealisations(),
+        fetchObjectives(),
+        fetchCongratulatoryMessages(),
+        fetchHistoricalPodiums(),
+        fetchReports()
+      ]);
+    } catch (err) {
+      toast.error(`Une erreur est survenue lors de la réinitialisation des réalisations: ${err.message}`);
+    } finally {
+      setLoading(false);
+      setShowConfirmResetRealisationsModal(false);
     }
   };
 
@@ -1883,12 +1930,29 @@ function AppContent() {
 
     return (
       <ConfirmActionModal
-        title="Confirmer la Réinitialisation"
+        title="Confirmer la Réinitialisation Hebdomadaire"
         message="Êtes-vous sûr de vouloir réinitialiser les points hebdomadaires et enregistrer le podium ? Cette action est irréversible."
         confirmText="Oui, Réinitialiser"
         cancelText="Non, Annuler"
         onConfirm={resetWeeklyPoints}
         onCancel={() => setShowConfirmResetModal(false)}
+        loading={loading}
+      />
+    );
+  };
+
+  // Nouvelle modal de confirmation pour la réinitialisation des réalisations
+  const renderConfirmResetRealisationsModal = () => {
+    if (!showConfirmResetRealisationsModal) return null;
+
+    return (
+      <ConfirmActionModal
+        title="Confirmer la Réinitialisation des Réalisations"
+        message="Êtes-vous sûr de vouloir supprimer TOUTES les réalisations et réinitialiser TOUS les points des utilisateurs à zéro ? Cette action est irréversible et supprime l'historique des tâches terminées."
+        confirmText="Oui, Réinitialiser Tout"
+        cancelText="Non, Annuler"
+        onConfirm={resetRealisations}
+        onCancel={() => setShowConfirmResetRealisationsModal(false)}
         loading={loading}
       />
     );
@@ -1999,7 +2063,7 @@ function AppContent() {
             });
             setShowAdminObjectiveFormModal(true); 
           }}
-          className="bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full mb-4 text-sm" 
+          className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full mb-4 text-sm" // Bouton violet
         >
           Ajouter un Nouvel Objectif
         </button>
@@ -2065,7 +2129,7 @@ function AppContent() {
             }); 
             setShowAdminTaskFormModal(true); 
           }}
-          className="bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full mb-4 text-sm" 
+          className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full mb-4 text-sm" // Bouton violet
         >
           Ajouter une Nouvelle Tâche
         </button>
@@ -2227,7 +2291,8 @@ function AppContent() {
       return null; 
     }
 
-    const adminButtonClasses = "bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"; 
+    // Classes pour les boutons d'administration
+    const adminPurpleButtonClasses = "bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm";
     const subtleAdminButtonClasses = "bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs";
 
 
@@ -2241,13 +2306,13 @@ function AppContent() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                   onClick={() => setShowAdminObjectivesListModal(true)}
-                  className={`${adminButtonClasses} col-span-1`}
+                  className={`${adminPurpleButtonClasses} col-span-1`} // Bouton violet
               >
                   Gérer les Objectifs
               </button>
               <button
                   onClick={() => setShowAdminTasksListModal(true)}
-                  className={`${adminButtonClasses} col-span-1`}
+                  className={`${adminPurpleButtonClasses} col-span-1`} // Bouton violet
               >
                   Gérer les Tâches
               </button>
@@ -2259,13 +2324,13 @@ function AppContent() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={() => setShowAdminUserManagementModal(true)} 
-                className={`${adminButtonClasses} col-span-1`}
+                className={`${adminPurpleButtonClasses} col-span-1`}
               >
                 Gérer les Utilisateurs
               </button>
               <button
                 onClick={() => setShowAdminCongratulatoryMessagesModal(true)} 
-                className={`${adminButtonClasses} col-span-1`}
+                className={`${adminPurpleButtonClasses} col-span-1`}
               >
                 Gérer les Messages de Félicitation
               </button>
@@ -2288,18 +2353,17 @@ function AppContent() {
               >
                 Exporter les Données (CSV)
               </button>
-              {/* SUPPRIMÉ: Bouton d'importation Excel */}
-              {/* <button
-                onClick={() => setShowImportTasksModal(true)}
-                className={`${subtleAdminButtonClasses} col-span-1`}
-              >
-                Importer les Tâches (Excel)
-              </button> */}
               <button
                 onClick={() => setShowConfirmResetModal(true)}
                 className={`bg-error/80 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`} 
               >
                 Réinitialiser les Points Hebdomadaires
+              </button>
+              <button
+                onClick={() => setShowConfirmResetRealisationsModal(true)} // Nouveau bouton
+                className={`bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`} 
+              >
+                Réinitialiser les Réalisations
               </button>
             </div>
           </div>
@@ -2365,7 +2429,7 @@ function AppContent() {
         </div>
       </div>
     );
-  };
+  }, [classement, handleParticipantClick, getParticipantBadges]);
 
   const renderExportSelectionModal = useCallback(() => {
     if (!showExportSelectionModal) return null;
@@ -2482,7 +2546,7 @@ function AppContent() {
         </header>
 
         <nav className="flex flex-col sm:flex-row justify-center items-center mb-6 sm:mb-8 gap-2 sm:gap-4"> 
-          <div className="bg-neutralBg rounded-full p-1.5 flex justify-center gap-4 sm:gap-6 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto"> 
+          <div className="bg-neutralBg rounded-full p-1.5 flex justify-center gap-2 sm:gap-4 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto"> {/* Gap ajusté */}
             <button
               className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
                 ${activeMainView === 'home' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
@@ -2504,13 +2568,11 @@ function AppContent() {
             >
               Historique
             </button> 
-          </div>
-          {/* Boutons Profil et Admin à côté de la nav bar */}
-          <div className="flex flex-row gap-2 sm:gap-4 mt-2 sm:mt-0">
+            {/* Boutons Profil et Admin DANS le même conteneur */}
             {currentUser && (
               <button
                 onClick={() => handleParticipantClick({ Nom_Participant: currentUser.displayName || currentUser.email })}
-                className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap"
+                className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap flex-shrink-0"
               >
                 Mon Profil
               </button>
@@ -2518,7 +2580,7 @@ function AppContent() {
             {isAdmin && (
               <button
                 onClick={() => setActiveMainView('adminPanel')}
-                className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap"
+                className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap flex-shrink-0"
               >
                 Console Admin
               </button>
@@ -2584,6 +2646,7 @@ function AppContent() {
         {renderThankYouPopup()} 
         {renderSplitTaskDialog()} 
         {renderConfirmResetModal()} 
+        {renderConfirmResetRealisationsModal()} {/* Nouvelle modale */}
         {renderDeleteConfirmModal()} 
         {renderDeleteObjectiveConfirmModal()} 
         <ConfettiOverlay show={showConfetti} onComplete={() => setShowConfetti(false)} /> 
@@ -2680,14 +2743,6 @@ function AppContent() {
             onClose={() => setShowWeeklyRecapModal(false)}
           />
         )}
-
-        {/* SUPPRIMÉ: Modale d'importation Excel */}
-        {/* {showImportTasksModal && isAdmin && (
-          <ImportTasksModal
-            onClose={() => setShowImportTasksModal(false)}
-            onImportSuccess={fetchTaches} // Re-fetch tasks after successful import
-          />
-        )} */}
 
       </div>
       <ToastContainer 
