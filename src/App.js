@@ -35,7 +35,7 @@ import { UserProvider, useUser } from './UserContext';
 
 const LOGO_FILENAME = 'logo.png'; 
 
-// Fonctions utilitaires pour la gamification (déplacées en dehors du composant pour éviter les re-déclarations)
+// Fonctions utilitaires pour la gamification (déplacées en dehors du du composant pour éviter les re-déclarations)
 const calculateLevelAndXP = (currentXP) => {
   let level = 1;
   let xpNeededForNextLevel = 100; // XP pour le niveau 2
@@ -246,16 +246,30 @@ function AppContent() {
 
   // Fonctions de récupération de données utilisant onSnapshot
   const setupTasksListener = useCallback(() => {
-    const q = query(collection(db, `artifacts/${appId}/public/data/tasks`));
+    const tasksCollectionPath = `artifacts/${appId}/public/data/tasks`;
+    console.log(`[setupTasksListener] Chemin de la collection de tâches: ${tasksCollectionPath}`);
+
+    const q = query(collection(db, tasksCollectionPath));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const rawData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const cleanedRawData = rawData.filter(tache => tache && tache.ID_Tache);
+      console.log("[setupTasksListener] Données brutes des tâches récupérées:", rawData);
+
+      const cleanedRawData = rawData.filter(tache => {
+        const isValid = tache && tache.ID_Tache;
+        if (!isValid) {
+          console.warn("[setupTasksListener] Tâche invalide filtrée (manque ID_Tache):", tache);
+        }
+        return isValid;
+      });
       setAllRawTaches(cleanedRawData); 
+      console.log("[setupTasksListener] Données brutes nettoyées:", cleanedRawData);
 
       const tachesMap = new Map(cleanedRawData.map(t => [String(t.ID_Tache), t]));
       const processedAndFilteredTaches = cleanedRawData
         .map(tache => {
           if (!tache) return null; 
+          
+          // Calcul des points pour les tâches de groupe
           if (tache.Sous_Taches_IDs && String(tache.Sous_Taches_IDs).trim() !== '') {
             const subTaskIds = String(tache.Sous_Taches_IDs).split(',').map(id => id.trim());
             let totalSubTaskPoints = 0;
@@ -267,14 +281,33 @@ function AppContent() {
             });
             return { ...tache, Calculated_Points: totalSubTaskPoints, isGroupTask: true }; 
           }
+          // Pour les tâches simples, utiliser leurs propres points
           return { ...tache, Calculated_Points: parseFloat(tache.Points) || 0, isGroupTask: false };
         })
-        .filter(tache => tache !== null) 
-        .filter(tache => String(tache.Parent_Task_ID || '').trim() === ''); 
-      setTaches(processedAndFilteredTaches);
+        .filter(tache => tache !== null); // Supprime les tâches nulles si elles ont été créées
+
+      // === DÉBOGAGE : COMMENTEZ OU SUPPRIMEZ LA LIGNE 'filter' SUIVANTE TEMPORAIREMENT ===
+      // La ligne ci-dessous filtre les tâches qui sont des "sous-tâches" (ont un Parent_Task_ID non vide).
+      // Si vos tâches principales ne s'affichent pas, il est possible que leur champ Parent_Task_ID ne soit pas vide ou null.
+      // En commentant cette ligne, toutes les tâches (y compris les sous-tâches) seront affichées.
+      // const finalFilteredTaches = processedAndFilteredTaches.filter(tache => {
+      //   const isTopLevel = tache.Parent_Task_ID === null || tache.Parent_Task_ID === undefined || String(tache.Parent_Task_ID).trim() === '';
+      //   if (!isTopLevel) {
+      //     console.log(`[setupTasksListener] Tâche filtrée (sous-tâche): ${tache.Nom_Tache} (Parent_Task_ID: '${tache.Parent_Task_ID}')`);
+      //   }
+      //   return isTopLevel;
+      // });
+      // === FIN DÉBOGAGE ===
+
+      // Pour le débogage, assignez directement processedAndFilteredTaches à finalFilteredTaches
+      const finalFilteredTaches = processedAndFilteredTaches; // TEMPORAIRE POUR DÉBOGAGE
+
+      setTaches(finalFilteredTaches);
+      console.log("[setupTasksListener] Tâches affichées (filtrage Parent_Task_ID désactivé pour débogage):", finalFilteredTaches);
       initialLoadStatus.current.tasks = true;
     }, (error) => {
       toast.error(`Erreur lors de la récupération des tâches: ${error.message}`); 
+      console.error("[setupTasksListener] Erreur Firestore:", error); // Ajout d'un log d'erreur plus détaillé
     });
     return unsubscribe;
   }, [appId]);
@@ -2874,12 +2907,15 @@ function AppContent() {
             onClose={() => setShowAvatarSelectionModal(false)}
             onSave={async (newAvatar) => {
               try {
+                console.log("Attempting to update avatar for user ID:", currentUser.uid, "with new avatar:", newAvatar);
                 // La collection 'users' est à la racine, pas besoin de appId/public/data
                 await updateDoc(doc(db, "users", currentUser.uid), { avatar: newAvatar });
                 toast.success("Avatar mis à jour !");
+                // Le listener de classement mettra à jour l'avatar dans le contexte utilisateur
+                console.log("Avatar update successful in Firestore.");
               } catch (error) {
                 toast.error("Erreur lors de la mise à jour de l'avatar.");
-                console.error("Erreur avatar:", error);
+                console.error("Erreur avatar:", error); // Log d'erreur détaillé
               } finally {
                 setShowAvatarSelectionModal(false);
               }
