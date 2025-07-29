@@ -1,3 +1,5 @@
+/* global __firebase_config */ // Déclare __firebase_config comme globale pour ESLint
+
 // src/firebase.js
 // Initialisation de Firebase
 
