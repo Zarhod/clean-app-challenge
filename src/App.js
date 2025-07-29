@@ -19,7 +19,7 @@ import AuthModal from './Auth';
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/Reactify.css'; 
+import 'react-toastify/dist/ReactToastify.css'; // C'est ici que la correction est cruciale !
 
 // Importations Firebase
 import { db, auth } from './firebase';
@@ -1288,7 +1288,6 @@ function AppContent() {
       return (
         <div className="space-y-3">
           {tasks.map(tache => {
-            // Simplified condition to avoid no-mixed-operators warning
             const shouldHideTask = (!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache));
 
             if (shouldHideTask) {
@@ -1349,7 +1348,6 @@ function AppContent() {
           ))}
         </div>
 
-        {/* Simplified filter condition */}
         {ponctuelTasks.filter(tache => !((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache)))).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Ponctuelles</h3> 
@@ -1357,7 +1355,6 @@ function AppContent() {
           </div>
         )}
 
-        {/* Simplified filter condition */}
         {quotidienTasks.filter(tache => !((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache)))).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Quotidiennes</h3> 
@@ -1365,7 +1362,6 @@ function AppContent() {
           </div>
         )}
 
-        {/* Simplified filter condition */}
         {hebdomadaireTasks.filter(tache => !((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache)))).length > 0 && ( 
           <div className="mb-6"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Hebdomadaires</h3> 
