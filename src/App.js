@@ -1,7 +1,11 @@
+// src/App.js
+// Version mise à jour pour utiliser Firebase Authentication et Firestore.
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
 import HistoricalPodiums from './HistoricalPodiums'; 
-import AdminLoginButton from './AdminLoginButton'; 
+// AdminLoginButton sera remplacé par un bouton d'authentification générique
+import AdminLoginButton from './AdminLoginButton'; // Gardé pour l'instant, sera adapté
 import AdminTaskFormModal from './AdminTaskFormModal'; 
 import ConfirmActionModal from './ConfirmActionModal'; 
 import ConfettiOverlay from './ConfettiOverlay'; 
@@ -12,21 +16,27 @@ import ExportSelectionModal from './ExportSelectionModal';
 import RankingCard from './RankingCard'; 
 import OverallRankingModal from './OverallRankingModal'; 
 import ReportTaskModal from './ReportTaskModal'; 
+import AuthModal from './Auth'; // Nouveau composant d'authentification
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
-// --- CONFIGURATION DE L'API ---
-const API_URL = process.env.REACT_APP_API_URL || 'https://clean-app-challenge-api.jassairbus.workers.dev/'; 
-const AUTH_TOKEN = process.env.REACT_APP_AUTH_TOKEN || '6f36b6b0-0ed4-4b2b-a45c-b70f8145c1f2'; 
+// Importations Firebase
+import { db, auth } from './firebase';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
+
+// Importation du contexte utilisateur
+import { UserProvider, useUser } from './UserContext';
 
 const LOGO_FILENAME = 'logo.png'; 
 
-// MOT DE PASSE ADMINISTRATEUR - EXTRÊMEMENT INSÉCURE EN PRODUCTION !
-const ADMIN_PASSWORD = 'Bombardier111'; 
+// REMOVED: ADMIN_PASSWORD is no longer needed with Firebase Auth roles
 
-function App() {
+function AppContent() { // Renommé pour être enveloppé par UserProvider
+  const { currentUser, isAdmin, loadingUser } = useUser(); // Utilisation du hook de contexte
+
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
   const [realisations, setRealisations] = useState([]); 
@@ -37,7 +47,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null); 
-  const [participantName, setParticipantName] = useState(''); 
+  const [participantName, setParticipantName] = useState(''); // Le nom du participant sera le displayName de l'utilisateur connecté
   const [showThankYouPopup, setShowThankYouPopup] = useState(null); 
   const [showConfetti, setShowConfetti] = useState(false); 
   
@@ -74,7 +84,7 @@ function App() {
   const [showDeleteObjectiveConfirmModal, setShowDeleteObjectiveConfirmModal] = useState(false); 
   const [objectiveToDelete, setObjectiveToDelete] = useState(null); 
 
-  const [isAdmin, setIsAdmin] = useState(false);
+  // REMOVED: isAdmin state is now from UserContext
 
   const [showHighlightsModal, setShowHighlightsModal] = useState(false);
   const [showObjectivesModal, setShowObjectivesModal] = useState(false);
@@ -89,26 +99,23 @@ function App() {
   const [reports, setReports] = useState([]); // ÉTAT POUR LES SIGNALEMENTS
 
   // États Easter Egg
-  // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
   const [showChickEmoji, setShowChickEmoji] = useState(false);
   const logoClickTimerRef = useRef(null); 
 
-  const getHeaders = () => ({
-    'Content-Type': 'application/json'
-  });
+  // État pour la modale d'authentification
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+
+  // REMOVED: getHeaders is no longer needed as Firebase SDK handles it
 
   const fetchTaches = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getTaches&authToken=${AUTH_TOKEN}`, {
-        method: 'GET',
-        headers: getHeaders()
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
-      }
-      const rawData = await response.json(); 
+      // Requête Firestore pour récupérer toutes les tâches
+      const q = query(collection(db, "tasks"));
+      const querySnapshot = await getDocs(q);
+      
+      const rawData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
       if (!Array.isArray(rawData)) { 
         throw new Error("Les données reçues ne sont pas un tableau.");
@@ -150,34 +157,55 @@ function App() {
 
   const fetchClassement = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getClassement&authToken=${AUTH_TOKEN}`, {
-        method: 'GET',
-        headers: getHeaders()
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
-      }
-      const rawData = await response.json(); 
-      
-      if (!Array.isArray(rawData)) {
-        setError('Erreur: Les données de classement sont mal formées (pas un tableau).');
-        toast.error('Erreur: Les données de classement sont mal formées.');
-        setClassement([]); 
-        return;
-      }
+      // Récupérer tous les utilisateurs
+      const usersQuery = query(collection(db, "users"));
+      const usersSnapshot = await getDocs(usersQuery);
+      const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      const currentClassement = rawData.map(row => ({
-        Nom_Participant: row.Nom_Participant,
-        Points_Total_Semaine_Courante: parseFloat(row.Points_Total_Semaine_Courante) || 0, 
-        Points_Total_Cumulatif: parseFloat(row.Points_Total_Cumulatif) || 0,
-        Points_Total_Semaine_Precedente: parseFloat(row.Points_Total_Semaine_Precedente || 0) || 0,
-        Date_Mise_A_Jour: row.Date_Mise_A_Jour || '' 
-      })).sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
+      // Récupérer toutes les réalisations
+      const realisationsQuery = query(collection(db, "realizations"));
+      const realisationsSnapshot = await getDocs(realisationsQuery);
+      const realisationsData = realisationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Calculer les points hebdomadaires et cumulatifs
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dayOfWeek = today.getDay(); 
+      const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
+      const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
+      startOfCurrentWeek.setHours(0, 0, 0, 0);
+
+      const participantScores = {};
+      usersData.forEach(user => {
+        participantScores[user.displayName] = {
+          Nom_Participant: user.displayName,
+          Points_Total_Semaine_Courante: 0,
+          Points_Total_Cumulatif: 0,
+          Points_Total_Semaine_Precedente: parseFloat(user.weeklyPoints || 0), // Utilise les points hebdomadaires de l'utilisateur comme points précédents
+          Date_Mise_A_Jour: user.dateJoined || '' // Ou une date de dernière activité
+        };
+      });
+
+      realisationsData.forEach(real => {
+        const participant = real.nomParticipant;
+        const points = parseFloat(real.pointsGagnes) || 0;
+        const realDate = new Date(real.timestamp);
+        realDate.setHours(0, 0, 0, 0);
+
+        if (participantScores[participant]) {
+          participantScores[participant].Points_Total_Cumulatif += points;
+          if (realDate >= startOfCurrentWeek) {
+            participantScores[participant].Points_Total_Semaine_Courante += points;
+          }
+        }
+      });
+      
+      const currentClassement = Object.values(participantScores)
+        .sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
       
       setClassement(currentClassement);
 
-      const globalCumulative = rawData.reduce((sum, row) => sum + (parseFloat(row.Points_Total_Cumulatif) || 0), 0); 
+      const globalCumulative = currentClassement.reduce((sum, p) => sum + (parseFloat(p.Points_Total_Cumulatif) || 0), 0); 
       setTotalGlobalCumulativePoints(globalCumulative);
 
     } catch (err) {
@@ -188,15 +216,9 @@ function App() {
 
   const fetchRealisations = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getRealisations&authToken=${AUTH_TOKEN}`, { 
-        method: 'GET',
-        headers: getHeaders()
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
+      const q = query(collection(db, "realizations"));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setRealisations(data);
     } catch (err) {
       setError(`Erreur lors de la récupération des réalisations: ${err.message}`);
@@ -207,16 +229,23 @@ function App() {
   const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}?action=getParticipantWeeklyTasks&nomParticipant=${encodeURIComponent(participantName)}&authToken=${AUTH_TOKEN}`, {
-        method: 'GET',
-        headers: getHeaders()
+      const q = query(collection(db, "realizations"), where("nomParticipant", "==", participantName));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dayOfWeek = today.getDay(); 
+      const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
+      const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
+      startOfCurrentWeek.setHours(0, 0, 0, 0);
+
+      const weeklyTasks = data.filter(real => {
+        const realDate = new Date(real.timestamp);
+        realDate.setHours(0, 0, 0, 0);
+        return realDate >= startOfCurrentWeek;
       });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
-      setParticipantWeeklyTasks(data);
+      setParticipantWeeklyTasks(weeklyTasks);
 
     } catch (err) {
       setError(`Erreur lors de la récupération des tâches de ${participantName}: ${err.message}`);
@@ -229,17 +258,26 @@ function App() {
   const fetchSubTasks = useCallback(async (parentTaskId) => {
     setLoading(true); 
     try {
-      const response = await fetch(`${API_URL}?action=getSousTaches&parentTaskId=${encodeURIComponent(parentTaskId)}&authToken=${AUTH_TOKEN}`, {
-        method: 'GET',
-        headers: getHeaders()
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
+      const parentTaskDoc = await getDoc(doc(db, "tasks", parentTaskId));
+      if (!parentTaskDoc.exists()) {
+        throw new Error("Tâche parente introuvable.");
       }
-      const data = await response.json();
-      setSubTasks(Array.isArray(data) ? data : []); 
+      const parentTaskData = parentTaskDoc.data();
+
+      if (!parentTaskData.Sous_Taches_IDs || String(parentTaskData.Sous_Taches_IDs).trim() === '') {
+        setSubTasks([]);
+        return;
+      }
+
+      const subTaskIds = String(parentTaskData.Sous_Taches_IDs).split(',').map(id => id.trim());
+      
+      const subTasksPromises = subTaskIds.map(id => getDoc(doc(db, "tasks", id)));
+      const subTaskDocs = await Promise.all(subTasksPromises);
+      const sousTaches = subTaskDocs
+        .filter(docSnap => docSnap.exists())
+        .map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+
+      setSubTasks(sousTaches); 
     } catch (err) {
       setError(`Erreur lors de la récupération des sous-tâches: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
@@ -251,15 +289,9 @@ function App() {
 
   const fetchObjectives = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getObjectives&authToken=${AUTH_TOKEN}`, {
-        method: 'GET',
-        headers: getHeaders()
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
+      const q = query(collection(db, "objectives"));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setObjectives(data);
     } catch (err) {
       setError(`Erreur lors de la récupération des objectifs: ${err.message}`);
@@ -269,15 +301,9 @@ function App() {
 
   const fetchCongratulatoryMessages = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getCongratulatoryMessages&authToken=${AUTH_TOKEN}`, {
-        method: 'GET',
-        headers: getHeaders()
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
+      const q = query(collection(db, "congratulatory_messages"));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setCongratulatoryMessages(data);
     } catch (err) {
       setError(`Erreur lors de la récupération des messages de félicitations: ${err.message}`);
@@ -287,15 +313,9 @@ function App() {
 
   const fetchHistoricalPodiums = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getHistoricalPodiums&authToken=${AUTH_TOKEN}`, {
-        method: 'GET',
-        headers: getHeaders()
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
+      const q = query(collection(db, "historical_podiums"));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setHistoricalPodiums(data);
     } catch (err) {
       setError(`Erreur lors de la récupération de l'historique des podiums: ${err.message}`);
@@ -306,15 +326,9 @@ function App() {
   // NOUVELLE FONCTION: Récupérer les signalements
   const fetchReports = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}?action=getReports&authToken=${AUTH_TOKEN}`, {
-        method: 'GET',
-        headers: getHeaders()
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP Error: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
+      const q = query(collection(db, "reports"));
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setReports(data);
     } catch (err) {
       setError(`Erreur lors de la récupération des signalements: ${err.message}`);
@@ -324,8 +338,9 @@ function App() {
 
 
   const recordTask = async (idTacheToRecord, isSubTask = false) => {
-    if (!participantName.trim()) {
-      toast.warn('Veuillez entrer votre nom.'); 
+    if (!currentUser) {
+      toast.warn('Veuillez vous connecter pour valider une tâche.');
+      setShowAuthModal(true);
       return;
     }
 
@@ -339,50 +354,51 @@ function App() {
       const pointsToSend = parseFloat(taskToRecord.Points) || 0;
       const categoryToSend = taskToRecord.Categorie || 'Non catégorisée';
 
-      const payload = {
-        action: 'recordTask',
-        idTache: idTacheToRecord,
-        nomParticipant: participantName.trim(),
-        pointsGagnes: pointsToSend,
+      // Ajouter la réalisation à Firestore
+      await addDoc(collection(db, "realizations"), {
+        taskId: idTacheToRecord,
+        userId: currentUser.uid,
+        nomParticipant: currentUser.displayName || currentUser.email, // Utilise le displayName ou l'email
+        nomTacheEffectuee: taskToRecord.Nom_Tache,
         categorieTache: categoryToSend,
-        authToken: AUTH_TOKEN 
-      };
-
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload)
+        pointsGagnes: pointsToSend,
+        timestamp: new Date().toISOString()
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
+      // Mettre à jour les points de l'utilisateur dans son document 'users'
+      const userDocRef = doc(db, "users", currentUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + pointsToSend;
+        const newWeeklyPoints = (userData.weeklyPoints || 0) + pointsToSend;
+        await updateDoc(userDocRef, {
+          totalCumulativePoints: newTotalCumulativePoints,
+          weeklyPoints: newWeeklyPoints
+        });
       }
-      const result = await response.json();
-      if (result.success) {
-        const completedTask = taches.find(t => t.ID_Tache === idTacheToRecord);
-        if (completedTask && String(completedTask.Frequence || '').toLowerCase() === 'ponctuel') {
-            await handleDeleteTask(idTacheToRecord, true); 
-            toast.success(`Tâche ponctuelle "${completedTask.Nom_Tache}" enregistrée et supprimée.`);
-        } else {
-            toast.success(`Tâche "${completedTask ? completedTask.Nom_Tache : 'inconnue'}" enregistrée avec succès.`);
-        }
 
-        if (!isSubTask) { 
-          const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
-          setShowThankYouPopup({ name: participantName.trim(), task: completedTask ? completedTask.Nom_Tache : 'Tâche inconnue', message: randomMessage }); 
-          setShowConfetti(true); 
-          setParticipantName('');
-          setSelectedTask(null); 
-        }
-        fetchClassement(); 
-        fetchRealisations(); 
-        fetchTaches(); 
-        fetchObjectives(); 
-        fetchReports(); 
+      const completedTask = taches.find(t => t.ID_Tache === idTacheToRecord);
+      if (completedTask && String(completedTask.Frequence || '').toLowerCase() === 'ponctuel') {
+          // Pour les tâches ponctuelles, on ne les supprime pas du tout car elles sont des définitions.
+          // Leur disponibilité est gérée par isSubTaskAvailable.
+          toast.success(`Tâche ponctuelle "${completedTask.Nom_Tache}" enregistrée.`);
       } else {
-        toast.error(`Erreur: ${result.message}`); 
+          toast.success(`Tâche "${completedTask ? completedTask.Nom_Tache : 'inconnue'}" enregistrée avec succès.`);
       }
+
+      if (!isSubTask) { 
+        const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
+        setShowThankYouPopup({ name: currentUser.displayName || currentUser.email, task: completedTask ? completedTask.Nom_Tache : 'Tâche inconnue', message: randomMessage }); 
+        setShowConfetti(true); 
+        // setParticipantName(''); // Plus besoin de réinitialiser le nom ici
+        setSelectedTask(null); 
+      }
+      fetchClassement(); 
+      fetchRealisations(); 
+      fetchTaches(); 
+      fetchObjectives(); 
+      fetchReports(); 
     } catch (err) {
       setError(`Erreur lors de l'enregistrement de la tâche: ${err.message}`);
       toast.error(`Une erreur est survenue: ${err.message}`); 
@@ -392,69 +408,70 @@ function App() {
   };
 
   const recordMultipleTasks = async () => {
+    if (!currentUser) {
+      toast.warn('Veuillez vous connecter pour valider des tâches.');
+      setShowAuthModal(true);
+      return;
+    }
+
     const availableSelectedSubTasks = selectedSubTasks.filter(subTask => isSubTaskAvailable(subTask));
 
-    if (!participantName.trim() || availableSelectedSubTasks.length === 0) {
-      toast.warn('Veuillez entrer votre nom et sélectionner au moins une sous-tâche disponible.');
+    if (availableSelectedSubTasks.length === 0) {
+      toast.warn('Veuillez sélectionner au moins une sous-tâche disponible.');
       return;
     }
 
     setLoading(true);
     try {
+      let totalPointsGained = 0;
       const tasksToRecordPayload = availableSelectedSubTasks.map(subTask => {
         const points = parseFloat(subTask.Points) || 0;
         const category = subTask.Categorie || 'Non catégorisée';
+        totalPointsGained += points;
         return {
-          idTache: subTask.ID_Tache,
+          taskId: subTask.ID_Tache,
+          userId: currentUser.uid,
+          nomParticipant: currentUser.displayName || currentUser.email,
+          nomTacheEffectuee: subTask.Nom_Tache,
+          categorieTache: category,
           pointsGagnes: points,
-          categorieTache: category
+          timestamp: new Date().toISOString()
         };
       });
 
-      const payload = {
-        action: 'recordMultipleTasks',
-        tasks: tasksToRecordPayload,
-        nomParticipant: participantName.trim(),
-        authToken: AUTH_TOKEN 
-      };
+      // Enregistrer toutes les réalisations en une seule fois (ou en batch si beaucoup)
+      const batchPromises = tasksToRecordPayload.map(taskData => addDoc(collection(db, "realizations"), taskData));
+      await Promise.all(batchPromises);
 
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
+      // Mettre à jour les points de l'utilisateur
+      const userDocRef = doc(db, "users", currentUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + totalPointsGained;
+        const newWeeklyPoints = (userData.weeklyPoints || 0) + totalPointsGained;
+        await updateDoc(userDocRef, {
+          totalCumulativePoints: newTotalCumulativePoints,
+          weeklyPoints: newWeeklyPoints
+        });
       }
-      const result = await response.json();
-      if (result.success) {
-        const completedTaskNames = availableSelectedSubTasks.map(st => st.Nom_Tache).join(', ');
-        const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
-        setShowThankYouPopup({ name: participantName.trim(), task: completedTaskNames, message: randomMessage });
-        setShowConfetti(true); 
 
-        for (const subTask of availableSelectedSubTasks) {
-            const fullSubTaskData = allRawTaches.find(t => String(t.ID_Tache) === String(subTask.ID_Tache));
-            if (fullSubTaskData && String(fullSubTaskData.Frequence || '').toLowerCase() === 'ponctuel') {
-                await handleDeleteTask(subTask.ID_Tache, true); 
-            }
-        }
-        toast.success(`Tâches enregistrées avec succès.`);
+      const completedTaskNames = availableSelectedSubTasks.map(st => st.Nom_Tache).join(', ');
+      const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
+      setShowThankYouPopup({ name: currentUser.displayName || currentUser.email, task: completedTaskNames, message: randomMessage });
+      setShowConfetti(true); 
 
-        setParticipantName('');
-        setSelectedTask(null);
-        setShowSplitTaskDialog(false); 
-        setSelectedSubTasks([]);
-        fetchClassement();
-        fetchRealisations(); 
-        fetchTaches(); 
-        fetchObjectives(); 
-        fetchReports(); 
-      } else {
-        toast.error(`Erreur: ${result.message}`);
-      }
+      toast.success(`Tâches enregistrées avec succès.`);
+
+      // setParticipantName(''); // Plus besoin de réinitialiser le nom ici
+      setSelectedTask(null);
+      setShowSplitTaskDialog(false); 
+      setSelectedSubTasks([]);
+      fetchClassement();
+      fetchRealisations(); 
+      fetchTaches(); 
+      fetchObjectives(); 
+      fetchReports(); 
     } catch (err) {
       setError(`Erreur lors de l'enregistrement des sous-tâches: ${err.message}`);
       toast.error(`Une erreur est survenue: ${err.message}`);
@@ -464,30 +481,45 @@ function App() {
   };
 
   const resetWeeklyPoints = async () => {
+    if (!isAdmin) {
+      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
+      return;
+    }
     setLoading(true);
     try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ action: 'resetWeeklyPoints', authToken: AUTH_TOKEN }) 
+      // 1. Enregistrer le podium de la semaine avant de réinitialiser
+      const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
+      const top3 = sortedClassement.slice(0, 3);
+      const datePodium = new Date().toISOString().split('T')[0]; 
+
+      await addDoc(collection(db, "historical_podiums"), {
+        Date_Podium: datePodium,
+        top3: top3.map(p => ({ name: p.Nom_Participant, points: p.Points_Total_Semaine_Courante }))
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
-      }
-      const result = await response.json();
-      if (result.success) {
-        toast.success(result.message);
-        fetchClassement(); 
-        fetchRealisations(); 
-        fetchTaches(); 
-        fetchObjectives(); 
-        fetchHistoricalPodiums(); 
-        fetchReports(); 
-      } else {
-        toast.error(`Erreur: ${result.message}`);
-      }
+      // 2. Réinitialiser les points hebdomadaires de tous les utilisateurs
+      const usersQuery = query(collection(db, "users"));
+      const usersSnapshot = await getDocs(usersQuery);
+      const batch = []; // Utilise un batch pour des écritures multiples
+
+      usersSnapshot.docs.forEach(userDoc => {
+        const userRef = doc(db, "users", userDoc.id);
+        const userData = userDoc.data();
+        batch.push(updateDoc(userRef, {
+          weeklyPoints: 0,
+          // Conserver les points hebdomadaires actuels comme "précédents" si vous avez ce champ
+          // Si non, le calcul du classement le gérera à partir de l'historique
+        }));
+      });
+      await Promise.all(batch); // Exécute toutes les mises à jour en parallèle
+
+      toast.success('Points hebdomadaires réinitialisés et podium enregistré.');
+      fetchClassement(); 
+      fetchRealisations(); 
+      fetchTaches(); 
+      fetchObjectives(); 
+      fetchHistoricalPodiums(); 
+      fetchReports(); 
     } catch (err) {
       setError(`Erreur lors de la réinitialisation des points: ${err.message}`);
       toast.error(`Une erreur est survenue lors de la réinitialisation: ${err.message}`);
@@ -497,27 +529,44 @@ function App() {
     }
   };
 
-  // Logique de connexion admin simplifiée (SANS SÉCURITÉ)
-  const handleAdminLogin = (passwordInput) => {
-    if (passwordInput === ADMIN_PASSWORD) { 
-      setIsAdmin(true);
-      setActiveMainView('adminPanel');
-      toast.success('Connecté en tant qu\'administrateur !');
+  // Logique de connexion/déconnexion admin simplifiée (maintenant via Firebase Auth)
+  const handleAuthAction = async () => {
+    if (currentUser) {
+      // Si déjà connecté, c'est une déconnexion
+      try {
+        await signOut(auth);
+        toast.info('Déconnecté.');
+        setActiveMainView('home');
+      } catch (error) {
+        toast.error('Erreur lors de la déconnexion.');
+        console.error("Erreur déconnexion:", error);
+      }
     } else {
-      toast.error('Mot de passe incorrect.');
+      // Sinon, ouvrir la modale d'authentification
+      setShowAuthModal(true);
     }
   };
 
-  // Logique de déconnexion admin simplifiée (SANS SÉCURITÉ)
-  const handleAdminLogout = () => {
-    setIsAdmin(false);
-    setActiveMainView('home');
-    toast.info('Déconnecté du panneau administrateur.');
-  };
-
   useEffect(() => {
-    // Pas de logique de token JWT ici, l'état isAdmin est géré par la session du navigateur
-  }, []);
+    // Le chargement initial des données dépend de l'état d'authentification
+    // pour s'assurer que les règles de sécurité Firestore sont respectées.
+    if (!loadingUser) { // S'assure que l'état de l'utilisateur a été déterminé
+      if (currentUser) {
+        fetchTaches();
+        fetchClassement();
+        fetchRealisations(); 
+        fetchObjectives(); 
+        fetchCongratulatoryMessages(); 
+        fetchHistoricalPodiums(); 
+        fetchReports(); 
+      } else {
+        // Si non connecté, on peut charger certaines données publiques ou afficher une page de connexion
+        // Pour l'instant, on laisse le loading à false et on gère l'affichage en conséquence.
+        setLoading(false);
+        // Optionnel: charger des données publiques si elles existent et sont accessibles sans auth
+      }
+    }
+  }, [currentUser, loadingUser, fetchTaches, fetchClassement, fetchRealisations, fetchObjectives, fetchCongratulatoryMessages, fetchHistoricalPodiums, fetchReports]);
 
 
   const handleTaskFormChange = (e) => {
@@ -529,6 +578,10 @@ function App() {
   };
 
   const handleSubmitTask = async () => {
+    if (!isAdmin) {
+      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
+      return;
+    }
     if (!newTaskData.ID_Tache.trim()) {
       toast.error('L\'ID de la tâche est requis.');
       return;
@@ -552,34 +605,29 @@ function App() {
 
     setLoading(true);
     try {
-      const action = editingTask ? 'updateTask' : 'addTask';
-      const payload = { 
-        action: action, 
-        task: {
+      if (editingTask) {
+        // Mise à jour d'une tâche existante
+        await updateDoc(doc(db, "tasks", editingTask.id), {
           ...newTaskData,
           Points: newTaskData.Points === '' ? '' : parseFloat(newTaskData.Points) 
-        },
-        authToken: AUTH_TOKEN 
-      };
-      
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload)
-      });
-      const result = await response.json();
-      if (result.success) {
-        toast.success(result.message);
-        fetchTaches(); 
-        setShowAdminTaskFormModal(false); 
-        setEditingTask(null);
-        setNewTaskData({ 
-          ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
-          Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
         });
+        toast.success('Tâche mise à jour avec succès.');
       } else {
-        toast.error(`Erreur: ${result.message}`);
+        // Ajout d'une nouvelle tâche
+        await setDoc(doc(db, "tasks", newTaskData.ID_Tache), { // Utilise setDoc avec ID_Tache comme ID de document
+          ...newTaskData,
+          Points: newTaskData.Points === '' ? '' : parseFloat(newTaskData.Points) 
+        });
+        toast.success('Tâche ajoutée avec succès.');
       }
+      
+      fetchTaches(); 
+      setShowAdminTaskFormModal(false); 
+      setEditingTask(null);
+      setNewTaskData({ 
+        ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
+        Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
+      });
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
@@ -588,6 +636,10 @@ function App() {
   };
 
   const handleDeleteTask = async (taskId, skipConfirmation = false) => {
+    if (!isAdmin) {
+      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
+      return;
+    }
     if (!skipConfirmation) {
       setTaskToDelete(taskId);
       setShowDeleteConfirmModal(true);
@@ -596,20 +648,11 @@ function App() {
 
     setLoading(true);
     try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ action: 'deleteTask', idTache: taskId, authToken: AUTH_TOKEN })
-      });
-      const result = await response.json();
-      if (result.success) {
-        toast.success(result.message);
-        fetchTaches(); 
-        fetchRealisations(); 
-        fetchReports(); 
-      } else {
-        toast.error(`Erreur: ${result.message}`);
-      }
+      await deleteDoc(doc(db, "tasks", taskId));
+      toast.success('Tâche supprimée avec succès.');
+      fetchTaches(); 
+      fetchRealisations(); 
+      fetchReports(); 
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
@@ -628,6 +671,10 @@ function App() {
   };
 
   const handleSubmitObjective = async () => {
+    if (!isAdmin) {
+      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
+      return;
+    }
     if (!newObjectiveData.ID_Objectif.trim()) {
       toast.error('L\'ID de l\'objectif est requis.');
       return;
@@ -647,36 +694,31 @@ function App() {
 
     setLoading(true);
     try {
-      const action = editingObjective ? 'updateObjectif' : 'addObjectif';
-      const payload = { 
-        action: action, 
-        objective: {
+      if (editingObjective) {
+        await updateDoc(doc(db, "objectives", editingObjective.id), {
           ...newObjectiveData,
           Cible_Points: parseFloat(newObjectiveData.Cible_Points),
           Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
           Est_Atteint: newObjectiveData.Est_Atteint
-        },
-        authToken: AUTH_TOKEN 
-      };
-      
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload)
-      });
-      const result = await response.json();
-      if (result.success) {
-        toast.success(result.message);
-        fetchObjectives(); 
-        setShowAdminObjectiveFormModal(false); 
-        setEditingObjective(null);
-        setNewObjectiveData({ 
-          ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '', 
-          Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
         });
+        toast.success('Objectif mis à jour avec succès.');
       } else {
-        toast.error(`Erreur: ${result.message}`);
+        await setDoc(doc(db, "objectives", newObjectiveData.ID_Objectif), { // Utilise setDoc avec ID_Objectif
+          ...newObjectiveData,
+          Cible_Points: parseFloat(newObjectiveData.Cible_Points),
+          Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
+          Est_Atteint: newObjectiveData.Est_Atteint
+        });
+        toast.success('Objectif ajouté avec succès.');
       }
+      
+      fetchObjectives(); 
+      setShowAdminObjectiveFormModal(false); 
+      setEditingObjective(null);
+      setNewObjectiveData({ 
+        ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '', 
+        Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
+      });
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
@@ -685,6 +727,10 @@ function App() {
   };
 
   const handleDeleteObjective = async (objectiveId, skipConfirmation = false) => {
+    if (!isAdmin) {
+      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
+      return;
+    }
     if (!skipConfirmation) {
       setObjectiveToDelete(objectiveId);
       setShowDeleteObjectiveConfirmModal(true);
@@ -693,18 +739,9 @@ function App() {
 
     setLoading(true);
     try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ action: 'deleteObjectif', idObjectif: objectiveId, authToken: AUTH_TOKEN })
-      });
-      const result = await response.json();
-      if (result.success) {
-        toast.success(result.message);
-        fetchObjectives(); 
-      } else {
-        toast.error(`Erreur: ${result.message}`);
-      }
+      await deleteDoc(doc(db, "objectives", objectiveId));
+      toast.success('Objectif supprimé avec succès.');
+      fetchObjectives(); 
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
@@ -716,54 +753,71 @@ function App() {
 
   // NOUVELLE FONCTION: Gérer le clic sur le bouton "Signaler"
   const handleReportClick = (taskRealisation) => {
+    if (!currentUser) {
+      toast.warn('Veuillez vous connecter pour signaler une tâche.');
+      setShowAuthModal(true);
+      return;
+    }
     setReportedTaskDetails({
-      id: taskRealisation.ID_Tache_Effectuee,
-      name: taskRealisation.Nom_Tache_Effectuee,
-      participant: taskRealisation.Nom_Participant
+      id: taskRealisation.taskId, // Utilise taskId de la réalisation
+      name: taskRealisation.nomTacheEffectuee,
+      participant: taskRealisation.nomParticipant,
+      realizationId: taskRealisation.id, // L'ID du document de réalisation à supprimer
+      reportedUserId: taskRealisation.userId // L'ID Firebase de l'utilisateur qui a fait la fausse tâche
     });
     setShowReportModal(true);
   };
 
   // NOUVELLE FONCTION: Soumettre le signalement
   const submitReport = async (reporterNameInput) => {
-    if (!reporterNameInput.trim()) {
-      toast.warn('Veuillez entrer votre nom pour signaler la tâche.');
+    if (!currentUser) {
+      toast.warn('Vous devez être connecté pour signaler une tâche.');
       return;
     }
     if (!reportedTaskDetails) return;
 
     setLoading(true);
     try {
-      const payload = {
-        action: 'reportTask',
+      // 1. Enregistrer le signalement
+      await addDoc(collection(db, "reports"), {
         reportedTaskId: reportedTaskDetails.id,
+        reportedUserId: reportedTaskDetails.reportedUserId,
         reportedParticipantName: reportedTaskDetails.participant,
+        reporterUserId: currentUser.uid,
         reporterName: reporterNameInput.trim(),
-        authToken: AUTH_TOKEN
-      };
-
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload)
+        timestamp: new Date().toISOString(),
+        status: 'pending' // Statut initial du rapport
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur HTTP: ${response.status} - ${errorText}`);
-      }
-      const result = await response.json();
-      if (result.success) {
-        toast.success(result.message);
-        // Re-fetch ALL data to reflect changes (task reset, points deduction, reports status)
-        fetchClassement();
-        fetchRealisations();
-        fetchTaches(); 
-        fetchObjectives();
-        fetchReports(); 
+      // 2. Supprimer la réalisation frauduleuse
+      await deleteDoc(doc(db, "realizations", reportedTaskDetails.realizationId));
+      toast.success(`Tâche signalée et réalisation supprimée.`);
+
+      // 3. Déduire les points du participant signalé
+      const DEDUCTION_POINTS = 5;
+      const reportedUserRef = doc(db, "users", reportedTaskDetails.reportedUserId);
+      const reportedUserSnap = await getDoc(reportedUserRef);
+
+      if (reportedUserSnap.exists()) {
+        const reportedUserData = reportedUserSnap.data();
+        const newTotalCumulativePoints = Math.max(0, (reportedUserData.totalCumulativePoints || 0) - DEDUCTION_POINTS);
+        const newWeeklyPoints = Math.max(0, (reportedUserData.weeklyPoints || 0) - DEDUCTION_POINTS);
+        
+        await updateDoc(reportedUserRef, {
+          totalCumulativePoints: newTotalCumulativePoints,
+          weeklyPoints: newWeeklyPoints
+        });
+        toast.info(`${reportedTaskDetails.participant} a perdu ${DEDUCTION_POINTS} points.`);
       } else {
-        toast.error(`Erreur: ${result.message}`);
+        console.warn(`Utilisateur signalé (${reportedTaskDetails.reportedUserId}) non trouvé dans la collection 'users'.`);
       }
+
+      // Re-fetch ALL data to reflect changes (task reset, points deduction, reports status)
+      fetchClassement();
+      fetchRealisations();
+      fetchTaches(); 
+      fetchObjectives();
+      fetchReports(); 
     } catch (err) {
       setError(`Erreur lors du signalement de la tâche: ${err.message}`);
       toast.error(`Une erreur est survenue lors du signalement: ${err.message}`);
@@ -775,20 +829,18 @@ function App() {
   };
 
 
-  useEffect(() => {
-    fetchTaches();
-    fetchClassement();
-    fetchRealisations(); 
-    fetchObjectives(); 
-    fetchCongratulatoryMessages(); 
-    fetchHistoricalPodiums(); 
-    fetchReports(); 
-  }, [fetchTaches, fetchClassement, fetchRealisations, fetchObjectives, fetchCongratulatoryMessages, fetchHistoricalPodiums, fetchReports]);
-
   const handleParticipantClick = async (participant) => {
-    setSelectedParticipantProfile(participant);
-    setActiveMainView('participantProfile');
-    await fetchParticipantWeeklyTasks(participant.Nom_Participant);
+    // Trouver l'UID de l'utilisateur à partir de son nom d'affichage
+    const usersQuery = query(collection(db, "users"), where("displayName", "==", participant.Nom_Participant));
+    const usersSnapshot = await getDocs(usersQuery);
+    if (!usersSnapshot.empty) {
+      const userDoc = usersSnapshot.docs[0];
+      setSelectedParticipantProfile({ id: userDoc.id, ...userDoc.data() });
+      setActiveMainView('participantProfile');
+      await fetchParticipantWeeklyTasks(participant.Nom_Participant);
+    } else {
+      toast.error("Profil utilisateur introuvable.");
+    }
   };
 
   const isSubTaskAvailable = useCallback((subTask) => {
@@ -803,8 +855,8 @@ function App() {
 
     // Vérifier si la tâche est déjà complétée (dans Realisations)
     const isCompletedInRealisations = realisations.some(real => {
-      if (String(real.ID_Tache_Effectuee || '') === String(subTask.ID_Tache)) {
-        const realDate = new Date(real.Timestamp);
+      if (String(real.taskId || '') === String(subTask.ID_Tache)) { // Utilisez taskId pour Firestore
+        const realDate = new Date(real.timestamp); // Utilisez timestamp pour Firestore
         realDate.setHours(0, 0, 0, 0);
 
         if (frequence === 'quotidien') {
@@ -825,7 +877,15 @@ function App() {
 
 
   const handleTaskClick = (task) => {
+    if (!currentUser) {
+      toast.warn('Veuillez vous connecter pour valider une tâche.');
+      setShowAuthModal(true);
+      return;
+    }
     setSelectedTask(task);
+    // Le nom du participant est maintenant le displayName de l'utilisateur connecté
+    setParticipantName(currentUser.displayName || currentUser.email); 
+
     if (task.Sous_Taches_IDs && String(task.Sous_Taches_IDs).trim() !== '') {
       fetchSubTasks(task.ID_Tache); 
       setShowSplitTaskDialog(true); 
@@ -883,7 +943,7 @@ function App() {
 
   const getParticipantBadges = useCallback((participant) => {
     const badges = [];
-    const participantRealisations = realisations.filter(r => String(r.Nom_Participant).trim() === String(participant.Nom_Participant).trim());
+    const participantRealisations = realisations.filter(r => String(r.nomParticipant).trim() === String(participant.Nom_Participant).trim());
     
     const totalPoints = parseFloat(participant.Points_Total_Cumulatif) || 0;
 
@@ -892,7 +952,7 @@ function App() {
     }
     
     const tasksThisWeek = participantRealisations.filter(real => {
-        const realDate = new Date(real.Timestamp);
+        const realDate = new Date(real.timestamp);
         const today = new Date();
         const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1))); 
         return realDate >= startOfWeek;
@@ -901,12 +961,12 @@ function App() {
         badges.push({ name: 'Actif de la Semaine', icon: '⚡', description: '3 tâches ou plus complétées cette semaine.' });
     }
 
-    const kitchenTasks = participantRealisations.filter(r => String(r.Categorie_Tache || '').toLowerCase() === 'cuisine').length;
+    const kitchenTasks = participantRealisations.filter(r => String(r.categorieTache || '').toLowerCase() === 'cuisine').length;
     if (kitchenTasks >= 5 && !badges.some(b => b.name === 'Chef Propre')) {
       badges.push({ name: 'Chef Propre', icon: '🍳', description: '5 tâches de cuisine complétées.' });
     }
 
-    const roomTasks = participantRealisations.filter(r => String(r.Categorie_Tache || '').toLowerCase() === 'salle').length;
+    const roomTasks = participantRealisations.filter(r => String(r.categorieTache || '').toLowerCase() === 'salle').length;
     if (roomTasks >= 5 && !badges.some(b => b.name === 'Maître de Salon')) {
       badges.push({ name: 'Maître de Salon', icon: '🛋️', description: '5 tâches de salle complétées.' });
     }
@@ -936,7 +996,7 @@ function App() {
     }
 
     const hasCompletedGroupTask = participantRealisations.some(r => {
-        const taskDef = allRawTaches.find(t => String(t.ID_Tache) === String(r.ID_Tache_Effectuee));
+        const taskDef = allRawTaches.find(t => String(t.ID_Tache) === String(r.taskId)); // Utilisez taskId
         return taskDef && (taskDef.Parent_Task_ID || (taskDef.Sous_Taches_IDs && taskDef.Sous_Taches_IDs.trim() !== ''));
     });
     if (hasCompletedGroupTask && !badges.some(b => b.name === 'Esprit d\'équipe')) {
@@ -948,8 +1008,8 @@ function App() {
     const reportedCounts = {};
 
     reports.forEach(report => {
-        const reporter = String(report.Reporter_Name || '').trim();
-        const reported = String(report.Reported_Participant_Name || '').trim();
+        const reporter = String(report.reporterName || '').trim();
+        const reported = String(report.reportedParticipantName || '').trim();
         
         reporterCounts[reporter] = (reporterCounts[reporter] || 0) + 1;
         reportedCounts[reported] = (reportedCounts[reported] || 0) + 1;
@@ -1134,10 +1194,10 @@ function App() {
     startOfCurrentWeek.setHours(0, 0, 0, 0);
 
     realisations.forEach(real => {
-        const realDate = new Date(real.Timestamp);
+        const realDate = new Date(real.timestamp); // Utilisez timestamp
         realDate.setHours(0, 0, 0, 0);
         if (realDate >= startOfCurrentWeek) {
-            const name = String(real.Nom_Participant).trim();
+            const name = String(real.nomParticipant).trim(); // Utilisez nomParticipant
             tasksByParticipantThisWeek.set(name, (tasksByParticipantThisWeek.get(name) || 0) + 1);
         }
     });
@@ -1346,26 +1406,28 @@ function App() {
         <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Tâches Terminées</h2>
         <div className="space-y-3 text-left"> 
           {realisations.map((real, index) => (
-            <div key={real.Timestamp + real.Nom_Participant + index} 
+            <div key={real.id || real.timestamp + real.nomParticipant + index} // Utilise real.id de Firestore
                  className="bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-lg border border-blue-100"> 
               <div className="flex-1 min-w-0 mb-2 sm:mb-0"> 
                   <h4 className="text-secondary text-base sm:text-xl font-extrabold leading-tight mb-1">
-                      {real.Nom_Tache_Effectuee}
+                      {real.nomTacheEffectuee} {/* Utilise nomTacheEffectuee */}
                   </h4>
                   <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-sm text-lightText">
-                      <span>par <strong className="text-text">{real.Nom_Participant}</strong></span>
-                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(real.Categorie_Tache)}`}>
-                          {real.Categorie_Tache || 'Non catégorisé'}
+                      <span>par <strong className="text-text">{real.nomParticipant}</strong></span> {/* Utilise nomParticipant */}
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(real.categorieTache)}`}> {/* Utilise categorieTache */}
+                          {real.categorieTache || 'Non catégorisé'}
                       </span>
-                      <span>le {new Date(real.Timestamp).toLocaleDateString('fr-FR')} à {new Date(real.Timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span>le {new Date(real.timestamp).toLocaleDateString('fr-FR')} à {new Date(real.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span> {/* Utilise timestamp */}
                   </div>
               </div>
-              <button
-                onClick={() => handleReportClick(real)}
-                className="ml-0 sm:ml-4 mt-2 sm:mt-0 bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs flex-shrink-0"
-              >
-                Signaler
-              </button>
+              {currentUser && ( // Affiche le bouton "Signaler" uniquement si l'utilisateur est connecté
+                <button
+                  onClick={() => handleReportClick(real)}
+                  className="ml-0 sm:ml-4 mt-2 sm:mt-0 bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs flex-shrink-0"
+                >
+                  Signaler
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -1407,13 +1469,22 @@ function App() {
 
   const renderTaskDialog = () => {
     if (!selectedTask || selectedTask.isGroupTask) return null; 
-
+    // Le nom du participant est déjà défini par currentUser.displayName dans handleTaskClick
+    // et mis à jour si l'utilisateur change de nom ou se connecte.
+    // L'input est maintenant en lecture seule ou masqué si l'utilisateur est connecté.
     return (
       <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4"> 
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto"> 
           <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">Confirmer la Tâche</h3> 
           <p className="text-base sm:text-lg mb-4">Tâche: <strong className="text-text">{selectedTask.Nom_Tache}</strong> (<span className="font-semibold text-primary">{selectedTask.Calculated_Points} points</span>)</p>
-          <label htmlFor="participantName" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Votre Nom:</label>
+          {currentUser ? (
+            <p className="block text-text text-left font-medium mb-2 text-sm sm:text-base">
+              Validé par: <strong className="text-secondary">{currentUser.displayName || currentUser.email}</strong>
+            </p>
+          ) : (
+            // Ce bloc ne devrait normalement pas s'afficher car handleTaskClick demande la connexion
+            <label htmlFor="participantName" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Votre Nom:</label>
+          )}
           <input
             id="participantName"
             type="text"
@@ -1421,12 +1492,14 @@ function App() {
             onChange={(e) => setParticipantName(e.target.value)}
             placeholder="Entrez votre nom"
             className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+            readOnly={!!currentUser} // Lecture seule si connecté
+            disabled={!!currentUser} // Désactivé si connecté
             autoFocus
           />
           <div className="flex flex-col gap-3 sm:gap-4 mt-4"> 
             <button 
               onClick={() => recordTask(selectedTask.ID_Tache)} 
-              disabled={loading}
+              disabled={loading || !currentUser} // Désactivé si pas connecté
               className="bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg 
                          transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
             >
@@ -1450,7 +1523,9 @@ function App() {
     if (!showSplitTaskDialog || !selectedTask || !selectedTask.isGroupTask) {
       return null;
     }
-
+    // Le nom du participant est déjà défini par currentUser.displayName dans handleTaskClick
+    // et mis à jour si l'utilisateur change de nom ou se connecte.
+    // L'input est maintenant en lecture seule ou masqué si l'utilisateur est connecté.
     const handleSubTaskChange = (subTask) => {
       if (isSubTaskAvailable(subTask)) {
         setSelectedSubTasks(prev => 
@@ -1518,7 +1593,13 @@ function App() {
             )
           )}
 
-          <label htmlFor="participantNameSplit" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Votre Nom:</label>
+          {currentUser ? (
+            <p className="block text-text text-left font-medium mb-2 text-sm sm:text-base">
+              Validé par: <strong className="text-secondary">{currentUser.displayName || currentUser.email}</strong>
+            </p>
+          ) : (
+            <label htmlFor="participantNameSplit" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Votre Nom:</label>
+          )}
           <input
             id="participantNameSplit"
             type="text"
@@ -1526,13 +1607,15 @@ function App() {
             onChange={(e) => setParticipantName(e.target.value)}
             placeholder="Entrez votre nom"
             className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+            readOnly={!!currentUser}
+            disabled={!!currentUser}
             autoFocus
           />
 
           <div className="flex flex-col gap-3 sm:gap-4 mt-4">
             <button
               onClick={recordMultipleTasks}
-              disabled={loading || selectedSubTasks.length === 0}
+              disabled={loading || selectedSubTasks.length === 0 || !currentUser}
               className="bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
                          transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
             >
@@ -1556,7 +1639,7 @@ function App() {
   const renderParticipantProfile = () => {
     if (!selectedParticipantProfile) return null;
 
-    const participantCumulativePoints = selectedParticipantProfile.Points_Total_Cumulatif || 0;
+    const participantCumulativePoints = selectedParticipantProfile.totalCumulativePoints || 0; // Utilise totalCumulativePoints
     const engagementPercentage = totalGlobalCumulativePoints > 0 
       ? ((participantCumulativePoints / totalGlobalCumulativePoints) * 100).toFixed(2) 
       : 0;
@@ -1565,7 +1648,7 @@ function App() {
 
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8"> 
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Profil de {selectedParticipantProfile.Nom_Participant}</h2>
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Profil de {selectedParticipantProfile.displayName || selectedParticipantProfile.email}</h2> {/* Utilise displayName */}
         <div className="mb-6 p-4 bg-neutralBg rounded-xl shadow-inner"> 
           <p className="text-lg sm:text-xl font-semibold text-text">
             Score d'Engagement Global: <span className="text-primary font-bold">{engagementPercentage}%</span>
@@ -1595,23 +1678,23 @@ function App() {
         {participantWeeklyTasks.length > 0 ? (
           <div className="space-y-3 text-left"> 
             {participantWeeklyTasks.map((task, index) => (
-              <div key={task.Timestamp + task.ID_Tache_Effectuee + index} className="bg-card rounded-2xl p-3 sm:p-4 flex flex-row items-center justify-between 
+              <div key={task.id || task.timestamp + task.userId + index} className="bg-card rounded-2xl p-3 sm:p-4 flex flex-row items-center justify-between 
                          shadow-lg border border-blue-100"> 
                 <div className="flex-1 min-w-0"> 
                     <h4 className="text-secondary text-base sm:text-xl font-extrabold leading-tight truncate"> 
-                        {task.Nom_Tache_Effectuee}
+                        {task.nomTacheEffectuee}
                     </h4> 
                     <div className="flex items-center space-x-2 mt-1"> 
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(task.Categorie_Tache)}`}>
-                            {task.Categorie_Tache || 'Non catégorisé'}
+                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(task.categorieTache)}`}>
+                            {task.categorieTache || 'Non catégorisé'}
                         </span>
                         <span className="text-sm text-lightText">
-                            {new Date(task.Timestamp).toLocaleDateString('fr-FR')} 
+                            {new Date(task.timestamp).toLocaleDateString('fr-FR')} 
                         </span>
                     </div>
                 </div>
                 <p className="text-primary font-bold text-sm sm:text-base flex-shrink-0 ml-2"> 
-                    {task.Points_Gagnes} pts
+                    {task.pointsGagnes} pts
                 </p>
               </div>
             ))}
@@ -1732,7 +1815,7 @@ function App() {
   };
 
   const handleExportRealisations = () => {
-    const headers = ['Timestamp', 'Nom_Participant', 'ID_Tache_Effectuee', 'Nom_Tache_Effectuee', 'Categorie_Tache', 'Points_Gagnes'];
+    const headers = ['taskId', 'userId', 'nomParticipant', 'nomTacheEffectuee', 'categorieTache', 'pointsGagnes', 'timestamp'];
     exportToCsv('realisations_clean_app.csv', realisations, headers);
     setShowExportSelectionModal(false); 
   };
@@ -1972,7 +2055,7 @@ function App() {
   };
 
 
-  if (loading) {
+  if (loadingUser || loading) { // Attendre que l'utilisateur soit chargé
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4"> 
         <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast mb-4 sm:mb-6"></div> 
@@ -1993,10 +2076,11 @@ function App() {
             <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-20 sm:h-28 md:h-36 w-auto drop-shadow-xl cursor-pointer" onClick={handleLogoClick} /> 
           )}
           <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1> 
+          {/* Le bouton AdminLoginButton est maintenant un bouton d'authentification générique */}
           <AdminLoginButton 
-            isAdmin={isAdmin} 
-            onLogin={handleAdminLogin} 
-            onLogout={handleAdminLogout} 
+            currentUser={currentUser} // Passe l'utilisateur actuel
+            isAdmin={isAdmin} // Passe le statut admin
+            onAuthAction={handleAuthAction} // Gère la connexion/déconnexion
             onOpenAdminPanel={() => setActiveMainView('adminPanel')} 
           />
         </header>
@@ -2072,9 +2156,9 @@ function App() {
                 {renderObjectivesContent()}
             </ListAndInfoModal>
         )}
-        {showAdminObjectivesListModal && renderAdminObjectivesListModal()}
-        {showAdminTasksListModal && renderAdminTasksListModal()}
-        {showExportSelectionModal && (
+        {showAdminObjectivesListModal && isAdmin && renderAdminObjectivesListModal()} {/* Rendu conditionnel par isAdmin */}
+        {showAdminTasksListModal && isAdmin && renderAdminTasksListModal()} {/* Rendu conditionnel par isAdmin */}
+        {showExportSelectionModal && isAdmin && ( // Rendu conditionnel par isAdmin
             <ExportSelectionModal
                 onClose={() => setShowExportSelectionModal(false)}
                 onExportClassement={handleExportClassement}
@@ -2090,7 +2174,7 @@ function App() {
           />
         )}
 
-        {showReportModal && (
+        {showReportModal && currentUser && ( // Rendu conditionnel par currentUser
           <ReportTaskModal
             show={showReportModal}
             onClose={() => { setShowReportModal(false); setReportedTaskDetails(null); }}
@@ -2100,7 +2184,7 @@ function App() {
           />
         )}
 
-        {showAdminObjectiveFormModal && (
+        {showAdminObjectiveFormModal && isAdmin && ( // Rendu conditionnel par isAdmin
           <AdminObjectiveFormModal
             objectiveData={newObjectiveData}
             onFormChange={handleObjectiveFormChange}
@@ -2117,7 +2201,7 @@ function App() {
             editingObjective={editingObjective}
           />
         )}
-        {showAdminTaskFormModal && (
+        {showAdminTaskFormModal && isAdmin && ( // Rendu conditionnel par isAdmin
           <AdminTaskFormModal
             taskData={newTaskData}
             onFormChange={handleTaskFormChange}
@@ -2134,6 +2218,9 @@ function App() {
             editingTask={editingTask}
           />
         )}
+        {showAuthModal && ( // Modale d'authentification
+          <AuthModal onClose={() => setShowAuthModal(false)} />
+        )}
 
       </div>
       <ToastContainer 
@@ -2148,6 +2235,15 @@ function App() {
         pauseOnHover
       />
     </div>
+  );
+}
+
+// Composant racine qui enveloppe AppContent avec UserProvider
+function App() {
+  return (
+    <UserProvider>
+      <AppContent />
+    </UserProvider>
   );
 }
 
