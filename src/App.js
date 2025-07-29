@@ -4,8 +4,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
 import HistoricalPodiums from './HistoricalPodiums'; 
-// AdminLoginButton sera remplacé par un bouton d'authentification générique
-import AdminLoginButton from './AdminLoginButton'; // Gardé pour l'instant, sera adapté
+import AdminLoginButton from './AdminLoginButton'; 
 import AdminTaskFormModal from './AdminTaskFormModal'; 
 import ConfirmActionModal from './ConfirmActionModal'; 
 import ConfettiOverlay from './ConfettiOverlay'; 
@@ -16,7 +15,7 @@ import ExportSelectionModal from './ExportSelectionModal';
 import RankingCard from './RankingCard'; 
 import OverallRankingModal from './OverallRankingModal'; 
 import ReportTaskModal from './ReportTaskModal'; 
-import AuthModal from './Auth'; // Nouveau composant d'authentification
+import AuthModal from './Auth'; 
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -32,12 +31,10 @@ import { UserProvider, useUser } from './UserContext';
 
 const LOGO_FILENAME = 'logo.png'; 
 
-// REMOVED: ADMIN_PASSWORD is no longer needed with Firebase Auth roles
-
-function AppContent() { // Renommé pour être enveloppé par UserProvider
+function AppContent() { 
   // eslint-disable-next-line no-unused-vars
-  const [logoClickCount, setLogoClickCount] = useState(0); // <-- Le commentaire ESLint est ici
-  const { currentUser, isAdmin, loadingUser } = useUser(); // Utilisation du hook de contexte
+  const [logoClickCount, setLogoClickCount] = useState(0); 
+  const { currentUser, isAdmin, loadingUser } = useUser(); 
 
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
@@ -47,9 +44,10 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
   const [objectives, setObjectives] = useState([]); 
   const [congratulatoryMessages, setCongratulatoryMessages] = useState([]); 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // REMOVED: const [error, setError] = useState(null); // <<< Cette ligne est supprimée
+
   const [selectedTask, setSelectedTask] = useState(null); 
-  const [participantName, setParticipantName] = useState(''); // Le nom du participant sera le displayName de l'utilisateur connecté
+  const [participantName, setParticipantName] = useState(''); 
   const [showThankYouPopup, setShowThankYouPopup] = useState(null); 
   const [showConfetti, setShowConfetti] = useState(false); 
   
@@ -66,7 +64,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
   
   const [showConfirmResetModal, setShowConfirmResetModal] = useState(false); 
   
-  // Modales d'administration des tâches
   const [showAdminTaskFormModal, setShowAdminTaskFormModal] = useState(false); 
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false); 
   const [taskToDelete, setTaskToDelete] = useState(null); 
@@ -76,7 +73,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
   });
   const [editingTask, setEditingTask] = useState(null);
 
-  // Modales d'administration des objectifs
   const [showAdminObjectiveFormModal, setShowAdminObjectiveFormModal] = useState(false); 
   const [newObjectiveData, setNewObjectiveData] = useState({ 
     ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '',
@@ -93,16 +89,13 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
   const [showExportSelectionModal, setShowExportSelectionModal] = useState(false); 
   const [showOverallRankingModal, setShowOverallRankingModal] = useState(false); 
 
-  // NOUVEAUX ÉTATS POUR LE SIGNALEMENT
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportedTaskDetails, setReportedTaskDetails] = useState(null); // { id, name, participant }
-  const [reports, setReports] = useState([]); // ÉTAT POUR LES SIGNALEMENTS
+  const [reportedTaskDetails, setReportedTaskDetails] = useState(null); 
+  const [reports, setReports] = useState([]); 
 
-  // États Easter Egg
   const [showChickEmoji, setShowChickEmoji] = useState(false);
   const logoClickTimerRef = useRef(null); 
 
-  // État pour la modale d'authentification
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   const fetchTaches = useCallback(async () => {
@@ -143,12 +136,12 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       
       setTaches(processedAndFilteredTaches);
     } catch (err) {
-      setError(`Erreur lors de la récupération des tâches: ${err.message}`);
-      toast.error(`Erreur: ${err.message}`); 
+      // REMOVED: setError(`Erreur lors de la récupération des tâches: ${err.message}`);
+      toast.error(`Erreur lors de la récupération des tâches: ${err.message}`); 
     } finally {
-      setLoading(false); 
+      // setLoading(false); // Managed by the main useEffect
     }
-  }, [setAllRawTaches, setTaches, setError, setLoading]);
+  }, [setAllRawTaches, setTaches]); // Removed setError from deps
 
   const fetchClassement = useCallback(async () => {
     try {
@@ -217,10 +210,10 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       setTotalGlobalCumulativePoints(globalCumulative);
 
     } catch (err) {
-      setError(`Erreur lors de la récupération du classement: ${err.message}`);
-      toast.error(`Erreur: ${err.message}`); 
+      // REMOVED: setError(`Erreur lors de la récupération du classement: ${err.message}`);
+      toast.error(`Erreur lors de la récupération du classement: ${err.message}`); 
     }
-  }, [setClassement, setTotalGlobalCumulativePoints, setError]);
+  }, [setClassement, setTotalGlobalCumulativePoints]); // Removed setError from deps
 
   const fetchRealisations = useCallback(async () => {
     try {
@@ -230,10 +223,10 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       setRealisations(data);
     }
     catch (err) {
-      setError(`Erreur lors de la récupération des réalisations: ${err.message}`);
-      toast.error(`Erreur: ${err.message}`);
+      // REMOVED: setError(`Erreur lors de la récupération des réalisations: ${err.message}`);
+      toast.error(`Erreur lors de la récupération des réalisations: ${err.message}`);
     }
-  }, [setRealisations, setError]);
+  }, [setRealisations]); // Removed setError from deps
 
   const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
     setLoading(true);
@@ -257,12 +250,12 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       setParticipantWeeklyTasks(weeklyTasks);
 
     } catch (err) {
-      setError(`Erreur lors de la récupération des tâches de ${participantName}: ${err.message}`);
+      // REMOVED: setError(`Erreur lors de la récupération des tâches de ${participantName}: ${err.message}`);
       toast.error(`Erreur lors du chargement du profil: ${err.message}`);
     } finally {
       setLoading(false);
     }
-  }, [setParticipantWeeklyTasks, setLoading, setError]);
+  }, [setParticipantWeeklyTasks, setLoading]); // Removed setError from deps
 
   const fetchSubTasks = useCallback(async (parentTaskId) => {
     setLoading(true); 
@@ -288,13 +281,13 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
 
       setSubTasks(sousTaches); 
     } catch (err) {
-      setError(`Erreur lors de la récupération des sous-tâches: ${err.message}`);
+      // REMOVED: setError(`Erreur lors de la récupération des sous-tâches: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
       setSubTasks([]); 
     } finally {
       setLoading(false);
     }
-  }, [setSubTasks, setLoading, setError]);
+  }, [setSubTasks, setLoading]); // Removed setError from deps
 
   const fetchObjectives = useCallback(async () => {
     try {
@@ -303,10 +296,10 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setObjectives(data);
     } catch (err) {
-      setError(`Erreur lors de la récupération des objectifs: ${err.message}`);
+      // REMOVED: setError(`Erreur lors de la récupération des objectifs: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
     }
-  }, [setObjectives, setError]);
+  }, [setObjectives]); // Removed setError from deps
 
   const fetchCongratulatoryMessages = useCallback(async () => {
     try {
@@ -315,10 +308,10 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setCongratulatoryMessages(data);
     } catch (err) {
-      setError(`Erreur lors de la récupération des messages de félicitations: ${err.message}`);
+      // REMOVED: setError(`Erreur lors de la récupération des messages de félicitations: ${err.message}`);
       setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); // Fallback
     }
-  }, [setCongratulatoryMessages, setError]);
+  }, [setCongratulatoryMessages]); // Removed setError from deps
 
   const fetchHistoricalPodiums = useCallback(async () => {
     try {
@@ -327,10 +320,10 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setHistoricalPodiums(data);
     } catch (err) {
-      setError(`Erreur lors de la récupération de l'historique des podiums: ${err.message}`);
-      toast.error(`Erreur: ${err.message}`);
+      // REMOVED: setError(`Erreur lors de la récupération de l'historique des podiums: ${err.message}`);
+      toast.error(`Erreur lors de la récupération de l'historique des podiums: ${err.message}`);
     }
-  }, [setHistoricalPodiums, setError]);
+  }, [setHistoricalPodiums]); // Removed setError from deps
 
   const fetchReports = useCallback(async () => {
     try {
@@ -339,10 +332,10 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setReports(data);
     } catch (err) {
-      setError(`Erreur lors de la récupération des signalements: ${err.message}`);
-      toast.error(`Erreur: ${err.message}`);
+      // REMOVED: setError(`Erreur lors de la récupération des signalements: ${err.message}`);
+      toast.error(`Erreur lors de la récupération des signalements: ${err.message}`);
     }
-  }, [setReports, setError]);
+  }, [setReports]); // Removed setError from deps
 
 
   const recordTask = async (idTacheToRecord, isSubTask = false) => {
@@ -403,7 +396,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       fetchObjectives(); 
       fetchReports(); 
     } catch (err) {
-      setError(`Erreur lors de l'enregistrement de la tâche: ${err.message}`);
+      // REMOVED: setError(`Erreur lors de l'enregistrement de la tâche: ${err.message}`);
       toast.error(`Une erreur est survenue: ${err.message}`); 
     } finally {
       setLoading(false);
@@ -473,7 +466,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       fetchObjectives(); 
       fetchReports(); 
     } catch (err) {
-      setError(`Erreur lors de l'enregistrement des sous-tâches: ${err.message}`);
+      // REMOVED: setError(`Erreur lors de l'enregistrement des sous-tâches: ${err.message}`);
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
@@ -518,7 +511,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       fetchHistoricalPodiums(); 
       fetchReports(); 
     } catch (err) {
-      setError(`Erreur lors de la réinitialisation des points: ${err.message}`);
+      // REMOVED: setError(`Erreur lors de la réinitialisation des points: ${err.message}`);
       toast.error(`Une erreur est survenue lors de la réinitialisation: ${err.message}`);
     } finally {
       setLoading(false);
@@ -543,6 +536,8 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
 
   useEffect(() => {
     if (!loadingUser) { 
+      // On peut toujours tenter de charger les données, les règles Firestore géreront les permissions
+      // Les erreurs seront affichées via toast, mais ne bloqueront plus l'interface
       fetchTaches();
       fetchClassement();
       fetchRealisations(); 
@@ -797,7 +792,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       fetchObjectives();
       fetchReports(); 
     } catch (err) {
-      setError(`Erreur lors du signalement de la tâche: ${err.message}`);
+      // REMOVED: setError(`Erreur lors du signalement de la tâche: ${err.message}`);
       toast.error(`Une erreur est survenue lors du signalement: ${err.message}`);
     } finally {
       setLoading(false);
@@ -2026,7 +2021,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
     );
   }
 
-  if (error) return <div className="text-center p-8 text-xl text-error">Erreur: {error}</div>;
+  // REMOVED: if (error) return <div className="text-center p-8 text-xl text-error">Erreur: {error}</div>; // <<< Cette ligne est supprimée
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background-light to-background-dark font-sans p-4 sm:p-6"> 
