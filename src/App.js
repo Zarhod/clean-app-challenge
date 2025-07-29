@@ -34,7 +34,7 @@ import { UserProvider, useUser } from './UserContext';
 
 const LOGO_FILENAME = 'logo.png'; 
 
-// Fonctions utilitaires pour la gamification
+// Fonctions utilitaires pour la gamification (déplacées en dehors du composant pour éviter les re-déclarations)
 const calculateLevelAndXP = (currentXP) => {
   let level = 1;
   let xpNeededForNextLevel = 100; // XP pour le niveau 2
@@ -83,7 +83,7 @@ function AppContent() {
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
   const [realisations, setRealisations] = useState([]); 
-  const [classement, setClassement] = useState([]); 
+  const [classement, setClassement] = useState([]); // Unique déclaration de 'classement'
   const [historicalPodiums, setHistoricalPodiums] = useState([]); 
   const [objectives, setObjectives] = useState([]); 
   const [congratulatoryMessages, setCongratulatoryMessages] = useState([]); 
@@ -294,7 +294,7 @@ function AppContent() {
         const currentClassement = Object.values(participantScores)
           .sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
         
-        setClassement(currentClassement);
+        setClassement(currentClassement); 
         const globalCumulative = currentClassement.reduce((sum, p) => sum + (parseFloat(p.Points_Total_Cumulatif) || 0), 0); 
         setTotalGlobalCumulativePoints(globalCumulative);
         initialLoadStatus.current.classement = true;
