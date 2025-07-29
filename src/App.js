@@ -1,5 +1,3 @@
-/* global __firebase_config */ // Déclare __firebase_config comme globale pour ESLint
-
 // src/App.js
 // Version mise à jour pour utiliser Firebase Authentication et Firestore avec des écouteurs en temps réel.
 
