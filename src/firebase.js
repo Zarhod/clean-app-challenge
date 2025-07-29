@@ -1,29 +1,29 @@
 // src/firebase.js
-// Ce fichier initialise Firebase et exporte les services nécessaires.
+// Initialisation de Firebase
 
-// Importez les fonctions nécessaires des SDK Firebase
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// Votre configuration Firebase
-// REMPLACEZ CES VALEURS par celles obtenues à l'étape 1 de la console Firebase
-const firebaseConfig = {
-  apiKey: "AIzaSyDs0UtfVH2UIhAi5gDFF7asrNmVwQF03sw", 
-  authDomain: "clean-app-challenge.firebaseapp.com", 
-  projectId: "clean-app-challenge", 
-  storageBucket: "clean-app-challenge.firebasestorage.app", 
-  messagingSenderId: "689290653968", 
-  appId: "1:689290653968:web:c55ebf0cc8efcef35b7595"
-};
+// Les variables globales sont fournies par l'environnement Canvas
+// Assurez-vous qu'elles sont définies, sinon utilisez des valeurs par défaut pour le développement local
+const firebaseConfig = typeof __firebase_config !== 'undefined'
+  ? JSON.parse(__firebase_config)
+  : {
+      apiKey: "AIzaSyDs0UtfVH2UIhAi5gDFF7asrNmVwQF03sw",
+      authDomain: "clean-app-challenge.firebaseapp.com",
+      projectId: "clean-app-challenge",
+      storageBucket: "clean-app-challenge.firebasestorage.app",
+      messagingSenderId: "689290653968",
+      appId: "1:689290653968:web:c55ebf0cc8efcef35b7595"
+    };
 
-// Initialisez Firebase
+// Initialiser Firebase
 const app = initializeApp(firebaseConfig);
 
-// Obtenez les instances des services que vous utiliserez
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Obtenir les services Firebase
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-// Vous pouvez ajouter d'autres services si nécessaire, par exemple:
-// import { getStorage } from 'firebase/storage';
-// export const storage = getStorage(app);
+// Exporter les services et l'instance de l'application
+export { app, auth, db };
