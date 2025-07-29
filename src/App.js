@@ -19,7 +19,7 @@ import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/React-toastify.css'; 
+import 'react-toastify/dist/ReactToastify.css'; // <-- Correction ici : capitalisation de 'ReactToastify.css'
 
 // Importations Firebase
 import { db, auth } from './firebase';
@@ -2104,6 +2104,7 @@ function AppContent() {
         <div className="flex flex-col gap-4 mb-6">
           {/* Container 1: Gestion des Tâches & Objectifs (sans titre) */}
           <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
+            {/* <h3 className="text-lg font-bold text-primary mb-3 text-center">Gestion des Tâches & Objectifs</h3> */} {/* Titre supprimé */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                   onClick={() => setShowAdminObjectivesListModal(true)}
@@ -2122,6 +2123,7 @@ function AppContent() {
 
           {/* Container 2: Gestion des Utilisateurs (sans titre) */}
           <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
+            {/* <h3 className="text-lg font-bold text-primary mb-3 text-center">Gestion des Utilisateurs</h3> */} {/* Titre supprimé */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={() => setShowAdminUserManagementModal(true)} 
@@ -2331,26 +2333,26 @@ function AppContent() {
           )}
           <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1> 
           {/* Nouveau bloc pour le profil utilisateur et le bouton admin */}
-          <div className="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2 bg-card p-2 rounded-lg shadow-md border border-primary/20"> {/* Encadré et empilé */}
+          <div className="absolute top-4 right-4 z-10 flex flex-col items-end space-y-1 bg-card p-2 rounded-lg shadow-md border border-primary/20 sm:w-auto w-fit"> {/* Ajusté pour mobile */}
             {currentUser && (
               <>
                 <button
                   onClick={() => handleParticipantClick({ Nom_Participant: currentUser.displayName || currentUser.email })}
-                  className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap w-full"
+                  className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap w-full text-center" // w-full et text-center pour mobile
                 >
                   Bonjour, {currentUser.displayName || currentUser.email}
                 </button>
                 {isAdmin && (
                   <button
                     onClick={() => setActiveMainView('adminPanel')}
-                    className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-1.5 px-3 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-xs whitespace-nowrap w-full"
+                    className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-1.5 px-3 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-xs whitespace-nowrap w-full text-center" // w-full et text-center pour mobile
                   >
                     Console Admin
                   </button>
                 )}
                 <button
                   onClick={handleAuthAction}
-                  className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1.5 px-3 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-xs whitespace-nowrap w-full"
+                  className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1.5 px-3 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-xs whitespace-nowrap w-full text-center" // w-full et text-center pour mobile
                 >
                   Déconnexion
                 </button>
