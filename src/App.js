@@ -642,7 +642,7 @@ function AppContent() {
     }
   };
 
-  const handleDeleteTask = async (taskId, skipConfirmation = false) => {
+  const handleDeleteTask = useCallback(async (taskId, skipConfirmation = false) => {
     if (!isAdmin) {
       toast.error("Accès refusé. Vous n'êtes pas administrateur.");
       return;
@@ -667,7 +667,7 @@ function AppContent() {
       setShowDeleteConfirmModal(false); 
       setTaskToDelete(null);
     }
-  };
+  }, [isAdmin, fetchTaches, fetchRealisations, fetchReports, setLoading, setShowDeleteConfirmModal, setTaskToDelete]);
 
   const handleObjectiveFormChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -733,7 +733,7 @@ function AppContent() {
     }
   };
 
-  const handleDeleteObjective = async (objectiveId, skipConfirmation = false) => {
+  const handleDeleteObjective = useCallback(async (objectiveId, skipConfirmation = false) => {
     if (!isAdmin) {
       toast.error("Accès refusé. Vous n'êtes pas administrateur.");
       return;
@@ -756,7 +756,7 @@ function AppContent() {
       setShowDeleteObjectiveConfirmModal(false); 
       setObjectiveToDelete(null);
     }
-  };
+  }, [isAdmin, fetchObjectives, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete]);
 
   const handleReportClick = (taskRealisation) => {
     if (!currentUser) {
@@ -1289,8 +1289,8 @@ function AppContent() {
         <div className="space-y-3">
           {tasks.map(tache => {
             // Correction: Utilisation de parenthèses pour clarifier l'ordre des opérations
-            const isSimpleTaskNotAvailable = !tache.isGroupTask && !isSubTaskAvailable(tache);
-            const isGroupTaskFullyCompleted = tache.isGroupTask && areAllSubtasksCompleted(tache);
+            const isSimpleTaskNotAvailable = (!tache.isGroupTask && !isSubTaskAvailable(tache));
+            const isGroupTaskFullyCompleted = (tache.isGroupTask && areAllSubtasksCompleted(tache));
             const shouldHideTask = isSimpleTaskNotAvailable || isGroupTaskFullyCompleted;
 
             if (shouldHideTask) {
@@ -1352,7 +1352,7 @@ function AppContent() {
         </div>
 
         {/* Correction: Utilisation de parenthèses pour clarifier l'ordre des opérations */}
-        {ponctuelTasks.filter(tache => !((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache)))).length > 0 && ( 
+        {ponctuelTasks.filter(tache => ((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache))) ? false : true).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Ponctuelles</h3> 
             {renderTasksList(ponctuelTasks)}
@@ -1360,7 +1360,7 @@ function AppContent() {
         )}
 
         {/* Correction: Utilisation de parenthèses pour clarifier l'ordre des opérations */}
-        {quotidienTasks.filter(tache => !((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache)))).length > 0 && ( 
+        {quotidienTasks.filter(tache => ((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache))) ? false : true).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Quotidiennes</h3> 
             {renderTasksList(quotidienTasks)}
@@ -1368,14 +1368,14 @@ function AppContent() {
         )}
 
         {/* Correction: Utilisation de parenthèses pour clarifier l'ordre des opérations */}
-        {hebdomadaireTasks.filter(tache => !((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache)))).length > 0 && ( 
+        {hebdomadaireTasks.filter(tache => ((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache))) ? false : true).length > 0 && ( 
           <div className="mb-6"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Hebdomadaires</h3> 
             {renderTasksList(hebdomadaireTasks)}
           </div>
         )}
 
-        {currentCategoryTasks.filter(tache => !((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache)))).length === 0 && (
+        {currentCategoryTasks.filter(tache => ((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache))) ? false : true).length === 0 && (
           <p className="text-center text-lightText text-lg py-4">Aucune tâche disponible dans cette catégorie.</p>
         )}
       </div>
@@ -1868,7 +1868,7 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal, showAdminObjectivesListModal]); // Ajout de showAdminObjectivesListModal aux dépendances
+  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal, showAdminObjectivesListModal]);
 
   const renderAdminTasksListModal = useCallback(() => {
     if (!showAdminTasksListModal) return null;
