@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
 import HistoricalPodiums from './HistoricalPodiums'; 
 import AdminTaskFormModal from './AdminTaskFormModal'; 
-import ConfirmActionModal from './ConfirmActionModal'; 
+import ConfirmActionModal from './ConfirmActionModal'; // Assurez-vous que ce composant existe
 import ConfettiOverlay from './ConfettiOverlay'; 
 import TaskStatisticsChart from './TaskStatisticsChart'; 
 import AdminObjectiveFormModal from './AdminObjectiveFormModal'; 
@@ -19,7 +19,7 @@ import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal
 import WeeklyRecapModal from './WeeklyRecapModal'; 
 import TaskHistoryModal from './TaskHistoryModal'; // Nouveau: Historique des tâches
 import AvatarSelectionModal from './AvatarSelectionModal'; // Nouveau: Sélection d'avatar
-import confetti from 'canvas-confetti'; // CORRIGÉ: Importation de 'canvas-confetti'
+import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
@@ -134,7 +134,7 @@ function AppContent() {
   const [showExportSelectionModal, setShowExportSelectionModal] = useState(false); 
   const [showOverallRankingModal, setShowOverallRankingModal] = useState(false); 
   const [showAdminUserManagementModal, setShowAdminUserManagementModal] = useState(false); 
-  const [showAdminCongratulatoryMessagesModal, setShowAdminCongratulatoryMessagesModal = useState(false);
+  const [showAdminCongratulatoryMessagesModal, setShowAdminCongratulatoryMessagesModal] = useState(false);
 
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportedTaskDetails, setReportedTaskDetails] = useState(null); 
@@ -441,7 +441,7 @@ function AppContent() {
         } else {
             setWeeklyRecapData(null); 
         }
-      } else if (currentUser && (realisations.length === 0 || historicalPodiums.length === 0)) { // Ligne 2496
+      } else if (currentUser && (realisations.length === 0 || historicalPodiums.length === 0)) {
         setWeeklyRecapData(null);
       }
     };
