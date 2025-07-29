@@ -83,7 +83,7 @@ function AppContent() {
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
   const [realisations, setRealisations] = useState([]); 
-  // DÉCLARATION UNIQUE DE 'classement' - NE PAS DUPLIQUER
+  // DÉCLARATION UNIQUE DE 'classement' - C'EST LA SEULE DÉCLARATION DE CETTE VARIABLE.
   const [classement, setClassement] = useState([]); 
   const [historicalPodiums, setHistoricalPodiums] = useState([]); 
   const [objectives, setObjectives] = useState([]); 
@@ -441,7 +441,7 @@ function AppContent() {
         } else {
             setWeeklyRecapData(null); 
         }
-      } else if (currentUser && (realisations.length === 0 || historicalPodiums.length === 0)) { 
+      } else if (currentUser && (realisations.length === 0 || historicalPodiums.length === 0)) { // Ligne 2496
         setWeeklyRecapData(null);
       }
     };
