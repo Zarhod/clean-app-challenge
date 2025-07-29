@@ -19,7 +19,7 @@ import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal
 import WeeklyRecapModal from './WeeklyRecapModal'; 
 import TaskHistoryModal from './TaskHistoryModal'; // Nouveau: Historique des tâches
 import AvatarSelectionModal from './AvatarSelectionModal'; // Nouveau: Sélection d'avatar
-import confetti from 'canvas-confetti'; 
+import confetti from 'canvas-confetti'; // CORRIGÉ: Importation de 'canvas-confetti'
 
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
@@ -83,7 +83,8 @@ function AppContent() {
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
   const [realisations, setRealisations] = useState([]); 
-  const [classement, setClassement] = useState([]); // Unique déclaration de 'classement'
+  // DÉCLARATION UNIQUE DE 'classement' - NE PAS DUPLIQUER
+  const [classement, setClassement] = useState([]); 
   const [historicalPodiums, setHistoricalPodiums] = useState([]); 
   const [objectives, setObjectives] = useState([]); 
   const [congratulatoryMessages, setCongratulatoryMessages] = useState([]); 
@@ -440,7 +441,7 @@ function AppContent() {
         } else {
             setWeeklyRecapData(null); 
         }
-      } else if (currentUser && (realisations.length === 0 || historicalPodiums.length === 0)) {
+      } else if (currentUser && (realisations.length === 0 || historicalPodiums.length === 0)) { 
         setWeeklyRecapData(null);
       }
     };
