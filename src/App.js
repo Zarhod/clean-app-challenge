@@ -17,6 +17,8 @@ import AuthModal from './Auth';
 import AdminUserManagementModal from './AdminUserManagementModal'; 
 import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; 
 import WeeklyRecapModal from './WeeklyRecapModal'; 
+import TaskHistoryModal from './TaskHistoryModal'; // Nouveau: Historique des tâches
+import AvatarSelectionModal from './AvatarSelectionModal'; // Nouveau: Sélection d'avatar
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -24,13 +26,54 @@ import 'react-toastify/dist/ReactToastify.css';
 
 // Importations Firebase
 import { db, auth } from './firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, writeBatch, onSnapshot } from 'firebase/firestore'; // Ajout de onSnapshot
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, writeBatch, onSnapshot } from 'firebase/firestore'; 
 import { signOut } from 'firebase/auth';
 
 // Importation du contexte utilisateur
 import { UserProvider, useUser } from './UserContext';
 
 const LOGO_FILENAME = 'logo.png'; 
+
+// Fonctions utilitaires pour la gamification
+const calculateLevelAndXP = (currentXP) => {
+  let level = 1;
+  let xpNeededForNextLevel = 100; // XP pour le niveau 2
+  
+  // Exemple de courbe d'XP (peut être ajustée)
+  // Niveau 1: 0-99 XP
+  // Niveau 2: 100-249 XP
+  // Niveau 3: 250-499 XP
+  // Niveau 4: 500-999 XP
+  // Niveau 5: 1000-1999 XP
+  // ...
+  
+  if (currentXP >= 100) {
+    level = 2;
+    xpNeededForNextLevel = 150; // Pour passer au niveau 3 (100 + 150 = 250)
+  }
+  if (currentXP >= 250) {
+    level = 3;
+    xpNeededForNextLevel = 250; // Pour passer au niveau 4 (250 + 250 = 500)
+  }
+  if (currentXP >= 500) {
+    level = 4;
+    xpNeededForNextLevel = 500; // Pour passer au niveau 5 (500 + 500 = 1000)
+  }
+  if (currentXP >= 1000) {
+    level = 5;
+    xpNeededForNextLevel = 1000; // Pour passer au niveau 6 (1000 + 1000 = 2000)
+  }
+  // Ajoutez d'autres paliers si nécessaire
+  
+  // Si le joueur a dépassé le dernier niveau défini, l'XP nécessaire est juste un grand nombre
+  if (currentXP >= 2000) { 
+    level = Math.floor(currentXP / 100) + 1; 
+    xpNeededForNextLevel = 100; 
+  }
+
+  return { level, xpNeededForNextLevel };
+};
+
 
 function AppContent() { 
   // eslint-disable-next-line no-unused-vars
@@ -110,6 +153,15 @@ function AppContent() {
   const [showWeeklyRecapModal, setShowWeeklyRecapModal] = useState(false);
   const [weeklyRecapData, setWeeklyRecapData] = useState(null);
 
+  const [showTaskHistoryModal, setShowTaskHistoryModal] = useState(false); 
+  const [taskHistoryTaskId, setTaskHistoryTaskId] = useState(null); 
+
+  const [showAvatarSelectionModal, setShowAvatarSelectionModal] = useState(false); 
+
+  // États pour la pagination des réalisations
+  const [realizationsPerPage] = useState(10);
+  const [currentRealizationsPage, setCurrentRealizationsPage] = useState(1);
+
   // Ref pour suivre l'état de chargement initial de chaque collection
   const initialLoadStatus = useRef({
     tasks: false,
@@ -131,9 +183,6 @@ function AppContent() {
   }, [currentUser]);
 
   // Fonctions de récupération de données utilisant onSnapshot
-  // Elles ne gèrent plus le `setLoading` global, mais mettent à jour leurs états respectifs.
-  // Elles retournent la fonction de désabonnement.
-
   const setupTasksListener = useCallback(() => {
     const q = query(collection(db, "tasks"));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -172,6 +221,8 @@ function AppContent() {
     const q = query(collection(db, "realizations"));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Tri des réalisations par timestamp décroissant pour la pagination
+      data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       setRealisations(data);
       initialLoadStatus.current.realizations = true;
     }, (error) => {
@@ -181,9 +232,6 @@ function AppContent() {
   }, []);
 
   const setupClassementListener = useCallback(() => {
-    // Écoute les changements dans les utilisateurs et les réalisations pour mettre à jour le classement
-    // Note: un classement en temps réel parfait nécessiterait une Cloud Function pour agréger les points
-    // en temps réel et stocker le classement dans une collection dédiée. Ici, nous recalculons côté client.
     const usersUnsubscribe = onSnapshot(collection(db, "users"), (usersSnapshot) => {
       const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       onSnapshot(collection(db, "realizations"), (realisationsSnapshot) => {
@@ -203,7 +251,10 @@ function AppContent() {
             Points_Total_Semaine_Courante: parseFloat(user.weeklyPoints || 0), 
             Points_Total_Cumulatif: parseFloat(user.totalCumulativePoints || 0),
             Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0), 
-            Date_Mise_A_Jour: user.dateJoined || '' 
+            Date_Mise_A_Jour: user.dateJoined || '',
+            Avatar: user.avatar || '👤', 
+            Level: user.level || 1, 
+            XP: user.xp || 0 
           };
         });
 
@@ -230,7 +281,10 @@ function AppContent() {
               Points_Total_Semaine_Courante: 0,
               Points_Total_Cumulatif: 0,
               Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0),
-              Date_Mise_A_Jour: user.dateJoined || ''
+              Date_Mise_A_Jour: user.dateJoined || '',
+              Avatar: user.avatar || '👤',
+              Level: user.level || 1,
+              XP: user.xp || 0
             };
           }
           participantScores[displayName].Points_Total_Semaine_Courante = tempWeeklyPoints[displayName] || 0;
@@ -250,7 +304,7 @@ function AppContent() {
     }, (error) => {
       toast.error(`Erreur lors de la récupération des utilisateurs pour le classement: ${error.message}`);
     });
-    return usersUnsubscribe; // Retourne la fonction de désabonnement principale
+    return usersUnsubscribe; 
   }, []);
 
 
@@ -313,11 +367,10 @@ function AppContent() {
       if (allLoaded) {
         setLoading(false);
       } else {
-        // Fallback pour le cas où un listener ne se déclenche pas ou prend du temps
         timeoutId = setTimeout(() => {
           setLoading(false);
           console.warn("Certaines données n'ont pas été chargées initialement après un délai.");
-        }, 5000); // 5 secondes de délai max pour le chargement initial
+        }, 5000); 
       }
     };
 
@@ -330,11 +383,9 @@ function AppContent() {
       unsubscribes.push(setupHistoricalPodiumsListener());
       unsubscribes.push(setupReportsListener());
 
-      // Vérifie le chargement initial après un court délai pour laisser le temps aux listeners de se déclencher
       setTimeout(checkInitialLoad, 500); 
 
     } else if (!loadingUser && !currentUser) {
-      // Si déconnecté, réinitialise les états et arrête le chargement
       setTaches([]);
       setAllRawTaches([]);
       setRealisations([]);
@@ -348,12 +399,10 @@ function AppContent() {
     }
 
     return () => {
-      // Désabonnement de tous les listeners lors du démontage du composant ou du changement de currentUser
       unsubscribes.forEach(unsubscribe => unsubscribe());
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      // Réinitialise l'état de chargement initial pour la prochaine fois
       Object.keys(initialLoadStatus.current).forEach(key => initialLoadStatus.current[key] = false);
     };
   }, [
@@ -366,7 +415,6 @@ function AppContent() {
   // Deuxième useEffect: Calcul et affichage du récapitulatif hebdomadaire
   useEffect(() => {
     const handleRecapLogic = async () => {
-      // S'assure que l'utilisateur est connecté et que les données nécessaires sont chargées
       if (currentUser && realisations.length > 0 && historicalPodiums.length > 0) { 
         const today = new Date();
         const currentDayOfWeek = today.getDay(); 
@@ -379,28 +427,23 @@ function AppContent() {
         const userData = userDocSnap.exists() ? userDocSnap.data() : {};
         const lastRecapDisplayed = userData.lastWeeklyRecapDisplayed ? new Date(userData.lastWeeklyRecapDisplayed) : null;
 
-        // Si c'est lundi et que le récap n'a pas été affiché ce lundi
         if (currentDayOfWeek === 1 && (!lastRecapDisplayed || lastRecapDisplayed.toDateString() !== currentMonday.toDateString())) {
           const recap = calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email, realisations, historicalPodiums);
           setWeeklyRecapData(recap);
           setShowWeeklyRecapModal(true);
-          // Mettre à jour la date de dernière affichage dans Firestore
           await updateDoc(userDocRef, {
             lastWeeklyRecapDisplayed: currentMonday.toISOString()
           });
         } else if (lastRecapDisplayed && lastRecapDisplayed.toDateString() === currentMonday.toDateString()) {
-            // Si le récap a déjà été affiché ce lundi (ou si on est après lundi mais le même lundi), on le recalcule pour l'historique
             const recap = calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email, realisations, historicalPodiums);
             setWeeklyRecapData(recap);
         } else {
-            setWeeklyRecapData(null); // Réinitialiser si pas de récap à afficher
+            setWeeklyRecapData(null); 
         }
       } else if (currentUser && (realisations.length === 0 || historicalPodiums.length === 0)) {
-        // Si l'utilisateur est connecté mais que les données ne sont pas encore là, réinitialiser le récap
         setWeeklyRecapData(null);
       }
     };
-    // Déclenche la logique du récap lorsque l'utilisateur, les réalisations ou les podiums changent
     handleRecapLogic();
   }, [
     currentUser,
@@ -411,7 +454,7 @@ function AppContent() {
 
 
   const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
-    setLoading(true); // Cette fonction garde son propre loading car elle est appelée séparément
+    setLoading(true); 
     try {
       const q = query(collection(db, "realizations"), where("nomParticipant", "==", participantName));
       const querySnapshot = await getDocs(q);
@@ -439,7 +482,7 @@ function AppContent() {
   }, [setParticipantWeeklyTasks, setLoading]); 
 
   const fetchSubTasks = useCallback(async (parentTaskId) => {
-    setLoading(true); // Cette fonction garde son propre loading car elle est appelée séparément
+    setLoading(true); 
     try {
       const parentTaskDoc = await getDoc(doc(db, "tasks", parentTaskId));
       if (!parentTaskDoc.exists()) {
@@ -469,7 +512,6 @@ function AppContent() {
     }
   }, [setSubTasks, setLoading]); 
 
-  // Nouvelle fonction pour charger les documents d'une collection donnée
   const fetchGlobalCollectionDocs = useCallback(async (collectionName) => {
     setLoadingGlobalCollectionDocs(true);
     try {
@@ -518,15 +560,19 @@ function AppContent() {
         const userData = userDocSnap.data();
         const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + pointsToSend;
         const newWeeklyPoints = (userData.weeklyPoints || 0) + pointsToSend;
+        const newXP = (userData.xp || 0) + pointsToSend; 
+        const { level: newLevel } = calculateLevelAndXP(newXP);
+
         await updateDoc(userDocRef, {
           totalCumulativePoints: newTotalCumulativePoints,
-          weeklyPoints: newWeeklyPoints
+          weeklyPoints: newWeeklyPoints,
+          xp: newXP, 
+          level: newLevel 
         });
       }
 
-      // Si la tâche est ponctuelle, la supprimer de la collection 'tasks'
       if (String(taskToRecord.Frequence || '').toLowerCase() === 'ponctuel') {
-          await deleteDoc(doc(db, "tasks", taskToRecord.id)); // Utiliser taskToRecord.id qui est l'ID du document Firestore
+          await deleteDoc(doc(db, "tasks", taskToRecord.id)); 
           toast.success(`Tâche ponctuelle "${taskToRecord.Nom_Tache}" enregistrée et supprimée.`);
       } else {
           toast.success(`Tâche "${taskToRecord.Nom_Tache}" enregistrée avec succès.`);
@@ -538,7 +584,6 @@ function AppContent() {
         setShowConfetti(true); 
         setSelectedTask(null); 
       }
-      // Pas besoin de re-fetcher manuellement grâce aux listeners onSnapshot
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`); 
     } finally {
@@ -565,7 +610,7 @@ function AppContent() {
       let totalPointsGained = 0;
       const tasksToDelete = []; 
 
-      const batch = writeBatch(db); // Utilisation d'un batch pour les écritures multiples
+      const batch = writeBatch(db); 
 
       availableSelectedSubTasks.forEach(subTask => {
         const points = parseFloat(subTask.Points) || 0;
@@ -576,7 +621,7 @@ function AppContent() {
           tasksToDelete.push(subTask.id); 
         }
 
-        batch.set(doc(collection(db, "realizations")), { // addDoc est remplacé par set sur un nouveau doc
+        batch.set(doc(collection(db, "realizations")), { 
           taskId: subTask.ID_Tache,
           userId: currentUser.uid,
           nomParticipant: currentUser.displayName || currentUser.email,
@@ -597,12 +642,17 @@ function AppContent() {
         const userData = userDocSnap.data();
         const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + totalPointsGained;
         const newWeeklyPoints = (userData.weeklyPoints || 0) + totalPointsGained;
+        const newXP = (userData.xp || 0) + totalPointsGained; 
+        const { level: newLevel } = calculateLevelAndXP(newXP);
+
         batch.update(userDocRef, {
           totalCumulativePoints: newTotalCumulativePoints,
-          weeklyPoints: newWeeklyPoints
+          weeklyPoints: newWeeklyPoints,
+          xp: newXP, 
+          level: newLevel 
         });
       }
-      await batch.commit(); // Exécute toutes les opérations en une seule fois
+      await batch.commit(); 
 
       const completedTaskNames = availableSelectedSubTasks.map(st => st.Nom_Tache).join(', ');
       const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
@@ -614,7 +664,6 @@ function AppContent() {
       setSelectedTask(null);
       setShowSplitTaskDialog(false); 
       setSelectedSubTasks([]);
-      // Pas besoin de re-fetcher manuellement grâce aux listeners onSnapshot
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
@@ -653,7 +702,6 @@ function AppContent() {
       await batch.commit(); 
 
       toast.success('Points hebdomadaires réinitialisés et podium enregistré.');
-      // Pas besoin de re-fetcher manuellement grâce aux listeners onSnapshot
     } catch (err) {
       toast.error(`Une erreur est survenue lors de la réinitialisation des points hebdomadaires: ${err.message}`);
     } finally {
@@ -678,7 +726,6 @@ function AppContent() {
       });
       await batchDeleteRealisations.commit();
 
-      // Réinitialiser les points de tous les utilisateurs à 0
       const usersQuery = query(collection(db, "users"));
       const usersSnapshot = await getDocs(usersQuery);
       const batchResetUsers = writeBatch(db);
@@ -688,13 +735,14 @@ function AppContent() {
         batchResetUsers.update(userRef, {
           weeklyPoints: 0,
           totalCumulativePoints: 0,
-          previousWeeklyPoints: 0 
+          previousWeeklyPoints: 0, 
+          xp: 0, 
+          level: 1 
         });
       });
       await batchResetUsers.commit();
 
       toast.success('Toutes les réalisations et les points des utilisateurs ont été réinitialisés.');
-      // Pas besoin de re-fetcher manuellement grâce aux listeners onSnapshot
     } catch (err) {
       toast.error(`Une erreur est survenue lors de la réinitialisation des réalisations: ${err.message}`);
     } finally {
@@ -988,10 +1036,14 @@ function AppContent() {
         const reportedUserData = reportedUserSnap.data();
         const newTotalCumulativePoints = Math.max(0, (reportedUserData.totalCumulativePoints || 0) - DEDUCTION_POINTS);
         const newWeeklyPoints = Math.max(0, (reportedUserData.weeklyPoints || 0) - DEDUCTION_POINTS);
+        const newXP = Math.max(0, (reportedUserData.xp || 0) - DEDUCTION_POINTS);
+        const { level: newLevel } = calculateLevelAndXP(newXP);
         
         await updateDoc(reportedUserRef, {
           totalCumulativePoints: newTotalCumulativePoints,
-          weeklyPoints: newWeeklyPoints
+          weeklyPoints: newWeeklyPoints,
+          xp: newXP,
+          level: newLevel
         });
         toast.info(`${reportedTaskDetails.participant} a perdu ${DEDUCTION_POINTS} points.`);
       } else {
@@ -1570,11 +1622,20 @@ function AppContent() {
       );
     }
 
+    // Pagination logic
+    const indexOfLastRealization = currentRealizationsPage * realizationsPerPage;
+    const indexOfFirstRealization = indexOfLastRealization - realizationsPerPage;
+    const currentRealizations = realisations.slice(indexOfFirstRealization, indexOfLastRealization);
+
+    const totalPages = Math.ceil(realisations.length / realizationsPerPage);
+
+    const paginate = (pageNumber) => setCurrentRealizationsPage(pageNumber);
+
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8"> 
         <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Tâches Terminées</h2>
         <div className="space-y-3 text-left"> 
-          {realisations.map((real, index) => (
+          {currentRealizations.map((real, index) => (
             <div key={real.id || real.timestamp + real.nomParticipant + index} 
                  className="bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-lg border border-blue-100"> 
               <div className="flex-1 min-w-0 mb-2 sm:mb-0"> 
@@ -1589,17 +1650,52 @@ function AppContent() {
                       <span>le {new Date(real.timestamp).toLocaleDateString('fr-FR')} à {new Date(real.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span> 
                   </div>
               </div>
-              {currentUser && ( 
+              <div className="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0">
+                {currentUser && ( 
+                  <button
+                    onClick={() => handleReportClick(real)}
+                    className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs flex-shrink-0"
+                  >
+                    Signaler
+                  </button>
+                )}
                 <button
-                  onClick={() => handleReportClick(real)}
-                  className="ml-0 sm:ml-4 mt-2 sm:mt-0 bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs flex-shrink-0"
+                  onClick={() => {
+                    setTaskHistoryTaskId(real.taskId);
+                    setShowTaskHistoryModal(true);
+                  }}
+                  className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs flex-shrink-0"
                 >
-                  Signaler
+                  Historique
                 </button>
-              )}
+              </div>
             </div>
           ))}
         </div>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center gap-2 mt-6">
+            <button
+              onClick={() => paginate(currentRealizationsPage - 1)}
+              disabled={currentRealizationsPage === 1}
+              className="bg-primary hover:bg-secondary text-white font-semibold py-1.5 px-3 rounded-md shadow-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              Précédent
+            </button>
+            <span className="text-text text-sm font-semibold">
+              Page {currentRealizationsPage} sur {totalPages}
+            </span>
+            <button
+              onClick={() => paginate(currentRealizationsPage + 1)}
+              disabled={currentRealizationsPage === totalPages}
+              className="bg-primary hover:bg-secondary text-white font-semibold py-1.5 px-3 rounded-md shadow-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              Suivant
+            </button>
+          </div>
+        )}
+
         <button
           className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg 
                      transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
@@ -1796,17 +1892,45 @@ function AppContent() {
       : 0;
 
     const participantBadges = getParticipantBadges(selectedParticipantProfile);
+    const { level, xpNeededForNextLevel } = calculateLevelAndXP(selectedParticipantProfile.XP || 0);
+    const xpProgress = xpNeededForNextLevel > 0 ? ((selectedParticipantProfile.XP || 0) / xpNeededForNextLevel) * 100 : 0;
+
 
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8"> 
         <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Profil de {selectedParticipantProfile.displayName || selectedParticipantProfile.email}</h2> 
         <div className="mb-6 p-4 bg-neutralBg rounded-xl shadow-inner"> 
+          <div className="flex items-center justify-center mb-4">
+            <span className="text-6xl mr-4">{selectedParticipantProfile.Avatar || '👤'}</span>
+            <div className="text-left">
+              <p className="text-lg sm:text-xl font-semibold text-text">
+                Niveau: <span className="text-primary font-bold">{level}</span>
+              </p>
+              <p className="text-base sm:text-lg text-lightText">
+                XP: <span className="font-bold">{selectedParticipantProfile.XP || 0}</span> / {xpNeededForNextLevel}
+              </p>
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                <div 
+                  className="h-2 rounded-full bg-primary" 
+                  style={{ width: `${Math.min(xpProgress, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
           <p className="text-lg sm:text-xl font-semibold text-text">
             Score d'Engagement Global: <span className="text-primary font-bold">{engagementPercentage}%</span>
           </p>
           <p className="text-base sm:text-lg text-lightText mt-2">
             Points Cumulatifs: <span className="font-bold">{participantCumulativePoints}</span>
           </p>
+          {currentUser && selectedParticipantProfile.id === currentUser.uid && (
+            <button
+              onClick={() => setShowAvatarSelectionModal(true)}
+              className="mt-4 bg-accent hover:bg-yellow-600 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-sm"
+            >
+              Changer mon Avatar
+            </button>
+          )}
           {participantBadges.length > 0 && (
             <div className="mt-4">
               <h4 className="text-lg font-semibold text-primary mb-2">Vos Badges:</h4>
@@ -1969,13 +2093,16 @@ function AppContent() {
   };
 
   const handleExportClassement = useCallback(() => {
-    const headers = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Points_Total_Semaine_Precedente', 'Date_Mise_A_Jour'];
+    const headers = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Points_Total_Semaine_Precedente', 'Date_Mise_A_Jour', 'Avatar', 'Level', 'XP'];
     const dataToExport = classement.map(p => ({
         Nom_Participant: p.Nom_Participant,
         Points_Total_Semaine_Courante: p.Points_Total_Semaine_Courante,
         Points_Total_Cumulatif: p.Points_Total_Cumulatif,
         Points_Total_Semaine_Precedente: p.Points_Total_Semaine_Precedente || 0,
-        Date_Mise_A_Jour: p.Date_Mise_A_Jour || '' 
+        Date_Mise_A_Jour: p.Date_Mise_A_Jour || '',
+        Avatar: p.Avatar || '👤',
+        Level: p.Level || 1,
+        XP: p.XP || 0
     }));
     exportToCsv('classement_clean_app.csv', dataToExport, headers);
     setShowExportSelectionModal(false); 
@@ -2674,6 +2801,37 @@ function AppContent() {
           <WeeklyRecapModal
             recapData={weeklyRecapData}
             onClose={() => setShowWeeklyRecapModal(false)}
+          />
+        )}
+
+        {showTaskHistoryModal && (
+          <TaskHistoryModal
+            taskId={taskHistoryTaskId}
+            allRealisations={realisations}
+            allTasks={allRawTaches}
+            onClose={() => {
+              setShowTaskHistoryModal(false);
+              setTaskHistoryTaskId(null);
+            }}
+          />
+        )}
+
+        {showAvatarSelectionModal && currentUser && (
+          <AvatarSelectionModal
+            currentAvatar={currentUser.avatar || '👤'}
+            onClose={() => setShowAvatarSelectionModal(false)}
+            onSave={async (newAvatar) => {
+              try {
+                await updateDoc(doc(db, "users", currentUser.uid), { avatar: newAvatar });
+                toast.success("Avatar mis à jour !");
+                // Le listener de classement mettra à jour l'avatar dans le contexte utilisateur
+              } catch (error) {
+                toast.error("Erreur lors de la mise à jour de l'avatar.");
+                console.error("Erreur avatar:", error);
+              } finally {
+                setShowAvatarSelectionModal(false);
+              }
+            }}
           />
         )}
 
