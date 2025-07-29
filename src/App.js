@@ -1134,6 +1134,9 @@ function AppContent() {
     const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
     const top3 = sortedClassement.slice(0, 3);
 
+    // Vérifier si au moins un participant a des points > 0 pour afficher le podium
+    const hasPointsInPodium = sortedClassement.some(p => parseFloat(p.Points_Total_Semaine_Courante) > 0);
+
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 mb-6 sm:mb-8 shadow-2xl text-center"> 
         <p className="text-lg sm:text-xl font-semibold text-text mb-4">
@@ -1141,7 +1144,7 @@ function AppContent() {
         </p>
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-secondary mb-6 sm:mb-8 whitespace-nowrap overflow-hidden text-ellipsis">🏆 Podium de la Semaine 🏆</h2> 
         
-        {Array.isArray(classement) && classement.length > 0 ? (
+        {Array.isArray(classement) && classement.length > 0 && hasPointsInPodium ? ( // Condition ajoutée ici
           <>
             <div className="flex justify-center items-end mt-4 sm:mt-6 gap-2 sm:gap-4"> 
               {/* 2ème Place */}

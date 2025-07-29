@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { auth, db } from './firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore'; // 'getDoc' a été retiré car non utilisé
 import { toast } from 'react-toastify';
 
 const AuthModal = ({ onClose }) => {
