@@ -83,7 +83,7 @@ function AppContent() {
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
   const [realisations, setRealisations] = useState([]); 
-  // DÉCLARATION UNIQUE DE 'classement' - C'EST LA SEULE DÉCLARATION DE CETTE VARIABLE.
+  // DÉCLARATION UNIQUE DE 'classement' - LIGNE 49
   const [classement, setClassement] = useState([]); 
   const [historicalPodiums, setHistoricalPodiums] = useState([]); 
   const [objectives, setObjectives] = useState([]); 
