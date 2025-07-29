@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { auth, db } from './firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, query, where } from 'firebase/firestore'; // Ajout de collection, getDocs, query, where
 import { toast } from 'react-toastify';
 
 // Liste des avatars par défaut
