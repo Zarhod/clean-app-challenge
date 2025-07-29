@@ -1288,8 +1288,10 @@ function AppContent() {
       return (
         <div className="space-y-3">
           {tasks.map(tache => {
-            // Simplification de la condition pour éviter 'no-mixed-operators'
-            const shouldHideTask = (!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache));
+            // Correction: Utilisation de parenthèses pour clarifier l'ordre des opérations
+            const isSimpleTaskNotAvailable = !tache.isGroupTask && !isSubTaskAvailable(tache);
+            const isGroupTaskFullyCompleted = tache.isGroupTask && areAllSubtasksCompleted(tache);
+            const shouldHideTask = isSimpleTaskNotAvailable || isGroupTaskFullyCompleted;
 
             if (shouldHideTask) {
               return null; 
@@ -1349,6 +1351,7 @@ function AppContent() {
           ))}
         </div>
 
+        {/* Correction: Utilisation de parenthèses pour clarifier l'ordre des opérations */}
         {ponctuelTasks.filter(tache => !((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache)))).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Ponctuelles</h3> 
@@ -1356,6 +1359,7 @@ function AppContent() {
           </div>
         )}
 
+        {/* Correction: Utilisation de parenthèses pour clarifier l'ordre des opérations */}
         {quotidienTasks.filter(tache => !((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache)))).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Quotidiennes</h3> 
@@ -1363,6 +1367,7 @@ function AppContent() {
           </div>
         )}
 
+        {/* Correction: Utilisation de parenthèses pour clarifier l'ordre des opérations */}
         {hebdomadaireTasks.filter(tache => !((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache)))).length > 0 && ( 
           <div className="mb-6"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Hebdomadaires</h3> 
@@ -1780,7 +1785,7 @@ function AppContent() {
     }
   };
 
-  const handleExportClassement = () => {
+  const handleExportClassement = useCallback(() => {
     const headers = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Points_Total_Semaine_Precedente', 'Date_Mise_A_Jour'];
     const dataToExport = classement.map(p => ({
         Nom_Participant: p.Nom_Participant,
@@ -1791,15 +1796,14 @@ function AppContent() {
     }));
     exportToCsv('classement_clean_app.csv', dataToExport, headers);
     setShowExportSelectionModal(false); 
-  };
+  }, [classement]); // Dépend de 'classement'
 
-  const handleExportRealisations = () => {
+  const handleExportRealisations = useCallback(() => {
     const headers = ['taskId', 'userId', 'nomParticipant', 'nomTacheEffectuee', 'categorieTache', 'pointsGagnes', 'timestamp'];
     exportToCsv('realisations_clean_app.csv', realisations, headers);
     setShowExportSelectionModal(false); 
-  };
+  }, [realisations]); // Dépend de 'realisations'
 
-  // eslint-disable-next-line no-unused-vars
   const renderAdminObjectivesListModal = useCallback(() => {
     if (!showAdminObjectivesListModal) return null;
 
@@ -1864,9 +1868,8 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal]);
+  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal, showAdminObjectivesListModal]); // Ajout de showAdminObjectivesListModal aux dépendances
 
-  // eslint-disable-next-line no-unused-vars
   const renderAdminTasksListModal = useCallback(() => {
     if (!showAdminTasksListModal) return null;
 
@@ -1932,7 +1935,7 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal]);
+  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal, showAdminTasksListModal]);
 
 
   const renderAdminPanel = () => {
@@ -2035,7 +2038,6 @@ function AppContent() {
     );
   };
 
-  // eslint-disable-next-line no-unused-vars
   const renderExportSelectionModal = useCallback(() => {
     if (!showExportSelectionModal) return null;
     return (
@@ -2099,7 +2101,7 @@ function AppContent() {
             className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-6 rounded-full shadow-lg 
                        transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
           >
-            Se connecter / S'inscrire
+            Se connecter / S'inscire
           </button>
         </div>
         {showAuthModal && ( 
@@ -2297,7 +2299,6 @@ function AppContent() {
             editingTask={editingTask}
           />
         )}
-        {/* AuthModal est rendu ici pour les utilisateurs connectés aussi, mais il est caché par défaut sauf si showAuthModal est vrai */}
         {showAuthModal && ( 
           <AuthModal onClose={() => setShowAuthModal(false)} />
         )}
