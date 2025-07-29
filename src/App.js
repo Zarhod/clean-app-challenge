@@ -1289,17 +1289,15 @@ function AppContent() {
     const hebdomadaireTasks = currentCategoryTasks.filter(t => (String(t.Frequence || '')).toLowerCase() === 'hebdomadaire' || !(t.Frequence)); 
 
     const renderTasksList = (tasks) => {
-      if (tasks.length === 0) {
+      // Filter tasks to only show those that are not hidden
+      const visibleTasks = tasks.filter(tache => !isTaskHidden(tache));
+
+      if (visibleTasks.length === 0) {
         return <p className="text-center text-lightText text-md py-2">Aucune tâche disponible dans cette section.</p>;
       }
       return (
         <div className="space-y-3">
-          {tasks.map(tache => {
-            // Utilisation de la fonction d'aide isTaskHidden
-            if (isTaskHidden(tache)) {
-              return null; 
-            }
-
+          {visibleTasks.map(tache => { // Iterate over visibleTasks
             const cardClasses = `bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center sm:items-center justify-between 
                                  cursor-pointer shadow-lg hover:shadow-xl transition duration-200 ease-in-out transform hover:-translate-y-1 border border-blue-100`; 
 
@@ -1354,7 +1352,7 @@ function AppContent() {
           ))}
         </div>
 
-        {/* Utilisation de la fonction d'aide isTaskHidden dans les filtres */}
+        {/* Filtrer les tâches une seule fois et stocker le résultat */}
         {ponctuelTasks.filter(tache => !isTaskHidden(tache)).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Ponctuelles</h3> 
