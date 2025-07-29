@@ -5,7 +5,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getAnalytics } from "firebase/analytics";
 
 // Votre configuration Firebase
 // REMPLACEZ CES VALEURS par celles obtenues à l'étape 1 de la console Firebase
@@ -15,8 +14,7 @@ const firebaseConfig = {
   projectId: "clean-app-challenge", 
   storageBucket: "clean-app-challenge.firebasestorage.app", 
   messagingSenderId: "689290653968", 
-  appId: "1:689290653968:web:c55ebf0cc8efcef35b7595",
-  measurementId: "G-VQKBD9HJCK"
+  appId: "1:689290653968:web:c55ebf0cc8efcef35b7595"
 };
 
 // Initialisez Firebase
