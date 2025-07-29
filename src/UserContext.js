@@ -1,11 +1,11 @@
-/* global __app_id, __initial_auth_token */ // Déclare les variables globales pour ESLint
+/* global __initial_auth_token */ // Déclare __initial_auth_token comme globale pour ESLint
 
 // src/UserContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged, signInWithCustomToken, signInAnonymously } from 'firebase/auth';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore'; // Ajout de setDoc ici
+import { doc, onSnapshot, setDoc } from 'firebase/firestore'; 
 import { auth, db } from './firebase'; 
-import { toast } from 'react-toastify'; // Import de toast
+import { toast } from 'react-toastify'; 
 
 const UserContext = createContext();
 
