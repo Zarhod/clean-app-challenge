@@ -1,30 +1,28 @@
+/* global __app_id, __initial_auth_token */ // Déclare les variables globales pour ESLint
+
 // src/UserContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged, signInWithCustomToken, signInAnonymously } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { auth, db } from './firebase'; // Assurez-vous que auth et db sont exportés de firebase.js
-
-// Définition des variables globales pour Firebase (fournies par l'environnement Canvas)
-// Assurez-vous qu'elles sont définies, sinon utilisez des valeurs par défaut pour le développement local
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+import { doc, onSnapshot, setDoc } from 'firebase/firestore'; // Ajout de setDoc ici
+import { auth, db } from './firebase'; 
+import { toast } from 'react-toastify'; // Import de toast
 
 const UserContext = createContext();
 
 export const UserProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [loadingUser, setLoadingUser] = useState(true); // État de chargement initial de l'utilisateur
+  const [loadingUser, setLoadingUser] = useState(true); 
 
   useEffect(() => {
     let unsubscribeAuth;
-    let unsubscribeUserDoc = () => {}; // Fonction de désabonnement par défaut
+    let unsubscribeUserDoc = () => {}; 
 
     const setupAuthAndUserListener = async () => {
       try {
         // Tenter de se connecter avec le token personnalisé si disponible, sinon de manière anonyme
-        if (initialAuthToken) {
-          await signInWithCustomToken(auth, initialAuthToken);
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
           console.log("Signed in with custom token.");
         } else {
           await signInAnonymously(auth);
@@ -48,7 +46,7 @@ export const UserProvider = ({ children }) => {
               const userData = docSnap.data();
               console.log("User document data received:", userData);
               setCurrentUser({ uid: user.uid, ...userData });
-              setIsAdmin(userData.isAdmin === true); // S'assurer que c'est un booléen
+              setIsAdmin(userData.isAdmin === true); 
             } else {
               console.log("User document does not exist for UID:", user.uid);
               // Si le document n'existe pas, créer un profil de base
@@ -56,7 +54,7 @@ export const UserProvider = ({ children }) => {
                 email: user.email || 'anonymous',
                 displayName: user.displayName || `Invité-${user.uid.substring(0, 6)}`,
                 dateJoined: new Date().toISOString(),
-                isAdmin: false,
+                isAdmin: false, 
                 totalCumulativePoints: 0,
                 weeklyPoints: 0,
                 previousWeeklyPoints: 0,
@@ -83,19 +81,18 @@ export const UserProvider = ({ children }) => {
           setCurrentUser(null);
           setIsAdmin(false);
           setLoadingUser(false);
-          unsubscribeUserDoc(); // Arrêter l'écoute du document utilisateur précédent
+          unsubscribeUserDoc(); 
         }
       });
     };
 
     setupAuthAndUserListener();
 
-    // Fonction de nettoyage
     return () => {
       if (unsubscribeAuth) unsubscribeAuth();
       unsubscribeUserDoc();
     };
-  }, []); // Dépendances vides pour n'exécuter qu'une seule fois au montage
+  }, []); 
 
   return (
     <UserContext.Provider value={{ currentUser, isAdmin, loadingUser }}>
