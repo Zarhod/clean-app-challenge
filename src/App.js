@@ -1,3 +1,5 @@
+/* global __app_id */ // <-- AJOUTÉ : Déclare __app_id comme une variable globale pour ESLint
+
 // src/App.js
 // Version mise à jour pour utiliser Firebase Authentication et Firestore avec des écouteurs en temps réel.
 
