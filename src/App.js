@@ -839,7 +839,8 @@ function AppContent() {
   };
 
 
-  const handleParticipantClick = async (participant) => {
+  const handleParticipantClick = useCallback(async (participant) => {
+    // Chercher l'utilisateur par son displayName
     const usersQuery = query(collection(db, "users"), where("displayName", "==", participant.Nom_Participant));
     const usersSnapshot = await getDocs(usersQuery);
     if (!usersSnapshot.empty) {
@@ -850,7 +851,7 @@ function AppContent() {
     } else {
       toast.error("Profil utilisateur introuvable.");
     }
-  };
+  }, [fetchParticipantWeeklyTasks]);
 
   const isSubTaskAvailable = useCallback((subTask) => {
     const frequence = subTask.Frequence ? String(subTask.Frequence).toLowerCase() : 'hebdomadaire';
@@ -2022,7 +2023,7 @@ function AppContent() {
               participant={participant}
               rank={index + 1}
               type="weekly" 
-              onParticipantClick={handleParticipantClick}
+              onParticipantClick={handleParticipantClick} // Assurez-vous que cette prop est bien gérée dans RankingCard
               getParticipantBadges={getParticipantBadges}
             />
           ))}
@@ -2153,26 +2154,26 @@ function AppContent() {
           )}
           <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1> 
           {/* Nouveau bloc pour le profil utilisateur et le bouton admin */}
-          <div className="absolute top-4 right-4 z-10 flex items-center space-x-2">
+          <div className="absolute top-4 right-4 z-10 flex flex-col sm:flex-row items-end sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
             {currentUser && (
               <>
                 <button
                   onClick={() => handleParticipantClick({ Nom_Participant: currentUser.displayName || currentUser.email })}
-                  className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
+                  className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap"
                 >
                   Bonjour, {currentUser.displayName || currentUser.email}
                 </button>
                 {isAdmin && (
                   <button
                     onClick={() => setActiveMainView('adminPanel')}
-                    className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
+                    className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap"
                   >
                     Console Admin
                   </button>
                 )}
                 <button
                   onClick={handleAuthAction}
-                  className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
+                  className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap"
                 >
                   Déconnexion
                 </button>
