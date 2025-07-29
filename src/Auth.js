@@ -2,9 +2,9 @@
 import React, { useState } from 'react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import { auth, db } from './firebase'; // Assurez-vous que 'db' est exporté de firebase.js
+import { auth, db } from './firebase'; 
 import { toast } from 'react-toastify';
-import ListAndInfoModal from './ListAndInfoModal'; // Assurez-vous que ce chemin est correct
+import ListAndInfoModal from './ListAndInfoModal'; 
 
 const avatars = ['😀', '😂', '😎', '🤩', '🥳', '🤓', '🤖', '👻', '👽', '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦉', '🦋', '🐢', '🐍', '🐉', '🐳', '🐬', '🐠', '🐙', '🦀', '🦞', '🦐', '🦑', '🐡', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🦒', '🦘', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🐐', '🦌', '🐕', '🐩', '🐈', '🐓', '🦃', '🕊️', '🦅', '🦆', '🦢', '🦩', '🦜', '🐦', '🐧', '🦉', '🦚', '🦃', '🐓', '🐔', '🐣', '🐤', '🐥', '👶', '👦', '👧', '🧑', '👨', '👩', '👴', '👵', '🧓', '👨‍⚕️', '👩‍⚕️', '👨‍🎓', '👩‍🎓', '👨‍🏫', '👩‍🏫', '👨‍⚖️', '👩‍⚖️', '👨‍🌾', '👩‍🌾', '👨‍🍳', '👩‍🍳', '👨‍🔧', '👩‍🔧', '👨‍🏭', '👩‍🏭', '👨‍💼', '👩‍💼', '👨‍🔬', '👩‍🔬', '👨‍💻', '👩‍💻', '👨‍🎤', '👩‍🎤', '👨‍🎨', '👩‍🎨', '👨‍✈️', '👩‍✈️', '👨‍🚀', '👩‍🚀', '👨‍🚒', '👩‍🚒', '👮', '🕵️', '💂', '👷', '🤴', '👸', '👳', '👲', '🧕', '🤵', '👰', '🤰', '🤱', '👼', '🎅', '🤶', '🦸', '🦹', '🧙', '🧚', '🧛', '🧜', '🧝', '🧟', '🧞', '👨‍🦯', '👩‍🦯', '👨‍🦼', '👩‍🦼', '👨‍🦽', '👩‍🦽', '🗣️', '👤', '👥', '🫂'];
 
@@ -14,7 +14,7 @@ const AuthModal = ({ onClose }) => {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [selectedAvatar, setSelectedAvatar] = useState('👤'); // Avatar par défaut
+  const [selectedAvatar, setSelectedAvatar] = useState('👤'); 
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -27,21 +27,19 @@ const AuthModal = ({ onClose }) => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // Mettre à jour le profil de l'utilisateur avec le displayName
         await updateProfile(user, { displayName: displayName });
 
-        // Créer un document utilisateur dans Firestore
         await setDoc(doc(db, "users", user.uid), {
           email: user.email,
           displayName: displayName,
           dateJoined: new Date().toISOString(),
-          isAdmin: false, // Par défaut, non admin
+          isAdmin: false, 
           totalCumulativePoints: 0,
           weeklyPoints: 0,
           previousWeeklyPoints: 0,
           xp: 0,
           level: 1,
-          avatar: selectedAvatar // Enregistrer l'avatar choisi
+          avatar: selectedAvatar 
         });
         toast.success('Compte créé et connecté !');
       }

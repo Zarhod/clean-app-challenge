@@ -1,42 +1,29 @@
+// src/ConfirmActionModal.js
 import React from 'react';
+import ListAndInfoModal from './ListAndInfoModal'; // Assurez-vous que ce chemin est correct
 
-function ConfirmActionModal({ 
-  title, 
-  message, 
-  confirmText, 
-  cancelText, 
-  onConfirm, 
-  onCancel, 
-  loading,
-  confirmButtonClass = "bg-error hover:bg-red-700", 
-  cancelButtonClass = "bg-gray-500 hover:bg-gray-600"
-}) {
+const ConfirmActionModal = ({ title, message, confirmText, confirmButtonClass, cancelText, onConfirm, onCancel, loading }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4"> 
-      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto"> 
-        <h3 className="text-xl sm:text-2xl font-bold text-secondary mb-4">{title}</h3> 
-        <p className="text-base sm:text-lg text-text mb-4">{message}</p> 
-        <div className="flex flex-col gap-3 mt-4"> 
-          <button
-            onClick={onConfirm}
-            disabled={loading}
-            className={`${confirmButtonClass} text-white font-semibold py-2 px-4 rounded-full shadow-lg 
-                       transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm`} 
-          >
-            {loading ? 'Envoi...' : confirmText}
-          </button>
-          <button
-            onClick={onCancel}
-            disabled={loading}
-            className={`${cancelButtonClass} text-white font-semibold py-2 px-4 rounded-full shadow-lg 
-                       transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm`} 
-          >
-            {cancelText}
-          </button>
-        </div>
+    <ListAndInfoModal title={title} onClose={onCancel} sizeClass="max-w-xs sm:max-w-md">
+      <p className="text-center text-text text-lg mb-6">{message}</p>
+      <div className="flex flex-col items-center gap-3 sm:gap-4 mt-4 sm:flex-row sm:justify-end"> {/* Centré sur mobile, aligné à droite sur desktop */}
+        <button
+          onClick={onCancel}
+          disabled={loading}
+          className="w-full sm:w-auto bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50"
+        >
+          {cancelText}
+        </button>
+        <button
+          onClick={onConfirm}
+          disabled={loading}
+          className={`w-full sm:w-auto font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50 ${confirmButtonClass}`}
+        >
+          {loading ? 'Chargement...' : confirmText}
+        </button>
       </div>
-    </div>
+    </ListAndInfoModal>
   );
-}
+};
 
 export default ConfirmActionModal;

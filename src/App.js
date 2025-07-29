@@ -1,5 +1,7 @@
 // src/App.js
 // Version mise à jour pour utiliser Firebase Authentication et Firestore avec des écouteurs en temps réel.
+// Tous les chemins Firestore sont maintenant à la racine de la base de données.
+// Les boutons des modales sont centrés sur mobile.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -17,16 +19,16 @@ import AuthModal from './Auth';
 import AdminUserManagementModal from './AdminUserManagementModal'; 
 import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; 
 import WeeklyRecapModal from './WeeklyRecapModal'; 
-import TaskHistoryModal from './TaskHistoryModal'; // Nouveau: Historique des tâches
-import AvatarSelectionModal from './AvatarSelectionModal'; // Nouveau: Sélection d'avatar
-import PasswordChangeModal from './PasswordChangeModal'; // Nouveau: Changement de mot de passe
+import TaskHistoryModal from './TaskHistoryModal'; 
+import AvatarSelectionModal from './AvatarSelectionModal'; 
+import PasswordChangeModal from './PasswordChangeModal'; 
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
 // Importations Firebase
-import { db, auth, app } from './firebase'; // Importez aussi 'app' pour obtenir le projectId
+import { db, auth, app } from './firebase'; 
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, writeBatch, onSnapshot } from 'firebase/firestore'; 
 import { signOut } from 'firebase/auth';
 
@@ -38,35 +40,24 @@ const LOGO_FILENAME = 'logo.png';
 // Fonctions utilitaires pour la gamification (déplacées en dehors du du composant pour éviter les re-déclarations)
 const calculateLevelAndXP = (currentXP) => {
   let level = 1;
-  let xpNeededForNextLevel = 100; // XP pour le niveau 2
-  
-  // Exemple de courbe d'XP (peut être ajustée)
-  // Niveau 1: 0-99 XP
-  // Niveau 2: 100-249 XP
-  // Niveau 3: 250-499 XP
-  // Niveau 4: 500-999 XP
-  // Niveau 5: 1000-1999 XP
-  // ...
+  let xpNeededForNextLevel = 100; 
   
   if (currentXP >= 100) {
     level = 2;
-    xpNeededForNextLevel = 150; // Pour passer au niveau 3 (100 + 150 = 250)
+    xpNeededForNextLevel = 150; 
   }
   if (currentXP >= 250) {
     level = 3;
-    xpNeededForNextLevel = 250; // Pour passer au niveau 4 (250 + 250 = 500)
+    xpNeededForNextLevel = 250; 
   }
   if (currentXP >= 500) {
     level = 4;
-    xpNeededForNextLevel = 500; // Pour passer au niveau 5 (500 + 500 = 1000)
+    xpNeededForNextLevel = 500; 
   }
   if (currentXP >= 1000) {
     level = 5;
-    xpNeededForNextLevel = 1000; // Pour passer au niveau 6 (1000 + 1000 = 2000)
+    xpNeededForNextLevel = 1000; 
   }
-  // Ajoutez d'autres paliers si nécessaire
-  
-  // Si le joueur a dépassé le dernier niveau défini, l'XP nécessaire est juste un grand nombre
   if (currentXP >= 2000) { 
     level = Math.floor(currentXP / 100) + 1; 
     xpNeededForNextLevel = 100; 
@@ -77,9 +68,9 @@ const calculateLevelAndXP = (currentXP) => {
 
 
 function AppContent() { 
-  // Définition de l'ID de l'application pour les chemins Firestore
-  // Utilise le projectId de l'instance Firebase app, qui est la source la plus fiable.
-  const appId = app.options.projectId || 'default-app-id';
+  // L'ID de l'application n'est plus utilisé pour construire les chemins de collection à la racine.
+  // Il est toujours disponible via `app.options.projectId` si nécessaire pour d'autres usages.
+  const appId = app.options.projectId || 'default-app-id'; // Gardé pour compatibilité si d'autres modules l'utilisent
 
   // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
@@ -162,7 +153,7 @@ function AppContent() {
   const [taskHistoryTaskId, setTaskHistoryTaskId] = useState(null); 
 
   const [showAvatarSelectionModal, setShowAvatarSelectionModal] = useState(false); 
-  const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false); // Nouveau: état pour la modale de mot de passe
+  const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false); 
 
   // États pour la pagination des réalisations
   const [realizationsPerPage] = useState(10);
@@ -191,22 +182,20 @@ function AppContent() {
   // Fonction pour calculer le récapitulatif de la semaine précédente
   const calculateWeeklyRecap = useCallback((userId, displayName, allRealisations, allHistoricalPodiums) => {
     const today = new Date();
-    const currentDayOfWeek = today.getDay(); // 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
+    const currentDayOfWeek = today.getDay(); 
 
-    // Calculer le début et la fin de la semaine précédente (du lundi au dimanche)
     const startOfLastWeek = new Date(today);
-    startOfLastWeek.setDate(today.getDate() - (currentDayOfWeek === 0 ? 7 : currentDayOfWeek) - 6); // Aller au lundi de la semaine d'avant
+    startOfLastWeek.setDate(today.getDate() - (currentDayOfWeek === 0 ? 7 : currentDayOfWeek) - 6); 
     startOfLastWeek.setHours(0, 0, 0, 0);
 
     const endOfLastWeek = new Date(startOfLastWeek);
-    endOfLastWeek.setDate(startOfLastWeek.getDate() + 6); // Aller au dimanche de la semaine d'avant
+    endOfLastWeek.setDate(startOfLastWeek.getDate() + 6); 
     endOfLastWeek.setHours(23, 59, 59, 999);
 
     let pointsGained = 0;
     const tasksCompleted = [];
     let isWinner = false;
 
-    // Utiliser les réalisations passées en argument
     const userRealisations = allRealisations.filter(real => String(real.userId) === String(userId));
 
     userRealisations.forEach(real => {
@@ -217,15 +206,12 @@ function AppContent() {
       }
     });
 
-    // Utiliser les podiums historiques passés en argument
     const lastWeekPodiums = allHistoricalPodiums.filter(podium => {
       const podiumDate = new Date(podium.Date_Podium);
-      // Vérifier si la date du podium tombe dans la semaine précédente (du lundi au dimanche)
       return podiumDate >= startOfLastWeek && podiumDate <= endOfLastWeek;
     });
 
     if (lastWeekPodiums.length > 0) {
-      // Trier les podiums par date pour s'assurer d'obtenir le bon vainqueur de la semaine précédente
       const sortedPodiums = [...lastWeekPodiums].sort((a, b) => new Date(b.Date_Podium) - new Date(a.Date_Podium));
       const topEntry = sortedPodiums[0].top3[0]; 
       if (topEntry && String(topEntry.name).trim() === String(displayName).trim()) {
@@ -241,12 +227,12 @@ function AppContent() {
       startDate: startOfLastWeek.toLocaleDateString('fr-FR'),
       endDate: endOfLastWeek.toLocaleDateString('fr-FR')
     };
-  }, []); // Dépendances vides pour calculateWeeklyRecap, car elle utilise les arguments
+  }, []); 
 
 
-  // Fonctions de récupération de données utilisant onSnapshot
+  // Fonctions de récupération de données utilisant onSnapshot (CHEMINS MIS À JOUR)
   const setupTasksListener = useCallback(() => {
-    const tasksCollectionPath = `artifacts/${appId}/public/data/tasks`;
+    const tasksCollectionPath = 'tasks'; // Chemin à la racine
     console.log(`[setupTasksListener] Chemin de la collection de tâches: ${tasksCollectionPath}`);
 
     const q = query(collection(db, tasksCollectionPath));
@@ -284,39 +270,31 @@ function AppContent() {
           // Pour les tâches simples, utiliser leurs propres points
           return { ...tache, Calculated_Points: parseFloat(tache.Points) || 0, isGroupTask: false };
         })
-        .filter(tache => tache !== null); // Supprime les tâches nulles si elles ont été créées
+        .filter(tache => tache !== null); 
 
-      // === DÉBOGAGE : COMMENTEZ OU SUPPRIMEZ LA LIGNE 'filter' SUIVANTE TEMPORAIREMENT ===
-      // La ligne ci-dessous filtre les tâches qui sont des "sous-tâches" (ont un Parent_Task_ID non vide).
-      // Si vos tâches principales ne s'affichent pas, il est possible que leur champ Parent_Task_ID ne soit pas vide ou null.
-      // En commentant cette ligne, toutes les tâches (y compris les sous-tâches) seront affichées.
-      // const finalFilteredTaches = processedAndFilteredTaches.filter(tache => {
-      //   const isTopLevel = tache.Parent_Task_ID === null || tache.Parent_Task_ID === undefined || String(tache.Parent_Task_ID).trim() === '';
-      //   if (!isTopLevel) {
-      //     console.log(`[setupTasksListener] Tâche filtrée (sous-tâche): ${tache.Nom_Tache} (Parent_Task_ID: '${tache.Parent_Task_ID}')`);
-      //   }
-      //   return isTopLevel;
-      // });
-      // === FIN DÉBOGAGE ===
-
-      // Pour le débogage, assignez directement processedAndFilteredTaches à finalFilteredTaches
-      const finalFilteredTaches = processedAndFilteredTaches; // TEMPORAIRE POUR DÉBOGAGE
+      // Filtrer pour n'afficher que les tâches de "premier niveau" sur l'écran principal
+      const finalFilteredTaches = processedAndFilteredTaches.filter(tache => {
+        const isTopLevel = tache.Parent_Task_ID === null || tache.Parent_Task_ID === undefined || String(tache.Parent_Task_ID).trim() === '';
+        if (!isTopLevel) {
+          console.log(`[setupTasksListener] Tâche filtrée (sous-tâche): ${tache.Nom_Tache} (Parent_Task_ID: '${tache.Parent_Task_ID}')`);
+        }
+        return isTopLevel;
+      });
 
       setTaches(finalFilteredTaches);
-      console.log("[setupTasksListener] Tâches affichées (filtrage Parent_Task_ID désactivé pour débogage):", finalFilteredTaches);
+      console.log("[setupTasksListener] Tâches affichées (filtrage Parent_Task_ID activé):", finalFilteredTaches);
       initialLoadStatus.current.tasks = true;
     }, (error) => {
       toast.error(`Erreur lors de la récupération des tâches: ${error.message}`); 
-      console.error("[setupTasksListener] Erreur Firestore:", error); // Ajout d'un log d'erreur plus détaillé
+      console.error("[setupTasksListener] Erreur Firestore:", error);
     });
     return unsubscribe;
-  }, [appId]);
+  }, []); // appId retiré des dépendances car les chemins sont à la racine
 
   const setupRealisationsListener = useCallback(() => {
-    const q = query(collection(db, `artifacts/${appId}/public/data/realizations`));
+    const q = query(collection(db, 'realizations')); // Chemin à la racine
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // Tri des réalisations par timestamp décroissant pour la pagination
       data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       setRealisations(data);
       initialLoadStatus.current.realizations = true;
@@ -324,12 +302,12 @@ function AppContent() {
       toast.error(`Erreur lors de la récupération des réalisations: ${error.message}`);
     });
     return unsubscribe;
-  }, [appId]);
+  }, []);
 
   const setupClassementListener = useCallback(() => {
     const usersUnsubscribe = onSnapshot(collection(db, "users"), (usersSnapshot) => {
       const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      onSnapshot(collection(db, `artifacts/${appId}/public/data/realizations`), (realisationsSnapshot) => {
+      onSnapshot(collection(db, 'realizations'), (realisationsSnapshot) => { // Chemin à la racine
         const realisationsData = realisationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
         const today = new Date();
@@ -347,9 +325,9 @@ function AppContent() {
             Points_Total_Cumulatif: parseFloat(user.totalCumulativePoints || 0),
             Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0), 
             Date_Mise_A_Jour: user.dateJoined || '',
-            Avatar: user.avatar || '👤', // Ajout de l'avatar au classement
-            Level: user.level || 1, // Ajout du niveau
-            XP: user.xp || 0 // Ajout de l'XP
+            Avatar: user.avatar || '👤', 
+            Level: user.level || 1, 
+            XP: user.xp || 0 
           };
         });
 
@@ -400,11 +378,10 @@ function AppContent() {
       toast.error(`Erreur lors de la récupération des utilisateurs pour le classement: ${error.message}`);
     });
     return usersUnsubscribe; 
-  }, [appId]);
-
+  }, []); // appId retiré des dépendances
 
   const setupObjectivesListener = useCallback(() => {
-    const q = query(collection(db, `artifacts/${appId}/public/data/objectives`));
+    const q = query(collection(db, 'objectives')); // Chemin à la racine
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setObjectives(data);
@@ -413,23 +390,23 @@ function AppContent() {
       toast.error(`Erreur lors de la récupération des objectifs: ${error.message}`);
     });
     return unsubscribe;
-  }, [appId]);
+  }, []);
 
   const setupCongratulatoryMessagesListener = useCallback(() => {
-    const q = query(collection(db, `artifacts/${appId}/public/data/congratulatory_messages`));
+    const q = query(collection(db, 'congratulatory_messages')); // Chemin à la racine
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setCongratulatoryMessages(data);
       initialLoadStatus.current.congratulatoryMessages = true;
     }, (error) => {
-      setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); // Fallback
+      setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); 
       toast.error(`Erreur lors de la récupération des messages de félicitation: ${error.message}`);
     });
     return unsubscribe;
-  }, [appId]);
+  }, []);
 
   const setupHistoricalPodiumsListener = useCallback(() => {
-    const q = query(collection(db, `artifacts/${appId}/public/data/historical_podiums`));
+    const q = query(collection(db, 'historical_podiums')); // Chemin à la racine
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setHistoricalPodiums(data);
@@ -438,10 +415,10 @@ function AppContent() {
       toast.error(`Erreur lors de la récupération des podiums historiques: ${error.message}`);
     });
     return unsubscribe;
-  }, [appId]);
+  }, []);
 
   const setupReportsListener = useCallback(() => {
-    const q = query(collection(db, `artifacts/${appId}/public/data/reports`));
+    const q = query(collection(db, 'reports')); // Chemin à la racine
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setReports(data);
@@ -450,12 +427,12 @@ function AppContent() {
       toast.error(`Erreur lors de la récupération des rapports: ${error.message}`);
     });
     return unsubscribe;
-  }, [appId]);
+  }, []);
 
   // Effet principal pour gérer les écouteurs en temps réel et l'état de chargement global
   useEffect(() => {
     const unsubscribes = [];
-    const currentInitialLoadStatusRef = initialLoadStatus.current; // Capture la valeur actuelle du ref pour le cleanup
+    const currentInitialLoadStatusRef = initialLoadStatus.current; 
     let timeoutId;
 
     const checkInitialLoad = () => {
@@ -499,11 +476,10 @@ function AppContent() {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      // Utilise la valeur capturée du ref dans le cleanup
       Object.keys(currentInitialLoadStatusRef).forEach(key => currentInitialLoadStatusRef[key] = false);
     };
   }, [
-    currentUser, loadingUser, appId,
+    currentUser, loadingUser, 
     setupTasksListener, setupRealisationsListener, setupClassementListener,
     setupObjectivesListener, setupCongratulatoryMessagesListener, setupHistoricalPodiumsListener,
     setupReportsListener
@@ -546,14 +522,14 @@ function AppContent() {
     currentUser,
     realisations, 
     historicalPodiums, 
-    calculateWeeklyRecap // calculateWeeklyRecap est maintenant stable et déclarée avant
+    calculateWeeklyRecap 
   ]);
 
 
   const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
     setLoading(true); 
     try {
-      const q = query(collection(db, `artifacts/${appId}/public/data/realizations`), where("nomParticipant", "==", participantName));
+      const q = query(collection(db, 'realizations'), where("nomParticipant", "==", participantName)); // Chemin à la racine
       const querySnapshot = await getDocs(q);
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -576,12 +552,12 @@ function AppContent() {
     } finally {
       setLoading(false);
     }
-  }, [setParticipantWeeklyTasks, setLoading, appId]); 
+  }, [setParticipantWeeklyTasks, setLoading]); 
 
   const fetchSubTasks = useCallback(async (parentTaskId) => {
     setLoading(true); 
     try {
-      const parentTaskDoc = await getDoc(doc(db, `artifacts/${appId}/public/data/tasks`, parentTaskId));
+      const parentTaskDoc = await getDoc(doc(db, 'tasks', parentTaskId)); // Chemin à la racine
       if (!parentTaskDoc.exists()) {
         throw new Error("Tâche parente introuvable.");
       }
@@ -594,7 +570,7 @@ function AppContent() {
 
       const subTaskIds = String(parentTaskData.Sous_Taches_IDs).split(',').map(id => id.trim());
       
-      const subTasksPromises = subTaskIds.map(id => getDoc(doc(db, `artifacts/${appId}/public/data/tasks`, id)));
+      const subTasksPromises = subTaskIds.map(id => getDoc(doc(db, 'tasks', id))); // Chemin à la racine
       const subTaskDocs = await Promise.all(subTasksPromises);
       const sousTaches = subTaskDocs
         .filter(docSnap => docSnap.exists())
@@ -607,17 +583,13 @@ function AppContent() {
     } finally {
       setLoading(false);
     }
-  }, [setSubTasks, setLoading, appId]); 
+  }, [setSubTasks, setLoading]); 
 
   const fetchGlobalCollectionDocs = useCallback(async (collectionName) => {
     setLoadingGlobalCollectionDocs(true);
     try {
-      // Pour les collections sous artifacts/{appId}/public/data/
-      let collectionPath = `artifacts/${appId}/public/data/${collectionName}`;
-      // Exception pour la collection 'users' qui est à la racine
-      if (collectionName === 'users') {
-        collectionPath = 'users';
-      }
+      // Toutes les collections sont maintenant à la racine
+      const collectionPath = collectionName; 
       const q = query(collection(db, collectionPath));
       const querySnapshot = await getDocs(q);
       const docs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -628,7 +600,7 @@ function AppContent() {
     } finally {
       setLoadingGlobalCollectionDocs(false);
     }
-  }, [appId]);
+  }, []); // appId retiré des dépendances
 
   const recordTask = async (idTacheToRecord, isSubTask = false) => {
     if (!currentUser) {
@@ -647,7 +619,7 @@ function AppContent() {
       const pointsToSend = parseFloat(taskToRecord.Points) || 0;
       const categoryToSend = taskToRecord.Categorie || 'Non catégorisée';
 
-      await addDoc(collection(db, `artifacts/${appId}/public/data/realizations`), {
+      await addDoc(collection(db, 'realizations'), { // Chemin à la racine
         taskId: idTacheToRecord,
         userId: currentUser.uid,
         nomParticipant: currentUser.displayName || currentUser.email, 
@@ -663,20 +635,19 @@ function AppContent() {
         const userData = userDocSnap.data();
         const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + pointsToSend;
         const newWeeklyPoints = (userData.weeklyPoints || 0) + pointsToSend;
-        const newXP = (userData.xp || 0) + pointsToSend; // Mise à jour de l'XP
-        const { level: newLevel } = calculateLevelAndXP(newXP); // Calcul du nouveau niveau
+        const newXP = (userData.xp || 0) + pointsToSend; 
+        const { level: newLevel } = calculateLevelAndXP(newXP); 
 
         await updateDoc(userDocRef, {
           totalCumulativePoints: newTotalCumulativePoints,
           weeklyPoints: newWeeklyPoints,
-          xp: newXP, // Sauvegarde de l'XP
-          level: newLevel // Sauvegarde du niveau
+          xp: newXP, 
+          level: newLevel 
         });
       }
 
       if (String(taskToRecord.Frequence || '').toLowerCase() === 'ponctuel') {
-          // Utiliser le chemin complet pour la suppression de la tâche
-          await deleteDoc(doc(db, `artifacts/${appId}/public/data/tasks`, taskToRecord.id)); 
+          await deleteDoc(doc(db, 'tasks', taskToRecord.id)); // Chemin à la racine
           toast.success(`Tâche ponctuelle "${taskToRecord.Nom_Tache}" enregistrée et supprimée.`);
       } else {
           toast.success(`Tâche "${taskToRecord.Nom_Tache}" enregistrée avec succès.`);
@@ -725,7 +696,7 @@ function AppContent() {
           tasksToDelete.push(subTask.id); 
         }
 
-        batch.set(doc(collection(db, `artifacts/${appId}/public/data/realizations`)), { 
+        batch.set(doc(collection(db, 'realizations')), { // Chemin à la racine
           taskId: subTask.ID_Tache,
           userId: currentUser.uid,
           nomParticipant: currentUser.displayName || currentUser.email,
@@ -737,8 +708,7 @@ function AppContent() {
       });
       
       tasksToDelete.forEach(taskId => {
-        // Utiliser le chemin complet pour la suppression de la tâche
-        batch.delete(doc(db, `artifacts/${appId}/public/data/tasks`, taskId));
+        batch.delete(doc(db, 'tasks', taskId)); // Chemin à la racine
       });
 
       const userDocRef = doc(db, "users", currentUser.uid);
@@ -747,14 +717,14 @@ function AppContent() {
         const userData = userDocSnap.data();
         const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + totalPointsGained;
         const newWeeklyPoints = (userData.weeklyPoints || 0) + totalPointsGained;
-        const newXP = (userData.xp || 0) + totalPointsGained; // Mise à jour de l'XP
-        const { level: newLevel } = calculateLevelAndXP(newXP); // Calcul du nouveau niveau
+        const newXP = (userData.xp || 0) + totalPointsGained; 
+        const { level: newLevel } = calculateLevelAndXP(newXP); 
 
         batch.update(userDocRef, {
           totalCumulativePoints: newTotalCumulativePoints,
           weeklyPoints: newWeeklyPoints,
-          xp: newXP, // Sauvegarde de l'XP
-          level: newLevel // Sauvegarde du niveau
+          xp: newXP, 
+          level: newLevel 
         });
       }
       await batch.commit(); 
@@ -787,7 +757,7 @@ function AppContent() {
       const top3 = sortedClassement.slice(0, 3);
       const datePodium = new Date().toISOString().split('T')[0]; 
 
-      await addDoc(collection(db, `artifacts/${appId}/public/data/historical_podiums`), {
+      await addDoc(collection(db, 'historical_podiums'), { // Chemin à la racine
         Date_Podium: datePodium,
         top3: top3.map(p => ({ name: p.Nom_Participant, points: p.Points_Total_Semaine_Courante }))
       });
@@ -822,12 +792,12 @@ function AppContent() {
     }
     setLoading(true);
     try {
-      const realisationsQuery = query(collection(db, `artifacts/${appId}/public/data/realizations`));
+      const realisationsQuery = query(collection(db, 'realizations')); // Chemin à la racine
       const realisationsSnapshot = await getDocs(realisationsQuery);
       const batchDeleteRealisations = writeBatch(db);
 
       realisationsSnapshot.docs.forEach(realDoc => {
-        batchDeleteRealisations.delete(doc(db, `artifacts/${appId}/public/data/realizations`, realDoc.id));
+        batchDeleteRealisations.delete(doc(db, 'realizations', realDoc.id)); // Chemin à la racine
       });
       await batchDeleteRealisations.commit();
 
@@ -841,8 +811,8 @@ function AppContent() {
           weeklyPoints: 0,
           totalCumulativePoints: 0,
           previousWeeklyPoints: 0, 
-          xp: 0, // Réinitialisation de l'XP
-          level: 1 // Réinitialisation du niveau
+          xp: 0, 
+          level: 1 
         });
       });
       await batchResetUsers.commit();
@@ -892,7 +862,6 @@ function AppContent() {
       toast.error('Le nom de la tâche est requis.');
       return;
     }
-    // Validation spécifique pour les points
     if (newTaskData.Points === '' || isNaN(parseFloat(newTaskData.Points))) {
       toast.error('Les points doivent être un nombre valide.');
       return;
@@ -908,20 +877,18 @@ function AppContent() {
 
     setLoading(true);
     try {
-      // Convertir les points en nombre avant de les envoyer à Firestore
       const pointsToSave = parseFloat(newTaskData.Points);
 
       if (editingTask) {
-        await updateDoc(doc(db, `artifacts/${appId}/public/data/tasks`, editingTask.id), {
+        await updateDoc(doc(db, 'tasks', editingTask.id), { // Chemin à la racine
           ...newTaskData,
-          Points: pointsToSave // Assurez-vous que c'est un nombre
+          Points: pointsToSave 
         });
         toast.success('Tâche mise à jour avec succès.');
       } else {
-        // Utiliser setDoc avec l'ID de la tâche comme ID de document Firestore
-        await setDoc(doc(db, `artifacts/${appId}/public/data/tasks`, newTaskData.ID_Tache), { 
+        await setDoc(doc(db, 'tasks', newTaskData.ID_Tache), { // Chemin à la racine
           ...newTaskData,
-          Points: pointsToSave // Assurez-vous que c'est un nombre
+          Points: pointsToSave 
         });
         toast.success('Tâche ajoutée avec succès.');
       }
@@ -952,8 +919,7 @@ function AppContent() {
 
     setLoading(true);
     try {
-      // Utiliser le chemin complet pour la suppression de la tâche
-      await deleteDoc(doc(db, `artifacts/${appId}/public/data/tasks`, taskId));
+      await deleteDoc(doc(db, 'tasks', taskId)); // Chemin à la racine
       toast.success('Tâche supprimée avec succès.');
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
@@ -962,7 +928,7 @@ function AppContent() {
       setShowDeleteConfirmModal(false); 
       setTaskToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete, appId]);
+  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete]);
 
   const handleObjectiveFormChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -997,7 +963,7 @@ function AppContent() {
     setLoading(true);
     try {
       if (editingObjective) {
-        await updateDoc(doc(db, `artifacts/${appId}/public/data/objectives`, editingObjective.id), {
+        await updateDoc(doc(db, 'objectives', editingObjective.id), { // Chemin à la racine
           ...newObjectiveData,
           Cible_Points: parseFloat(newObjectiveData.Cible_Points),
           Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
@@ -1005,7 +971,7 @@ function AppContent() {
         });
         toast.success('Objectif mis à jour avec succès.');
       } else {
-        await setDoc(doc(db, `artifacts/${appId}/public/data/objectives`, newObjectiveData.ID_Objectif), { 
+        await setDoc(doc(db, 'objectives', newObjectiveData.ID_Objectif), { // Chemin à la racine
           ...newObjectiveData,
           Cible_Points: parseFloat(newObjectiveData.Cible_Points),
           Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
@@ -1040,7 +1006,7 @@ function AppContent() {
 
     setLoading(true);
     try {
-      await deleteDoc(doc(db, `artifacts/${appId}/public/data/objectives`, objectiveId));
+      await deleteDoc(doc(db, 'objectives', objectiveId)); // Chemin à la racine
       toast.success('Objectif supprimé avec succès.');
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
@@ -1049,7 +1015,7 @@ function AppContent() {
       setShowDeleteObjectiveConfirmModal(false); 
       setObjectiveToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete, appId]);
+  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete]);
 
   const handleReportClick = (taskRealisation) => {
     if (!currentUser) {
@@ -1067,7 +1033,7 @@ function AppContent() {
     setShowReportModal(true);
   };
 
-  const submitReport = async () => { // Supprime reporterNameInput du paramètre
+  const submitReport = async () => { 
     if (!currentUser) {
       toast.warn('Vous devez être connecté pour signaler une tâche.');
       return;
@@ -1076,17 +1042,17 @@ function AppContent() {
 
     setLoading(true);
     try {
-      await addDoc(collection(db, `artifacts/${appId}/public/data/reports`), {
+      await addDoc(collection(db, 'reports'), { // Chemin à la racine
         reportedTaskId: reportedTaskDetails.id,
         reportedUserId: reportedTaskDetails.reportedUserId,
         reportedParticipantName: reportedTaskDetails.participant,
         reporterUserId: currentUser.uid,
-        reporterName: currentUser.displayName || currentUser.email, // Utilise le nom de l'utilisateur connecté
+        reporterName: currentUser.displayName || currentUser.email, 
         timestamp: new Date().toISOString(),
         status: 'pending' 
       });
 
-      await deleteDoc(doc(db, `artifacts/${appId}/public/data/realizations`, reportedTaskDetails.realizationId));
+      await deleteDoc(doc(db, 'realizations', reportedTaskDetails.realizationId)); // Chemin à la racine
       toast.success(`Tâche signalée et réalisation supprimée.`);
 
       const DEDUCTION_POINTS = 5;
@@ -1122,7 +1088,6 @@ function AppContent() {
 
 
   const handleParticipantClick = useCallback(async (participant) => {
-    // Chercher l'utilisateur par son displayName
     const usersQuery = query(collection(db, "users"), where("displayName", "==", participant.Nom_Participant));
     const usersSnapshot = await getDocs(usersQuery);
     if (!usersSnapshot.empty) {
@@ -1155,10 +1120,6 @@ function AppContent() {
         } else if (frequence === 'hebdomadaire') {
           return realDate >= startOfCurrentWeek;
         } else if (frequence === 'ponctuel') {
-          // For 'ponctuel' tasks, once completed, they are no longer available.
-          // The task document itself will be deleted from 'tasks' collection,
-          // so this check primarily serves for group tasks where subtasks might be 'ponctuel'
-          // but the parent task remains until all subtasks are done.
           return true; 
         }
       }
@@ -1192,17 +1153,15 @@ function AppContent() {
     }
     const subTaskIds = String(groupTask.Sous_Taches_IDs).split(',').map(id => id.trim());
     
-    // Filter allRawTaches to get only the actual subtasks that still exist in the database
     const existingSubtasks = allRawTaches.filter(t => subTaskIds.includes(String(t.ID_Tache)));
 
     if (existingSubtasks.length === 0) {
-        return true; // All subtasks (that existed) are considered completed/deleted
+        return true; 
     }
 
     return existingSubtasks.every(subTask => !isSubTaskAvailable(subTask));
   }, [allRawTaches, isSubTaskAvailable]); 
 
-  // Helper function to determine if a task should be hidden
   const isTaskHidden = useCallback((tache) => {
     const isSingleTaskCompleted = !tache.isGroupTask && !isSubTaskAvailable(tache);
     const isGroupTaskFullyCompleted = tache.isGroupTask && areAllSubtasksCompleted(tache);
@@ -1302,7 +1261,6 @@ function AppContent() {
       badges.push({ name: 'Conquérant d\'Objectifs', icon: '🎯', description: 'A complété son premier objectif.' });
     }
 
-    // Refactorisation de la logique pour allObjectivesCompleted
     const allObjectivesCompleted = objectives.every(obj => {
       const isCumulatifObjectiveMet = 
         String(obj.Type_Cible || '').toLowerCase() === 'cumulatif' && 
@@ -1380,7 +1338,6 @@ function AppContent() {
     }).length;
 
     const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
-    // Filtrer pour n'afficher que les participants avec des points > 0
     const top3WithPoints = sortedClassement.filter(p => parseFloat(p.Points_Total_Semaine_Courante) > 0).slice(0, 3);
 
     return (
@@ -1593,7 +1550,6 @@ function AppContent() {
     const hebdomadaireTasks = currentCategoryTasks.filter(t => (String(t.Frequence || '')).toLowerCase() === 'hebdomadaire' || !(t.Frequence)); 
 
     const renderTasksList = (tasks) => {
-      // Filter tasks to only show those that are not hidden
       const visibleTasks = tasks.filter(tache => !isTaskHidden(tache));
 
       if (visibleTasks.length === 0) {
@@ -1601,7 +1557,7 @@ function AppContent() {
       }
       return (
         <div className="space-y-3">
-          {visibleTasks.map(tache => { // Iterate over visibleTasks
+          {visibleTasks.map(tache => { 
             const cardClasses = `bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center sm:items-center justify-between 
                                  cursor-pointer shadow-lg hover:shadow-xl transition duration-200 ease-in-out transform hover:-translate-y-1 border border-blue-100`; 
 
@@ -1656,7 +1612,6 @@ function AppContent() {
           ))}
         </div>
 
-        {/* Filtrer les tâches une seule fois et stocker le résultat */}
         {ponctuelTasks.filter(tache => !isTaskHidden(tache)).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Ponctuelles</h3> 
@@ -1695,7 +1650,6 @@ function AppContent() {
       );
     }
 
-    // Pagination logic
     const indexOfLastRealization = currentRealizationsPage * realizationsPerPage;
     const indexOfFirstRealization = indexOfLastRealization - realizationsPerPage;
     const currentRealizations = realisations.slice(indexOfFirstRealization, indexOfLastRealization);
@@ -1708,7 +1662,7 @@ function AppContent() {
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8"> 
         <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Tâches Terminées</h2>
         <div className="space-y-3 text-left"> 
-          {currentRealizations.map((real, index) => ( // Utiliser currentRealizations
+          {currentRealizations.map((real, index) => ( 
             <div key={real.id || real.timestamp + real.nomParticipant + index} 
                  className="bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-lg border border-blue-100"> 
               <div className="flex-1 min-w-0 mb-2 sm:mb-0"> 
@@ -1820,15 +1774,15 @@ function AppContent() {
             onChange={(e) => setParticipantName(e.target.value)}
             placeholder="Entrez votre nom"
             className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            readOnly={true} // Toujours en lecture seule
-            disabled={true} // Toujours désactivé
+            readOnly={true} 
+            disabled={true} 
             autoFocus
           />
-          <div className="flex flex-col gap-3 sm:gap-4 mt-4"> 
+          <div className="flex flex-col items-center gap-3 sm:gap-4 mt-4 sm:flex-row sm:justify-end"> {/* Centré sur mobile, aligné à droite sur desktop */}
             <button 
               onClick={() => recordTask(selectedTask.ID_Tache)} 
               disabled={loading || !currentUser} 
-              className="bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg 
+              className="w-full sm:w-auto bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg 
                          transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
             >
               {loading ? 'Soumission...' : 'Valider la Tâche'} 
@@ -1836,7 +1790,7 @@ function AppContent() {
             <button 
               onClick={() => { setSelectedTask(null); setParticipantName(currentUser?.displayName || currentUser?.email || ''); }} 
               disabled={loading}
-              className="bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg 
+              className="w-full sm:w-auto bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg 
                          transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
             >
               Annuler
@@ -1926,16 +1880,16 @@ function AppContent() {
             onChange={(e) => setParticipantName(e.target.value)}
             placeholder="Entrez votre nom"
             className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            readOnly={true} // Toujours en lecture seule
-            disabled={true} // Toujours désactivé
+            readOnly={true} 
+            disabled={true} 
             autoFocus
           />
 
-          <div className="flex flex-col gap-3 sm:gap-4 mt-4">
+          <div className="flex flex-col items-center gap-3 sm:gap-4 mt-4 sm:flex-row sm:justify-end"> {/* Centré sur mobile, aligné à droite sur desktop */}
             <button
               onClick={recordMultipleTasks}
               disabled={loading || selectedSubTasks.length === 0 || !currentUser}
-              className="bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+              className="w-full sm:w-auto bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
                          transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
             >
               {loading ? 'Soumission...' : 'Valider les Tâches Sélectionnées'}
@@ -1943,7 +1897,7 @@ function AppContent() {
             <button
               onClick={handleClose}
               disabled={loading}
-              className="bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+              className="w-full sm:w-auto bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
                          transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
             >
               Annuler
@@ -2077,7 +2031,7 @@ function AppContent() {
         title="Confirmer la Réinitialisation"
         message="Êtes-vous sûr de vouloir réinitialiser les points hebdomadaires et enregistrer le podium ? Cette action est irréversible."
         confirmText="Oui, Réinitialiser"
-        confirmButtonClass="bg-error hover:bg-red-700" // Couleur rouge pour la confirmation
+        confirmButtonClass="bg-error hover:bg-red-700" 
         cancelText="Non, Annuler"
         onConfirm={resetWeeklyPoints}
         onCancel={() => setShowConfirmResetModal(false)}
@@ -2094,7 +2048,7 @@ function AppContent() {
         title="Confirmer la Réinitialisation des Réalisations"
         message="Êtes-vous sûr de vouloir supprimer TOUTES les réalisations et réinitialiser TOUS les points des utilisateurs à zéro ? Cette action est irréversible et supprime l'historique des tâches terminées."
         confirmText="Oui, Réinitialiser Tout"
-        confirmButtonClass="bg-red-600 hover:bg-red-700" // Couleur rouge pour la confirmation
+        confirmButtonClass="bg-red-600 hover:bg-red-700" 
         cancelText="Non, Annuler"
         onConfirm={resetRealisations}
         onCancel={() => setShowConfirmResetRealisationsModal(false)}
@@ -2111,7 +2065,7 @@ function AppContent() {
         title="Confirmer la Suppression"
         message={`Êtes-vous sûr de vouloir supprimer la tâche avec l'ID "${taskToDelete}" ? Cette action est irréversible.`}
         confirmText="Oui, Supprimer"
-        confirmButtonClass="bg-error hover:bg-red-700" // Couleur rouge pour la confirmation
+        confirmButtonClass="bg-error hover:bg-red-700" 
         cancelText="Non, Annuler"
         onConfirm={() => handleDeleteTask(taskToDelete, true)} 
         onCancel={() => { setShowDeleteConfirmModal(false); setTaskToDelete(null); }}
@@ -2128,7 +2082,7 @@ function AppContent() {
         title="Confirmer la Suppression de l'Objectif"
         message={`Êtes-vous sûr de vouloir supprimer l'objectif avec l'ID "${objectiveToDelete}" ? Cette action est irréversible.`}
         confirmText="Oui, Supprimer"
-        confirmButtonClass="bg-error hover:bg-red-700" // Couleur rouge pour la confirmation
+        confirmButtonClass="bg-error hover:bg-red-700" 
         cancelText="Non, Annuler"
         onConfirm={() => handleDeleteObjective(objectiveToDelete, true)}
         onCancel={() => { setShowDeleteObjectiveConfirmModal(false); setObjectiveToDelete(null); }}
@@ -2440,7 +2394,7 @@ function AppContent() {
     }
 
     const adminPurpleButtonClasses = "bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm";
-    const adminBlueButtonClasses = "bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"; // Nouveau
+    const adminBlueButtonClasses = "bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"; 
     const subtleAdminButtonClasses = "bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs";
 
 
@@ -2470,13 +2424,13 @@ function AppContent() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={() => setShowAdminUserManagementModal(true)} 
-                className={`${adminBlueButtonClasses} col-span-1`} // Bouton bleu
+                className={`${adminBlueButtonClasses} col-span-1`} 
               >
                 Gérer les Utilisateurs
               </button>
               <button
                 onClick={() => setShowAdminCongratulatoryMessagesModal(true)} 
-                className={`${adminBlueButtonClasses} col-span-1`} // Bouton bleu
+                className={`${adminBlueButtonClasses} col-span-1`} 
               >
                 Gérer les Messages de Félicitation
               </button>
@@ -2584,16 +2538,16 @@ function AppContent() {
         onClose={() => setShowExportSelectionModal(false)}
         sizeClass="max-w-xs sm:max-w-sm"
       >
-        <div className="flex flex-col space-y-4">
+        <div className="flex flex-col space-y-4 items-center"> {/* Centré sur mobile */}
           <button
             onClick={handleExportClassement}
-            className="bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"
+            className="w-full sm:w-auto bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"
           >
             Exporter le Classement (CSV)
           </button>
           <button
             onClick={handleExportRealisations}
-            className="bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"
+            className="w-full sm:w-auto bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"
           >
             Exporter les Réalisations (CSV)
           </button>
@@ -2605,7 +2559,6 @@ function AppContent() {
 
   // --- Rendu conditionnel de l'application ---
 
-  // 1. Afficher un spinner pendant le chargement de l'état d'authentification de l'utilisateur
   if (loadingUser) { 
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4"> 
@@ -2615,7 +2568,6 @@ function AppContent() {
     );
   }
 
-  // 2. Si aucun utilisateur n'est connecté, afficher une vue simplifiée avec le bouton de connexion
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background-light to-background-dark font-sans p-4 sm:p-6">
@@ -2654,7 +2606,6 @@ function AppContent() {
     );
   }
 
-  // 3. Si l'utilisateur est connecté mais que les données sont encore en cours de chargement
   if (loading) { 
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4"> 
@@ -2664,7 +2615,6 @@ function AppContent() {
     );
   }
 
-  // 4. Si l'utilisateur est connecté et que les données sont chargées, afficher l'application complète
   return (
     <div className="min-h-screen bg-gradient-to-br from-background-light to-background-dark font-sans p-4 sm:p-6"> 
       <div className="max-w-4xl mx-auto">
@@ -2676,7 +2626,6 @@ function AppContent() {
           )}
           <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1> 
           
-          {/* Bouton de déconnexion discret en haut à droite */}
           {currentUser && (
             <div className="absolute top-4 right-4 z-10">
               <button
@@ -2689,8 +2638,8 @@ function AppContent() {
           )}
         </header>
 
-        <nav className="flex flex-col items-center mb-6 sm:mb-8 px-4"> {/* Added px-4 for outer padding */}
-          <div className="bg-neutralBg rounded-full p-1.5 flex flex-row justify-start sm:justify-center gap-4 sm:gap-6 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto w-full max-w-full"> {/* Adjusted justify-start/center and added w-full max-w-full */}
+        <nav className="flex flex-col items-center mb-6 sm:mb-8 px-4"> 
+          <div className="bg-neutralBg rounded-full p-1.5 flex flex-row justify-start sm:justify-center gap-4 sm:gap-6 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto w-full max-w-full"> 
             <button
               className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
                 ${activeMainView === 'home' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
@@ -2822,7 +2771,7 @@ function AppContent() {
           <ReportTaskModal
             show={showReportModal}
             onClose={() => { setShowReportModal(false); setReportedTaskDetails(null); }}
-            onSubmit={submitReport} // Plus besoin de passer reporterNameInput ici
+            onSubmit={submitReport} 
             reportedTaskDetails={reportedTaskDetails}
             loading={loading}
           />
@@ -2908,14 +2857,12 @@ function AppContent() {
             onSave={async (newAvatar) => {
               try {
                 console.log("Attempting to update avatar for user ID:", currentUser.uid, "with new avatar:", newAvatar);
-                // La collection 'users' est à la racine, pas besoin de appId/public/data
                 await updateDoc(doc(db, "users", currentUser.uid), { avatar: newAvatar });
                 toast.success("Avatar mis à jour !");
-                // Le listener de classement mettra à jour l'avatar dans le contexte utilisateur
                 console.log("Avatar update successful in Firestore.");
               } catch (error) {
                 toast.error("Erreur lors de la mise à jour de l'avatar.");
-                console.error("Erreur avatar:", error); // Log d'erreur détaillé
+                console.error("Erreur avatar:", error); 
               } finally {
                 setShowAvatarSelectionModal(false);
               }

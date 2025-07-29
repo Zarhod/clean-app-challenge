@@ -20,7 +20,6 @@ export const UserProvider = ({ children }) => {
 
     const setupAuthAndUserListener = async () => {
       try {
-        // Tenter de se connecter avec le token personnalisé si disponible, sinon de manière anonyme
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
           console.log("Signed in with custom token.");
@@ -35,11 +34,9 @@ export const UserProvider = ({ children }) => {
         return;
       }
 
-      // Écouteur d'état d'authentification Firebase
       unsubscribeAuth = onAuthStateChanged(auth, (user) => {
         if (user) {
           console.log("Auth state changed: User is logged in.", user.uid);
-          // Écouter les changements sur le document utilisateur dans Firestore
           const userDocRef = doc(db, "users", user.uid);
           unsubscribeUserDoc = onSnapshot(userDocRef, (docSnap) => {
             if (docSnap.exists()) {
@@ -49,7 +46,6 @@ export const UserProvider = ({ children }) => {
               setIsAdmin(userData.isAdmin === true); 
             } else {
               console.log("User document does not exist for UID:", user.uid);
-              // Si le document n'existe pas, créer un profil de base
               setDoc(userDocRef, {
                 email: user.email || 'anonymous',
                 displayName: user.displayName || `Invité-${user.uid.substring(0, 6)}`,
