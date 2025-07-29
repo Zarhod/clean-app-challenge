@@ -19,6 +19,7 @@ import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal
 import WeeklyRecapModal from './WeeklyRecapModal'; 
 import TaskHistoryModal from './TaskHistoryModal'; // Nouveau: Historique des tâches
 import AvatarSelectionModal from './AvatarSelectionModal'; // Nouveau: Sélection d'avatar
+import PasswordChangeModal from './PasswordChangeModal'; // Nouveau: Changement de mot de passe
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -76,6 +77,9 @@ const calculateLevelAndXP = (currentXP) => {
 
 
 function AppContent() { 
+  // Définition de l'ID de l'application pour les chemins Firestore
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
   // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
   const { currentUser, isAdmin, loadingUser } = useUser(); 
@@ -157,6 +161,7 @@ function AppContent() {
   const [taskHistoryTaskId, setTaskHistoryTaskId] = useState(null); 
 
   const [showAvatarSelectionModal, setShowAvatarSelectionModal] = useState(false); 
+  const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false); // Nouveau: état pour la modale de mot de passe
 
   // États pour la pagination des réalisations
   const [realizationsPerPage] = useState(10);
@@ -183,7 +188,6 @@ function AppContent() {
   }, [currentUser]);
 
   // Fonction pour calculer le récapitulatif de la semaine précédente
-  // DÉPLACÉE ICI POUR ÉVITER L'ERREUR "Cannot access 'calculateWeeklyRecap' before initialization"
   const calculateWeeklyRecap = useCallback((userId, displayName, allRealisations, allHistoricalPodiums) => {
     const today = new Date();
     const currentDayOfWeek = today.getDay(); // 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
@@ -241,7 +245,7 @@ function AppContent() {
 
   // Fonctions de récupération de données utilisant onSnapshot
   const setupTasksListener = useCallback(() => {
-    const q = query(collection(db, "tasks"));
+    const q = query(collection(db, `artifacts/${appId}/public/data/tasks`));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const rawData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       const cleanedRawData = rawData.filter(tache => tache && tache.ID_Tache);
@@ -272,10 +276,10 @@ function AppContent() {
       toast.error(`Erreur lors de la récupération des tâches: ${error.message}`); 
     });
     return unsubscribe;
-  }, []);
+  }, [appId]);
 
   const setupRealisationsListener = useCallback(() => {
-    const q = query(collection(db, "realizations"));
+    const q = query(collection(db, `artifacts/${appId}/public/data/realizations`));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       // Tri des réalisations par timestamp décroissant pour la pagination
@@ -286,12 +290,12 @@ function AppContent() {
       toast.error(`Erreur lors de la récupération des réalisations: ${error.message}`);
     });
     return unsubscribe;
-  }, []);
+  }, [appId]);
 
   const setupClassementListener = useCallback(() => {
     const usersUnsubscribe = onSnapshot(collection(db, "users"), (usersSnapshot) => {
       const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      onSnapshot(collection(db, "realizations"), (realisationsSnapshot) => {
+      onSnapshot(collection(db, `artifacts/${appId}/public/data/realizations`), (realisationsSnapshot) => {
         const realisationsData = realisationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
         const today = new Date();
@@ -362,11 +366,11 @@ function AppContent() {
       toast.error(`Erreur lors de la récupération des utilisateurs pour le classement: ${error.message}`);
     });
     return usersUnsubscribe; 
-  }, []);
+  }, [appId]);
 
 
   const setupObjectivesListener = useCallback(() => {
-    const q = query(collection(db, "objectives"));
+    const q = query(collection(db, `artifacts/${appId}/public/data/objectives`));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setObjectives(data);
@@ -375,10 +379,10 @@ function AppContent() {
       toast.error(`Erreur lors de la récupération des objectifs: ${error.message}`);
     });
     return unsubscribe;
-  }, []);
+  }, [appId]);
 
   const setupCongratulatoryMessagesListener = useCallback(() => {
-    const q = query(collection(db, "congratulatory_messages"));
+    const q = query(collection(db, `artifacts/${appId}/public/data/congratulatory_messages`));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setCongratulatoryMessages(data);
@@ -388,10 +392,10 @@ function AppContent() {
       toast.error(`Erreur lors de la récupération des messages de félicitation: ${error.message}`);
     });
     return unsubscribe;
-  }, []);
+  }, [appId]);
 
   const setupHistoricalPodiumsListener = useCallback(() => {
-    const q = query(collection(db, "historical_podiums"));
+    const q = query(collection(db, `artifacts/${appId}/public/data/historical_podiums`));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setHistoricalPodiums(data);
@@ -400,10 +404,10 @@ function AppContent() {
       toast.error(`Erreur lors de la récupération des podiums historiques: ${error.message}`);
     });
     return unsubscribe;
-  }, []);
+  }, [appId]);
 
   const setupReportsListener = useCallback(() => {
-    const q = query(collection(db, "reports"));
+    const q = query(collection(db, `artifacts/${appId}/public/data/reports`));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setReports(data);
@@ -412,7 +416,7 @@ function AppContent() {
       toast.error(`Erreur lors de la récupération des rapports: ${error.message}`);
     });
     return unsubscribe;
-  }, []);
+  }, [appId]);
 
   // Effet principal pour gérer les écouteurs en temps réel et l'état de chargement global
   useEffect(() => {
@@ -465,7 +469,7 @@ function AppContent() {
       Object.keys(currentInitialLoadStatusRef).forEach(key => currentInitialLoadStatusRef[key] = false);
     };
   }, [
-    currentUser, loadingUser,
+    currentUser, loadingUser, appId,
     setupTasksListener, setupRealisationsListener, setupClassementListener,
     setupObjectivesListener, setupCongratulatoryMessagesListener, setupHistoricalPodiumsListener,
     setupReportsListener
@@ -515,7 +519,7 @@ function AppContent() {
   const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
     setLoading(true); 
     try {
-      const q = query(collection(db, "realizations"), where("nomParticipant", "==", participantName));
+      const q = query(collection(db, `artifacts/${appId}/public/data/realizations`), where("nomParticipant", "==", participantName));
       const querySnapshot = await getDocs(q);
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -538,12 +542,12 @@ function AppContent() {
     } finally {
       setLoading(false);
     }
-  }, [setParticipantWeeklyTasks, setLoading]); 
+  }, [setParticipantWeeklyTasks, setLoading, appId]); 
 
   const fetchSubTasks = useCallback(async (parentTaskId) => {
     setLoading(true); 
     try {
-      const parentTaskDoc = await getDoc(doc(db, "tasks", parentTaskId));
+      const parentTaskDoc = await getDoc(doc(db, `artifacts/${appId}/public/data/tasks`, parentTaskId));
       if (!parentTaskDoc.exists()) {
         throw new Error("Tâche parente introuvable.");
       }
@@ -556,7 +560,7 @@ function AppContent() {
 
       const subTaskIds = String(parentTaskData.Sous_Taches_IDs).split(',').map(id => id.trim());
       
-      const subTasksPromises = subTaskIds.map(id => getDoc(doc(db, "tasks", id)));
+      const subTasksPromises = subTaskIds.map(id => getDoc(doc(db, `artifacts/${appId}/public/data/tasks`, id)));
       const subTaskDocs = await Promise.all(subTasksPromises);
       const sousTaches = subTaskDocs
         .filter(docSnap => docSnap.exists())
@@ -569,12 +573,18 @@ function AppContent() {
     } finally {
       setLoading(false);
     }
-  }, [setSubTasks, setLoading]); 
+  }, [setSubTasks, setLoading, appId]); 
 
   const fetchGlobalCollectionDocs = useCallback(async (collectionName) => {
     setLoadingGlobalCollectionDocs(true);
     try {
-      const q = query(collection(db, collectionName));
+      // Pour les collections sous artifacts/{appId}/public/data/
+      let collectionPath = `artifacts/${appId}/public/data/${collectionName}`;
+      // Exception pour la collection 'users' qui est à la racine
+      if (collectionName === 'users') {
+        collectionPath = 'users';
+      }
+      const q = query(collection(db, collectionPath));
       const querySnapshot = await getDocs(q);
       const docs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setGlobalCollectionDocs(docs);
@@ -584,7 +594,7 @@ function AppContent() {
     } finally {
       setLoadingGlobalCollectionDocs(false);
     }
-  }, []);
+  }, [appId]);
 
   const recordTask = async (idTacheToRecord, isSubTask = false) => {
     if (!currentUser) {
@@ -603,7 +613,7 @@ function AppContent() {
       const pointsToSend = parseFloat(taskToRecord.Points) || 0;
       const categoryToSend = taskToRecord.Categorie || 'Non catégorisée';
 
-      await addDoc(collection(db, "realizations"), {
+      await addDoc(collection(db, `artifacts/${appId}/public/data/realizations`), {
         taskId: idTacheToRecord,
         userId: currentUser.uid,
         nomParticipant: currentUser.displayName || currentUser.email, 
@@ -631,7 +641,8 @@ function AppContent() {
       }
 
       if (String(taskToRecord.Frequence || '').toLowerCase() === 'ponctuel') {
-          await deleteDoc(doc(db, "tasks", taskToRecord.id)); 
+          // Utiliser le chemin complet pour la suppression de la tâche
+          await deleteDoc(doc(db, `artifacts/${appId}/public/data/tasks`, taskToRecord.id)); 
           toast.success(`Tâche ponctuelle "${taskToRecord.Nom_Tache}" enregistrée et supprimée.`);
       } else {
           toast.success(`Tâche "${taskToRecord.Nom_Tache}" enregistrée avec succès.`);
@@ -680,7 +691,7 @@ function AppContent() {
           tasksToDelete.push(subTask.id); 
         }
 
-        batch.set(doc(collection(db, "realizations")), { 
+        batch.set(doc(collection(db, `artifacts/${appId}/public/data/realizations`)), { 
           taskId: subTask.ID_Tache,
           userId: currentUser.uid,
           nomParticipant: currentUser.displayName || currentUser.email,
@@ -692,7 +703,8 @@ function AppContent() {
       });
       
       tasksToDelete.forEach(taskId => {
-        batch.delete(doc(db, "tasks", taskId));
+        // Utiliser le chemin complet pour la suppression de la tâche
+        batch.delete(doc(db, `artifacts/${appId}/public/data/tasks`, taskId));
       });
 
       const userDocRef = doc(db, "users", currentUser.uid);
@@ -741,7 +753,7 @@ function AppContent() {
       const top3 = sortedClassement.slice(0, 3);
       const datePodium = new Date().toISOString().split('T')[0]; 
 
-      await addDoc(collection(db, "historical_podiums"), {
+      await addDoc(collection(db, `artifacts/${appId}/public/data/historical_podiums`), {
         Date_Podium: datePodium,
         top3: top3.map(p => ({ name: p.Nom_Participant, points: p.Points_Total_Semaine_Courante }))
       });
@@ -776,12 +788,12 @@ function AppContent() {
     }
     setLoading(true);
     try {
-      const realisationsQuery = query(collection(db, "realizations"));
+      const realisationsQuery = query(collection(db, `artifacts/${appId}/public/data/realizations`));
       const realisationsSnapshot = await getDocs(realisationsQuery);
       const batchDeleteRealisations = writeBatch(db);
 
       realisationsSnapshot.docs.forEach(realDoc => {
-        batchDeleteRealisations.delete(doc(db, "realizations", realDoc.id));
+        batchDeleteRealisations.delete(doc(db, `artifacts/${appId}/public/data/realizations`, realDoc.id));
       });
       await batchDeleteRealisations.commit();
 
@@ -846,7 +858,8 @@ function AppContent() {
       toast.error('Le nom de la tâche est requis.');
       return;
     }
-    if (newTaskData.Points !== '' && isNaN(newTaskData.Points)) {
+    // Validation spécifique pour les points
+    if (newTaskData.Points === '' || isNaN(parseFloat(newTaskData.Points))) {
       toast.error('Les points doivent être un nombre valide.');
       return;
     }
@@ -861,16 +874,20 @@ function AppContent() {
 
     setLoading(true);
     try {
+      // Convertir les points en nombre avant de les envoyer à Firestore
+      const pointsToSave = parseFloat(newTaskData.Points);
+
       if (editingTask) {
-        await updateDoc(doc(db, "tasks", editingTask.id), {
+        await updateDoc(doc(db, `artifacts/${appId}/public/data/tasks`, editingTask.id), {
           ...newTaskData,
-          Points: newTaskData.Points === '' ? '' : parseFloat(newTaskData.Points) 
+          Points: pointsToSave // Assurez-vous que c'est un nombre
         });
         toast.success('Tâche mise à jour avec succès.');
       } else {
-        await setDoc(doc(db, "tasks", newTaskData.ID_Tache), { 
+        // Utiliser setDoc avec l'ID de la tâche comme ID de document Firestore
+        await setDoc(doc(db, `artifacts/${appId}/public/data/tasks`, newTaskData.ID_Tache), { 
           ...newTaskData,
-          Points: newTaskData.Points === '' ? '' : parseFloat(newTaskData.Points) 
+          Points: pointsToSave // Assurez-vous que c'est un nombre
         });
         toast.success('Tâche ajoutée avec succès.');
       }
@@ -901,7 +918,8 @@ function AppContent() {
 
     setLoading(true);
     try {
-      await deleteDoc(doc(db, "tasks", taskId));
+      // Utiliser le chemin complet pour la suppression de la tâche
+      await deleteDoc(doc(db, `artifacts/${appId}/public/data/tasks`, taskId));
       toast.success('Tâche supprimée avec succès.');
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
@@ -910,7 +928,7 @@ function AppContent() {
       setShowDeleteConfirmModal(false); 
       setTaskToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete]);
+  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete, appId]);
 
   const handleObjectiveFormChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -945,7 +963,7 @@ function AppContent() {
     setLoading(true);
     try {
       if (editingObjective) {
-        await updateDoc(doc(db, "objectives", editingObjective.id), {
+        await updateDoc(doc(db, `artifacts/${appId}/public/data/objectives`, editingObjective.id), {
           ...newObjectiveData,
           Cible_Points: parseFloat(newObjectiveData.Cible_Points),
           Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
@@ -953,7 +971,7 @@ function AppContent() {
         });
         toast.success('Objectif mis à jour avec succès.');
       } else {
-        await setDoc(doc(db, "objectives", newObjectiveData.ID_Objectif), { 
+        await setDoc(doc(db, `artifacts/${appId}/public/data/objectives`, newObjectiveData.ID_Objectif), { 
           ...newObjectiveData,
           Cible_Points: parseFloat(newObjectiveData.Cible_Points),
           Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
@@ -988,7 +1006,7 @@ function AppContent() {
 
     setLoading(true);
     try {
-      await deleteDoc(doc(db, "objectives", objectiveId));
+      await deleteDoc(doc(db, `artifacts/${appId}/public/data/objectives`, objectiveId));
       toast.success('Objectif supprimé avec succès.');
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
@@ -997,7 +1015,7 @@ function AppContent() {
       setShowDeleteObjectiveConfirmModal(false); 
       setObjectiveToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete]);
+  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete, appId]);
 
   const handleReportClick = (taskRealisation) => {
     if (!currentUser) {
@@ -1024,7 +1042,7 @@ function AppContent() {
 
     setLoading(true);
     try {
-      await addDoc(collection(db, "reports"), {
+      await addDoc(collection(db, `artifacts/${appId}/public/data/reports`), {
         reportedTaskId: reportedTaskDetails.id,
         reportedUserId: reportedTaskDetails.reportedUserId,
         reportedParticipantName: reportedTaskDetails.participant,
@@ -1034,7 +1052,7 @@ function AppContent() {
         status: 'pending' 
       });
 
-      await deleteDoc(doc(db, "realizations", reportedTaskDetails.realizationId));
+      await deleteDoc(doc(db, `artifacts/${appId}/public/data/realizations`, reportedTaskDetails.realizationId));
       toast.success(`Tâche signalée et réalisation supprimée.`);
 
       const DEDUCTION_POINTS = 5;
@@ -1944,12 +1962,20 @@ function AppContent() {
             Points Cumulatifs: <span className="font-bold">{participantCumulativePoints}</span>
           </p>
           {currentUser && selectedParticipantProfile.id === currentUser.uid && (
-            <button
-              onClick={() => setShowAvatarSelectionModal(true)}
-              className="mt-4 bg-accent hover:bg-yellow-600 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-sm"
-            >
-              Changer mon Avatar
-            </button>
+            <div className="flex flex-col sm:flex-row justify-center gap-3 mt-4">
+              <button
+                onClick={() => setShowAvatarSelectionModal(true)}
+                className="bg-accent hover:bg-yellow-600 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-sm flex-1"
+              >
+                Changer mon Avatar
+              </button>
+              <button
+                onClick={() => setShowPasswordChangeModal(true)}
+                className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-sm flex-1"
+              >
+                Changer mon Mot de Passe
+              </button>
+            </div>
           )}
           {participantBadges.length > 0 && (
             <div className="mt-4">
@@ -2380,6 +2406,7 @@ function AppContent() {
     }
 
     const adminPurpleButtonClasses = "bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm";
+    const adminBlueButtonClasses = "bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"; // Nouveau
     const subtleAdminButtonClasses = "bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs";
 
 
@@ -2409,13 +2436,13 @@ function AppContent() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={() => setShowAdminUserManagementModal(true)} 
-                className={`${adminPurpleButtonClasses} col-span-1`}
+                className={`${adminBlueButtonClasses} col-span-1`} // Bouton bleu
               >
                 Gérer les Utilisateurs
               </button>
               <button
                 onClick={() => setShowAdminCongratulatoryMessagesModal(true)} 
-                className={`${adminPurpleButtonClasses} col-span-1`}
+                className={`${adminBlueButtonClasses} col-span-1`} // Bouton bleu
               >
                 Gérer les Messages de Félicitation
               </button>
@@ -2651,13 +2678,11 @@ function AppContent() {
             >
               Historique
             </button> 
-          </div>
-          {/* Boutons Profil et Admin à côté de la nav bar */}
-          <div className="flex flex-row gap-2 sm:gap-4 mt-2 sm:mt-0">
             {currentUser && (
               <button
                 onClick={() => handleParticipantClick({ Nom_Participant: currentUser.displayName || currentUser.email })}
-                className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap"
+                className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
+                  ${activeMainView === 'participantProfile' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
               >
                 Mon Profil
               </button>
@@ -2665,7 +2690,8 @@ function AppContent() {
             {isAdmin && (
               <button
                 onClick={() => setActiveMainView('adminPanel')}
-                className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap"
+                className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
+                  ${activeMainView === 'adminPanel' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
               >
                 Console Admin
               </button>
@@ -2847,6 +2873,7 @@ function AppContent() {
             onClose={() => setShowAvatarSelectionModal(false)}
             onSave={async (newAvatar) => {
               try {
+                // La collection 'users' est à la racine, pas besoin de appId/public/data
                 await updateDoc(doc(db, "users", currentUser.uid), { avatar: newAvatar });
                 toast.success("Avatar mis à jour !");
               } catch (error) {
@@ -2856,6 +2883,13 @@ function AppContent() {
                 setShowAvatarSelectionModal(false);
               }
             }}
+          />
+        )}
+
+        {showPasswordChangeModal && currentUser && (
+          <PasswordChangeModal
+            onClose={() => setShowPasswordChangeModal(false)}
+            currentUser={currentUser}
           />
         )}
 
