@@ -25,9 +25,14 @@ function AuthModal({ onClose }) {
         toast.success('Connexion réussie !');
       } else {
         // Vérifier si le displayName est déjà pris
-        const usersRef = doc(db, "users", displayName); // Utiliser displayName comme ID de document pour vérifier
-        const userSnap = await getDoc(usersRef);
-        if (userSnap.exists()) {
+        // Note: Cette vérification est basée sur le displayName étant unique,
+        // ce qui est une convention d'application, pas une contrainte Firestore native sur le displayName.
+        // Si vous voulez une unicité stricte, il faudrait une collection dédiée aux usernames.
+        const usersCollectionRef = collection(db, "users");
+        const q = query(usersCollectionRef, where("displayName", "==", displayName));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
           toast.error('Ce nom d\'utilisateur est déjà pris. Veuillez en choisir un autre.');
           setLoading(false);
           return;
