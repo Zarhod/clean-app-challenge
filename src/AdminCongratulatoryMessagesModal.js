@@ -1,180 +1,179 @@
 // src/AdminCongratulatoryMessagesModal.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from './firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { toast } from 'react-toastify';
-import ListAndInfoModal from './ListAndInfoModal'; // Assurez-vous que ce chemin est correct
-import ConfirmActionModal from './ConfirmActionModal'; // Assurez-vous que ce chemin est correct
+import ConfirmActionModal from './ConfirmActionModal'; // Assurez-vous d'importer la modale de confirmation
 
 const AdminCongratulatoryMessagesModal = ({ onClose }) => {
   const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [editingMessage, setEditingMessage] = useState(null); // Message en cours d'édition
+  const [newMessageData, setNewMessageData] = useState({ Texte_Message: '' });
+  const [editingMessage, setEditingMessage] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
   const [messageToDelete, setMessageToDelete] = useState(null);
 
-  const fetchMessages = async () => {
+  // Écouteur en temps réel pour les messages de félicitation
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'congratulatory_messages'), (snapshot) => {
+      const fetchedMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMessages(fetchedMessages);
+    }, (error) => {
+      toast.error("Erreur lors du chargement des messages de félicitation.");
+      console.error("Error fetching congratulatory messages:", error);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleFormChange = (e) => {
+    setNewMessageData({ Texte_Message: e.target.value });
+  };
+
+  const handleSubmit = async () => {
+    if (!newMessageData.Texte_Message.trim()) {
+      toast.error("Le message ne peut pas être vide.");
+      return;
+    }
     setLoading(true);
     try {
-      const querySnapshot = await getDocs(collection(db, "congratulatory_messages"));
-      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setMessages(data);
+      if (editingMessage) {
+        await updateDoc(doc(db, 'congratulatory_messages', editingMessage.id), newMessageData);
+        toast.success("Message mis à jour avec succès !");
+      } else {
+        await addDoc(collection(db, 'congratulatory_messages'), newMessageData);
+        toast.success("Message ajouté avec succès !");
+      }
+      // Réinitialise le formulaire après soumission réussie
+      setNewMessageData({ Texte_Message: '' });
+      setEditingMessage(null);
     } catch (error) {
-      toast.error("Erreur lors du chargement des messages.");
-      console.error("Erreur fetchMessages:", error);
+      toast.error("Erreur lors de l'opération.");
+      console.error("Error saving message:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchMessages();
-  }, []);
+  const handleEdit = (message) => {
+    setEditingMessage(message);
+    setNewMessageData({ Texte_Message: message.Texte_Message });
+  };
 
-  const handleAddOrUpdateMessage = async () => {
-    if (!newMessage.trim()) {
-      toast.warn("Le message ne peut pas être vide.");
+  const handleDelete = useCallback(async (messageId, skipConfirmation = false) => {
+    if (!skipConfirmation) {
+      setMessageToDelete(messageId);
+      setShowConfirmDeleteModal(true);
       return;
     }
 
     setLoading(true);
     try {
-      if (editingMessage) {
-        // Mise à jour d'un message existant
-        await updateDoc(doc(db, "congratulatory_messages", editingMessage.id), {
-          Texte_Message: newMessage
-        });
-        toast.success("Message mis à jour avec succès !");
-      } else {
-        // Ajout d'un nouveau message
-        await addDoc(collection(db, "congratulatory_messages"), {
-          Texte_Message: newMessage
-        });
-        toast.success("Message ajouté avec succès !");
-      }
-      setNewMessage('');
-      setEditingMessage(null);
-      fetchMessages(); // Recharger les messages après modification/ajout
-    } catch (error) {
-      toast.error("Erreur lors de l'enregistrement du message.");
-      console.error("Erreur saveMessage:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteMessage = async (messageId) => {
-    setMessageToDelete(messageId);
-    setShowConfirmDelete(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!messageToDelete) return;
-
-    setLoading(true);
-    try {
-      await deleteDoc(doc(db, "congratulatory_messages", messageToDelete));
+      await deleteDoc(doc(db, 'congratulatory_messages', messageId));
       toast.success("Message supprimé avec succès !");
-      fetchMessages(); // Recharger les messages après suppression
     } catch (error) {
-      toast.error("Erreur lors de la suppression du message.");
-      console.error("Erreur deleteMessage:", error);
+      toast.error("Erreur lors de la suppression.");
+      console.error("Error deleting message:", error);
     } finally {
       setLoading(false);
-      setShowConfirmDelete(false);
+      setShowConfirmDeleteModal(false);
       setMessageToDelete(null);
     }
+  }, []);
+
+  const handleCancelEdit = () => {
+    setEditingMessage(null);
+    setNewMessageData({ Texte_Message: '' });
   };
 
   return (
-    <ListAndInfoModal
-      title="Gérer les Messages de Félicitation"
-      onClose={onClose}
-      sizeClass="max-w-full sm:max-w-md md:max-w-lg"
-    >
-      <div className="mb-4">
-        <h3 className="text-lg font-bold text-primary mb-2">
-          {editingMessage ? 'Modifier le Message' : 'Ajouter un Nouveau Message'}
-        </h3>
-        <textarea
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Entrez votre message de félicitation..."
-          rows="3"
-          className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm resize-y"
-          disabled={loading}
-        />
-        <button
-          onClick={handleAddOrUpdateMessage}
-          disabled={loading || !newMessage.trim()}
-          className="w-full bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm mt-3"
-        >
-          {loading ? 'Enregistrement...' : (editingMessage ? 'Mettre à jour' : 'Ajouter le Message')}
-        </button>
-        {editingMessage && (
-          <button
-            onClick={() => {
-              setEditingMessage(null);
-              setNewMessage('');
-            }}
-            disabled={loading}
-            className="w-full bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm mt-2"
-          >
-            Annuler l'édition
-          </button>
-        )}
-      </div>
+    // z-index: 50 pour la modale principale, pour qu'elle apparaisse au-dessus du contenu de l'App
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
+      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md md:max-w-lg text-center animate-fade-in-scale border border-primary/20 mx-auto flex flex-col">
+        <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-4">Gérer les Messages de Félicitation</h3>
 
-      <h3 className="text-lg font-bold text-secondary mb-3 text-center">Messages Existants</h3>
-      {loading && messages.length === 0 ? (
-        <div className="flex justify-center items-center py-4">
-          <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
-          <p className="ml-3 text-lightText">Chargement des messages...</p>
+        <div className="mb-6">
+          <input
+            type="text"
+            value={newMessageData.Texte_Message}
+            onChange={handleFormChange}
+            placeholder="Nouveau message de félicitation..."
+            className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+          />
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={handleSubmit}
+              disabled={loading || !newMessageData.Texte_Message.trim()}
+              className="bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                         transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              {loading ? 'Envoi...' : editingMessage ? 'Mettre à jour' : 'Ajouter'}
+            </button>
+            {editingMessage && (
+              <button
+                onClick={handleCancelEdit}
+                disabled={loading}
+                className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                           transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                Annuler
+              </button>
+            )}
+          </div>
         </div>
-      ) : (
-        <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar">
+
+        <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">Messages Actuels</h4>
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 border rounded-lg bg-neutralBg mb-4">
           {messages.length === 0 ? (
-            <p className="text-center text-lightText text-md">Aucun message de félicitation n'a été ajouté.</p>
+            <p className="text-lightText text-center py-4">Aucun message de félicitation.</p>
           ) : (
-            messages.map(msg => (
-              <div key={msg.id} className="bg-white rounded-lg p-3 shadow-sm border border-neutralBg/50 flex flex-col sm:flex-row items-start sm:items-center justify-between">
-                <p className="text-text text-sm flex-1 mb-2 sm:mb-0">{msg.Texte_Message}</p>
-                <div className="flex gap-2 flex-wrap justify-end sm:justify-start">
-                  <button
-                    onClick={() => {
-                      setEditingMessage(msg);
-                      setNewMessage(msg.Texte_Message);
-                    }}
-                    className="bg-accent hover:bg-yellow-600 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs"
-                  >
-                    Modifier
-                  </button>
-                  <button
-                    onClick={() => handleDeleteMessage(msg.id)}
-                    className="bg-error hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs"
-                  >
-                    Supprimer
-                  </button>
-                </div>
-              </div>
-            ))
+            <ul className="space-y-2 text-left">
+              {messages.map(msg => (
+                <li key={msg.id} className="bg-white p-3 rounded-lg shadow-sm flex items-center justify-between border border-gray-200">
+                  <span className="text-text text-sm flex-1 mr-2">{msg.Texte_Message}</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEdit(msg)}
+                      className="bg-accent hover:bg-yellow-600 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs"
+                    >
+                      Modifier
+                    </button>
+                    <button
+                      onClick={() => handleDelete(msg.id)}
+                      className="bg-error hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
-      )}
 
-      {showConfirmDelete && (
+        <button
+          onClick={onClose}
+          className="mt-4 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
+        >
+          Fermer
+        </button>
+      </div>
+
+      {/* La modale de confirmation est rendue ici, elle a un z-index plus élevé (z-[1000]) */}
+      {showConfirmDeleteModal && (
         <ConfirmActionModal
           title="Confirmer la Suppression"
           message="Êtes-vous sûr de vouloir supprimer ce message de félicitation ? Cette action est irréversible."
           confirmText="Oui, Supprimer"
+          confirmButtonClass="bg-error hover:bg-red-700"
           cancelText="Non, Annuler"
-          onConfirm={confirmDelete}
-          onCancel={() => { setShowConfirmDelete(false); setMessageToDelete(null); }}
+          onConfirm={() => handleDelete(messageToDelete, true)}
+          onCancel={() => { setShowConfirmDeleteModal(false); setMessageToDelete(null); }}
           loading={loading}
         />
       )}
-    </ListAndInfoModal>
+    </div>
   );
 };
 

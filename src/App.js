@@ -5,6 +5,8 @@
 // Gestion améliorée des erreurs de permission pour éviter les toasts sur la page de connexion.
 // Correction de l'erreur "TypeError: null is not iterable" dans calculateWeeklyRecap.
 // Améliorations de l'affichage du profil utilisateur, des modales et suppression des logs.
+// Intégration d'une fonctionnalité de chat simple.
+// Correction des problèmes de z-index et d'affichage des modales.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -25,6 +27,7 @@ import WeeklyRecapModal from './WeeklyRecapModal';
 import TaskHistoryModal from './TaskHistoryModal'; 
 import AvatarSelectionModal from './AvatarSelectionModal'; 
 import PasswordChangeModal from './PasswordChangeModal'; 
+import ChatModal from './ChatModal'; 
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -153,6 +156,7 @@ function AppContent() {
 
   const [showAvatarSelectionModal, setShowAvatarSelectionModal] = useState(false); 
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false); 
+  const [showChatModal, setShowChatModal] = useState(false); 
 
   // États pour la pagination des réalisations
   const [realizationsPerPage] = useState(10);
@@ -919,6 +923,7 @@ function AppContent() {
     }
     if (!skipConfirmation) {
       setTaskToDelete(taskId);
+      setShowAdminTasksListModal(false); // Ferme la modale de liste avant d'ouvrir la confirmation
       setShowDeleteConfirmModal(true);
       return;
     }
@@ -934,7 +939,7 @@ function AppContent() {
       setShowDeleteConfirmModal(false); 
       setTaskToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete]);
+  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete, setShowAdminTasksListModal]);
 
   const handleObjectiveFormChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -1006,6 +1011,7 @@ function AppContent() {
     }
     if (!skipConfirmation) {
       setObjectiveToDelete(objectiveId);
+      setShowAdminObjectivesListModal(false); // Ferme la modale de liste avant d'ouvrir la confirmation
       setShowDeleteObjectiveConfirmModal(true);
       return;
     }
@@ -1021,7 +1027,7 @@ function AppContent() {
       setShowDeleteObjectiveConfirmModal(false); 
       setObjectiveToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete]);
+  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete, setShowAdminObjectivesListModal]);
 
   const handleReportClick = (taskRealisation) => {
     if (!currentUser) {
@@ -2302,6 +2308,7 @@ function AppContent() {
       { name: 'historical_podiums', label: 'Podiums Historiques' },
       { name: 'congratulatory_messages', label: 'Messages de Félicitations' },
       { name: 'reports', label: 'Rapports' },
+      { name: 'chat_messages', label: 'Messages de Chat' }, 
     ];
 
     return (
@@ -2386,7 +2393,7 @@ function AppContent() {
         onClose={() => setSelectedDocumentDetails(null)}
         sizeClass="max-w-full sm:max-w-md md:max-w-lg"
       >
-        <pre className="bg-gray-100 p-4 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-words w-full">
+        <pre className="bg-gray-100 p-4 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-words w-full max-h-[70vh] overflow-y-auto custom-scrollbar">
           {JSON.stringify(selectedDocumentDetails, null, 2)}
         </pre>
       </ListAndInfoModal>
@@ -2594,9 +2601,6 @@ function AppContent() {
             Se connecter / S'inscrire
           </button>
         </div>
-        {showAuthModal && ( 
-          <AuthModal onClose={() => setShowAuthModal(false)} />
-        )}
         <ToastContainer 
           position="top-right"
           autoClose={5000}
@@ -2674,6 +2678,15 @@ function AppContent() {
                   ${activeMainView === 'participantProfile' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
               >
                 Mon Profil
+              </button>
+            )}
+            {currentUser && ( 
+              <button
+                onClick={() => setShowChatModal(true)}
+                className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
+                  ${showChatModal ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
+              >
+                💬 Chat
               </button>
             )}
             {isAdmin && (
@@ -2877,6 +2890,13 @@ function AppContent() {
           <PasswordChangeModal
             onClose={() => setShowPasswordChangeModal(false)}
             currentUser={currentUser}
+          />
+        )}
+
+        {showChatModal && currentUser && ( 
+          <ChatModal
+            currentUser={currentUser}
+            onClose={() => setShowChatModal(false)}
           />
         )}
 
