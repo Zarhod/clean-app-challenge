@@ -70,7 +70,6 @@ const calculateLevelAndXP = (currentXP) => {
 function AppContent() { 
   // L'ID de l'application n'est plus utilisé pour construire les chemins de collection à la racine.
   // Il est toujours disponible via `app.options.projectId` si nécessaire pour d'autres usages.
-  const appId = app.options.projectId || 'default-app-id'; // Gardé pour compatibilité si d'autres modules l'utilisent
 
   // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
