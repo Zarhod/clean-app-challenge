@@ -1,180 +1,131 @@
 // src/Auth.js
 import React, { useState } from 'react';
-import { auth, db } from './firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { collection, doc, setDoc, getDocs, query, where } from 'firebase/firestore'; // Ajout de collection, getDocs, query, where
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from './firebase'; // Assurez-vous que 'db' est exporté de firebase.js
 import { toast } from 'react-toastify';
+import ListAndInfoModal from './ListAndInfoModal'; // Assurez-vous que ce chemin est correct
 
-// Liste des avatars par défaut
-const defaultAvatars = [
-  '😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😆', '😇', '😈', '😉', '😊', '😋', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
-  '🤩', '🤔', '🤨', '😐', '😑', '😶', '🙄', '😏', '😮', '🤥', '🤫', '🤭', '🤯', '😳', '😱', '😨', '😰', '😢', '😥', '🤤',
-  '😭', '😓', '😪', '😴', '🥱', '😵', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '🥳', '😎', '🤓', '🧐',
-  '😮‍💨', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '👻', '👽', '🤖', '💩', '🤡', '👹', '👺', '🔥', '✨', '🌟', '💫', '💥',
-  '💯', '👍', '👎', '👏', '🙌', '🤝', '🙏', '💪', '🧠', '👀', '🧑‍💻', '🦸', '🦹', '🧙', '🧚', '🧜', '🧛', '🧟', '🧑‍🚀', '🧑‍🔬',
-  '🧑‍🎨', '🧑‍🎤', '🧑‍🍳', '🧑‍🎓', '🧑‍🏫', '🧑‍🏭', '🧑‍🔧', '🧑‍🌾', '🧑‍🚒', '👮', '🕵️', '💂', '👷', '🤴', '👸', '👳', '👲', '🧕', '🤵',
-  '👰', '🤰', '🤱', '👼', '🎅', '🤶', '🧑‍🎄', '🧝', '🧞', '🧟', '🧑‍🦱', '🧑‍🦰', '🧑‍🦳', '🧑‍🦲', '👶', '🧒', '👦', '👧', '🧑', '👨',
-  '👩', '🧓', '👴', '👵', '🙍', '🙎', '🙅', '🙆', '💁', '🙋', '🧏', '🙇', '🤦', '🤷', '🧑‍⚕️', '🧑‍⚖️', '🧑‍✈️', '🧑‍💼', '🧑‍🔧', '🧑‍🏭',
-  '🧑‍🌾', '🧑‍🍳', '🧑‍🎓', '🧑‍🎤', '🧑‍🎨', '🧑‍🏫', '🧑‍🔬', '🧑‍💻', '🧑‍🚀', '🧑‍🚒', '⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎳',
-  '🏏', '🏑', '🏒', '🥍', '🏓', '🏸', '🥊', '🥋', '🥅', '⛳', '⛸️', '🎣', '🤿', '🎽', '🎿', '🏂', '🛷', '🥌', '🎯', '_ _',
-  '🎮', '🎲', '🧩', '🧸', '🪅', '🪆', '🎊', '🎉', '🎋', '🎍', '🎎', '🎏', '🎐', '🎑', '🧧', '🎁', '🎀', '🪢', '✉️', '📧',
-  '📩', '📨', '📧', '💌', '📮', '📪', '📫', '📬', '📭', '📦', '📊', '📈', '📉', '🗓️', '🗒️', '📅', '📆', '🗓️', '📇', '📜',
-  '📋', '📁', '📂', '🗂️', '🗞️', '📰', '🗞️', '📖', '📚', '🔗', '📎', '🖇️', '✂️', '🖊️', '🖋️', '✒️', '✏️', '🖍️', '🖌️', '🔍',
-  '🔎', '💡', '🔦', '🕯️', '🗑️', '🛢️', '🚿', '🛁', '🚽', '🧻', '🧼', '🪥', '🧴', '🧽', '🧹', '🧺', '🪣', '🔑', '🗝️', '🔐',
-  '🔒', '🔓', '🔔', '🔕', '📣', '📢', '💬', '💭', '🗣️', '👤', '👥', '🫂', '👣', '🦰', '🦱', '🦳', '🦲', '🧑‍🦰', '🧑‍🦱', '🧑‍🦳',
-  '🧑‍🦲', '🧔', '👩‍🦰', '👩‍🦱', '👩‍🦳', '👩‍🦲', '👨‍🦰', '👨‍🦱', '👨‍🦳', '👨‍🦲', '👱‍♀️', '👱', '👱‍♂️', '🙍‍♀️', '🙍', '🙍‍♂️', '🙎‍♀️', '🙎', '🙎‍♂️',
-  '🙅‍♀️', '🙅', '🙅‍♂️', '🙆‍♀️', '🙆', '🙆‍♂️', '💁‍♀️', '💁', '💁‍♂️', '🙋‍♀️', '🙋', '🙋‍♂️', '🧏‍♀️', '🧏', '🧏‍♂️', '🙇‍♀️', '🙇', '🙇‍♂️', '🤦‍♀️',
-  '🤦', '🤦‍♂️', '🤷‍♀️', '🤷', '🤷‍♂️', '🧑‍⚕️', '👩‍⚕️', '👨‍⚕️', '🧑‍🎓', '👩‍🎓', '👨‍🎓', '🧑‍🏫', '👩‍🏫', '👨‍🏫', '🧑‍⚖️', '👩‍⚖️', '👨‍⚖️', '🧑‍🌾', '👩‍🌾',
-  '👨‍🌾', '🧑‍🍳', '👩‍🍳', '👨‍🍳', '🧑‍🔧', '👩‍🔧', '👨‍🔧', '🧑‍🏭', '👩‍🏭', '👨‍🏭', '🧑‍💼', '👩‍💼', '👨‍💼', '🧑‍🔬', '👩‍🔬', '👨‍🔬', '🧑‍💻', '👩‍💻',
-  '👨‍💻', '🧑‍🎤', '👩‍🎤', '👨‍🎤', '🧑‍🎨', '👩‍🎨', '👨‍🎨', '🧑‍✈️', '👩‍✈️', '👨‍✈️', '🧑‍🚀', '👩‍🚀', '👨‍🚀', '🧑‍🚒', '👩‍🚒', '👨‍🚒', '👮‍♀️', '👮',
-  '👮‍♂️', '🕵️‍♀️', '🕵️', '🕵️‍♂️', '💂‍♀️', '💂', '💂‍♂️', '👷‍♀️', '👷', '👷‍♂️', '🤴', '👸', '👳‍♀️', '👳', '👳‍♂️', '👲', '🧕', '🤵‍♀️', '🤵',
-  '👰‍♀️', '👰', '👰‍♂️', '🤰', '🤱', '👼', '🎅', '🤶', '🧑‍🎄', '🧝‍♀️', '🧝', '🧝‍♂️', '🧞‍♀️', '🧞', '🧞‍♂️', '🧟‍♀️', '🧟', '🧟‍♂️', '🧠',
-  '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍', '❤️‍🔥', '❤️‍🩹', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '🧡',
-  '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍', '❤️‍🔥', '❤️‍🩹', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💯', '👍',
-  '👎', '👏', '🙌', '🤝', '🙏', '💪', '🧠', '👀', '🧑‍💻', '🦸', '🦹', '🧙', '🧚', '🧜', '🧛', '🧟', '🧑‍🚀', '🧑‍🔬', '🧑‍🎨',
-  '🧑‍🎤', '🧑‍🍳', '🧑‍🎓', '🧑‍🏫', '🧑‍🏭', '🧑‍🔧', '🧑‍🌾', '🧑‍🚒', '👮', '🕵️', '💂', '👷', '🤴', '👸', '👳', '👲', '🧕', '🤵',
-  '👰', '🤰', '🤱', '👼', '🎅', '🤶', '🧑‍🎄', '🧝', '🧞', '🧟', '🧑‍🦱', '🧑‍🦰', '🧑‍🦳', '🧑‍🦲', '👶', '🧒', '👦', '👧', '🧑', '👨',
-  '👩', '🧓', '👴', '👵', '🙍', '🙎', '🙅', '🙆', '💁', '🙋', '🧏', '🙇', '🤦', '🤷', '🧑‍⚕️', '🧑‍⚖️', '🧑‍✈️', '🧑‍💼', '🧑‍🔧', '🧑‍🏭',
-  '🧑‍🌾', '🧑‍🍳', '🧑‍🎓', '🧑‍🎤', '🧑‍🎨', '🧑‍🏫', '🧑‍🔬', '🧑‍💻', '🧑‍🚀', '🧑‍🚒', '⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎳',
-  '🏏', '🏑', '🏒', '🥍', '🏓', '🏸', '🥊', '🥋', '🥅', '⛳', '⛸️', '🎣', '🤿', '🎽', '🎿', '🏂', '🛷', '🥌', '🎯', '🎮', '🎲',
-  '🧩', '🧸', '🪅', '🪆', '🎊', '🎉', '🎋', '🎍', '🎎', '🎏', '🎐', '🎑', '🧧', '🎁', '🎀', '🪢', '✉️', '📧', '📩', '📨',
-  '📧', '💌', '📮', '📪', '📫', '📬', '📭', '📦', '📊', '📈', '📉', '🗓️', '🗒️', '📅', '📆', '🗓️', '📇', '📜', '📋', '📁',
-  '📂', '🗂️', '🗞️', '📰', '🗞️', '📖', '📚', '🔗', '📎', '🖇️', '✂️', '🖊️', '🖋️', '✒️', '✏️', '🖍️', '🖌️', '🔍', '🔎', '💡',
-  '🔦', '🕯️', '🗑️', '🛢️', '🚿', '🛁', '🚽', '🧻', '🧼', '🪥', '🧴', '🧽', '🧹', '🧺', '🪣', '🔑', '🗝️', '🔐', '🔒', '🔓',
-  '🔔', '🔕', '📣', '📢', '💬', '💭', '🗣️', '👤', '👥', '🫂', '👣', '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍', '❤️‍🔥', '❤️‍🩹',
-  '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝',
-];
+const avatars = ['😀', '😂', '😎', '🤩', '🥳', '🤓', '🤖', '👻', '👽', '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦉', '🦋', '🐢', '🐍', '🐉', '🐳', '🐬', '🐠', '🐙', '🦀', '🦞', '🦐', '🦑', '🐡', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🦒', '🦘', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🐐', '🦌', '🐕', '🐩', '🐈', '🐓', '🦃', '🕊️', '🦅', '🦆', '🦢', '🦩', '🦜', '🐦', '🐧', '🦉', '🦚', '🦃', '🐓', '🐔', '🐣', '🐤', '🐥', '👶', '👦', '👧', '🧑', '👨', '👩', '👴', '👵', '🧓', '👨‍⚕️', '👩‍⚕️', '👨‍🎓', '👩‍🎓', '👨‍🏫', '👩‍🏫', '👨‍⚖️', '👩‍⚖️', '👨‍🌾', '👩‍🌾', '👨‍🍳', '👩‍🍳', '👨‍🔧', '👩‍🔧', '👨‍🏭', '👩‍🏭', '👨‍💼', '👩‍💼', '👨‍🔬', '👩‍🔬', '👨‍💻', '👩‍💻', '👨‍🎤', '👩‍🎤', '👨‍🎨', '👩‍🎨', '👨‍✈️', '👩‍✈️', '👨‍🚀', '👩‍🚀', '👨‍🚒', '👩‍🚒', '👮', '🕵️', '💂', '👷', '🤴', '👸', '👳', '👲', '🧕', '🤵', '👰', '🤰', '🤱', '👼', '🎅', '🤶', '🦸', '🦹', '🧙', '🧚', '🧛', '🧜', '🧝', '🧟', '🧞', '👨‍🦯', '👩‍🦯', '👨‍🦼', '👩‍🦼', '👨‍🦽', '👩‍🦽', '🗣️', '👤', '👥', '🫂'];
 
-
-function AuthModal({ onClose }) {
+const AuthModal = ({ onClose }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [selectedAvatar, setSelectedAvatar] = useState('👤'); // Avatar par défaut
 
-  const handleAuth = async () => {
+  const handleAuth = async (e) => {
+    e.preventDefault();
     setLoading(true);
     try {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
         toast.success('Connexion réussie !');
       } else {
-        // Vérifier si le displayName est déjà pris
-        // Note: Cette vérification est basée sur le displayName étant unique,
-        // ce qui est une convention d'application, pas une contrainte Firestore native sur le displayName.
-        // Si vous voulez une unicité stricte, il faudrait une collection dédiée aux usernames.
-        const usersCollectionRef = collection(db, "users");
-        const q = query(usersCollectionRef, where("displayName", "==", displayName));
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          toast.error('Ce nom d\'utilisateur est déjà pris. Veuillez en choisir un autre.');
-          setLoading(false);
-          return;
-        }
-
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(userCredential.user, { displayName: displayName });
+        const user = userCredential.user;
 
-        // Choisir un avatar aléatoire par défaut
-        const randomAvatar = defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)];
+        // Mettre à jour le profil de l'utilisateur avec le displayName
+        await updateProfile(user, { displayName: displayName });
 
-        // Enregistrer les informations supplémentaires de l'utilisateur dans Firestore
-        await setDoc(doc(db, "users", userCredential.user.uid), {
-          uid: userCredential.user.uid,
-          email: email,
+        // Créer un document utilisateur dans Firestore
+        await setDoc(doc(db, "users", user.uid), {
+          email: user.email,
           displayName: displayName,
           dateJoined: new Date().toISOString(),
           isAdmin: false, // Par défaut, non admin
-          weeklyPoints: 0,
           totalCumulativePoints: 0,
+          weeklyPoints: 0,
           previousWeeklyPoints: 0,
-          avatar: randomAvatar, // Enregistrer l'avatar
-          level: 1, // Niveau initial
-          xp: 0 // XP initial
+          xp: 0,
+          level: 1,
+          avatar: selectedAvatar // Enregistrer l'avatar choisi
         });
         toast.success('Compte créé et connecté !');
       }
       onClose();
     } catch (error) {
       console.error("Erreur d'authentification:", error);
-      let errorMessage = "Une erreur est survenue.";
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = 'Cet email est déjà utilisé.';
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Format d\'email invalide.';
-      } else if (error.code === 'auth/weak-password') {
-        errorMessage = 'Le mot de passe est trop faible (6 caractères minimum).';
-      } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        errorMessage = 'Email ou mot de passe incorrect.';
-      }
-      toast.error(errorMessage);
+      toast.error(`Erreur: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
-      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto">
-        <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-6">
-          {isLogin ? 'Connexion' : 'Inscription'}
-        </h2>
+    <ListAndInfoModal title={isLogin ? "Connexion" : "Inscription"} onClose={onClose} sizeClass="max-w-xs sm:max-w-md">
+      <form onSubmit={handleAuth} className="space-y-4">
         {!isLogin && (
-          <input
-            type="text"
-            placeholder="Nom d'utilisateur"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            disabled={loading}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Nom d'utilisateur</label>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2"
+              required
+            />
+          </div>
         )}
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-          disabled={loading}
-        />
-        <input
-          type="password"
-          placeholder="Mot de passe"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-3 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-          disabled={loading}
-        />
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2"
+            required
+          />
+        </div>
+
+        {!isLogin && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Choisissez votre avatar</label>
+            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 max-h-40 overflow-y-auto p-2 border rounded-md bg-gray-50 custom-scrollbar">
+              {avatars.map((avatar, index) => (
+                <div
+                  key={index}
+                  className={`flex items-center justify-center text-2xl sm:text-3xl p-1.5 rounded-full cursor-pointer transition-all duration-200
+                              ${selectedAvatar === avatar ? 'bg-primary text-white scale-110 shadow-lg' : 'hover:bg-gray-200'}`}
+                  onClick={() => setSelectedAvatar(avatar)}
+                >
+                  {avatar}
+                </div>
+              ))}
+            </div>
+            <p className="text-center text-gray-500 text-xs mt-2">Votre avatar actuel: <span className="text-xl align-middle">{selectedAvatar}</span></p>
+          </div>
+        )}
+
         <button
-          onClick={handleAuth}
-          disabled={loading || !email || !password || (!isLogin && !displayName)}
-          className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-6 rounded-full shadow-lg
-                     transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm mb-4"
+          type="submit"
+          className="w-full bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50"
+          disabled={loading}
         >
           {loading ? 'Chargement...' : (isLogin ? 'Se connecter' : 'S\'inscrire')}
         </button>
-        <p className="text-sm text-text">
-          {isLogin ? "Pas encore de compte ?" : "Déjà un compte ?"}
-          <button
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-primary hover:underline ml-1 font-semibold"
-            disabled={loading}
-          >
-            {isLogin ? "S'inscrire" : "Se connecter"}
-          </button>
-        </p>
-        <button
-          onClick={onClose}
-          className="mt-4 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-1.5 px-3 rounded-full shadow-md transition duration-300 text-xs"
-          disabled={loading}
-        >
-          Fermer
-        </button>
-      </div>
-    </div>
+      </form>
+      <button
+        onClick={() => setIsLogin(!isLogin)}
+        className="mt-4 w-full text-primary hover:text-secondary font-semibold text-sm transition duration-300"
+        disabled={loading}
+      >
+        {isLogin ? "Pas de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
+      </button>
+    </ListAndInfoModal>
   );
-}
+};
 
 export default AuthModal;

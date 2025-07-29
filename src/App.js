@@ -1,4 +1,4 @@
-/* global __app_id */ // <-- AJOUTÉ : Déclare __app_id comme une variable globale pour ESLint
+/* global __firebase_config */ // Déclare __firebase_config comme globale pour ESLint
 
 // src/App.js
 // Version mise à jour pour utiliser Firebase Authentication et Firestore avec des écouteurs en temps réel.
@@ -28,7 +28,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
 // Importations Firebase
-import { db, auth } from './firebase';
+import { db, auth, app } from './firebase'; // Importez aussi 'app' pour obtenir le projectId
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, writeBatch, onSnapshot } from 'firebase/firestore'; 
 import { signOut } from 'firebase/auth';
 
@@ -80,7 +80,8 @@ const calculateLevelAndXP = (currentXP) => {
 
 function AppContent() { 
   // Définition de l'ID de l'application pour les chemins Firestore
-  const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+  // Utilise le projectId de l'instance Firebase app, qui est la source la plus fiable.
+  const appId = app.options.projectId || 'default-app-id';
 
   // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
@@ -1035,7 +1036,7 @@ function AppContent() {
     setShowReportModal(true);
   };
 
-  const submitReport = async (reporterNameInput) => {
+  const submitReport = async () => { // Supprime reporterNameInput du paramètre
     if (!currentUser) {
       toast.warn('Vous devez être connecté pour signaler une tâche.');
       return;
@@ -1049,7 +1050,7 @@ function AppContent() {
         reportedUserId: reportedTaskDetails.reportedUserId,
         reportedParticipantName: reportedTaskDetails.participant,
         reporterUserId: currentUser.uid,
-        reporterName: reporterNameInput.trim(),
+        reporterName: currentUser.displayName || currentUser.email, // Utilise le nom de l'utilisateur connecté
         timestamp: new Date().toISOString(),
         status: 'pending' 
       });
@@ -1856,7 +1857,7 @@ function AppContent() {
             </div>
           ) : (
             Array.isArray(subTasks) && subTasks.length > 0 ? (
-              <div className="space-y-3 mb-6 text-left max-h-60 overflow-y-auto custom-scrollbar"> 
+              <div className="space-y-3 mb-6 text-left max-h-60 overflow-y-auto p-2 border rounded-md bg-gray-50 custom-scrollbar"> 
                 {subTasks.map(subTask => {
                   const available = isSubTaskAvailable(subTask);
                   const isChecked = selectedSubTasks.some(t => String(t.ID_Tache) === String(subTask.ID_Tache));
@@ -2657,8 +2658,8 @@ function AppContent() {
           )}
         </header>
 
-        <nav className="flex flex-col sm:flex-row justify-center items-center mb-6 sm:mb-8 gap-2 sm:gap-4"> 
-          <div className="bg-neutralBg rounded-full p-1.5 flex justify-center gap-4 sm:gap-6 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto"> 
+        <nav className="flex flex-col items-center mb-6 sm:mb-8 px-4"> {/* Added px-4 for outer padding */}
+          <div className="bg-neutralBg rounded-full p-1.5 flex flex-row justify-start sm:justify-center gap-4 sm:gap-6 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto w-full max-w-full"> {/* Adjusted justify-start/center and added w-full max-w-full */}
             <button
               className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
                 ${activeMainView === 'home' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
@@ -2790,7 +2791,7 @@ function AppContent() {
           <ReportTaskModal
             show={showReportModal}
             onClose={() => { setShowReportModal(false); setReportedTaskDetails(null); }}
-            onSubmit={submitReport}
+            onSubmit={submitReport} // Plus besoin de passer reporterNameInput ici
             reportedTaskDetails={reportedTaskDetails}
             loading={loading}
           />
