@@ -5,16 +5,17 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getAnalytics } from "firebase/analytics";
 
 // Votre configuration Firebase
 // REMPLACEZ CES VALEURS par celles obtenues à l'étape 1 de la console Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyDs0UtfVH2UIhAi5gDFF7asrNmVwQF03sw", // Exemple: "AIzaSyB..."
-  authDomain: "clean-app-challenge.firebaseapp.com", // Exemple: "clean-app-challenge.firebaseapp.com"
-  projectId: "clean-app-challenge", // Exemple: "clean-app-challenge"
-  storageBucket: "clean-app-challenge.firebasestorage.app", // Exemple: "clean-app-challenge.appspot.com"
-  messagingSenderId: "689290653968", // Exemple: "1234567890"
-  appId: "1:689290653968:web:c55ebf0cc8efcef35b7595" // Exemple: "1:1234567890:web:abcdef123456"
+  apiKey: "AIzaSyDs0UtfVH2UIhAi5gDFF7asrNmVwQF03sw", 
+  authDomain: "clean-app-challenge.firebaseapp.com", 
+  projectId: "clean-app-challenge", 
+  storageBucket: "clean-app-challenge.firebasestorage.app", 
+  messagingSenderId: "689290653968", 
+  appId: "1:689290653968:web:c55ebf0cc8efcef35b7595",
   measurementId: "G-VQKBD9HJCK"
 };
 

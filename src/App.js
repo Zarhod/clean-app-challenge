@@ -24,7 +24,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 // Importations Firebase
 import { db, auth } from './firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc } from 'firebase/firestore'; // <<< setDoc ajouté ici
 import { signOut } from 'firebase/auth';
 
 // Importation du contexte utilisateur
@@ -179,12 +179,17 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       usersData.forEach(user => {
         participantScores[user.displayName] = {
           Nom_Participant: user.displayName,
-          Points_Total_Semaine_Courante: 0,
-          Points_Total_Cumulatif: 0,
-          Points_Total_Semaine_Precedente: parseFloat(user.weeklyPoints || 0), // Utilise les points hebdomadaires de l'utilisateur comme points précédents
+          Points_Total_Semaine_Courante: parseFloat(user.weeklyPoints || 0), 
+          Points_Total_Cumulatif: parseFloat(user.totalCumulativePoints || 0),
+          Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0), // Assurez-vous d'avoir ce champ dans user doc
           Date_Mise_A_Jour: user.dateJoined || '' // Ou une date de dernière activité
         };
       });
+
+      // Recalculer les points à partir des réalisations pour s'assurer de la fraîcheur
+      // et gérer les cas où les points ne sont pas mis à jour immédiatement sur le profil
+      const tempWeeklyPoints = {};
+      const tempCumulativePoints = {};
 
       realisationsData.forEach(real => {
         const participant = real.nomParticipant;
@@ -192,12 +197,26 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
         const realDate = new Date(real.timestamp);
         realDate.setHours(0, 0, 0, 0);
 
-        if (participantScores[participant]) {
-          participantScores[participant].Points_Total_Cumulatif += points;
-          if (realDate >= startOfCurrentWeek) {
-            participantScores[participant].Points_Total_Semaine_Courante += points;
-          }
+        tempCumulativePoints[participant] = (tempCumulativePoints[participant] || 0) + points;
+        if (realDate >= startOfCurrentWeek) {
+          tempWeeklyPoints[participant] = (tempWeeklyPoints[participant] || 0) + points;
         }
+      });
+
+      // Fusionner les scores calculés avec les données utilisateur pour le classement
+      usersData.forEach(user => {
+        const displayName = user.displayName;
+        if (!participantScores[displayName]) {
+          participantScores[displayName] = {
+            Nom_Participant: displayName,
+            Points_Total_Semaine_Courante: 0,
+            Points_Total_Cumulatif: 0,
+            Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0),
+            Date_Mise_A_Jour: user.dateJoined || ''
+          };
+        }
+        participantScores[displayName].Points_Total_Semaine_Courante = tempWeeklyPoints[displayName] || 0;
+        participantScores[displayName].Points_Total_Cumulatif = tempCumulativePoints[displayName] || 0;
       });
       
       const currentClassement = Object.values(participantScores)
@@ -220,7 +239,8 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       const querySnapshot = await getDocs(q);
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setRealisations(data);
-    } catch (err) {
+    }
+    catch (err) {
       setError(`Erreur lors de la récupération des réalisations: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
     }
@@ -507,8 +527,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
         const userData = userDoc.data();
         batch.push(updateDoc(userRef, {
           weeklyPoints: 0,
-          // Conserver les points hebdomadaires actuels comme "précédents" si vous avez ce champ
-          // Si non, le calcul du classement le gérera à partir de l'historique
+          previousWeeklyPoints: userData.weeklyPoints || 0 // Sauvegarde les points de la semaine précédente
         }));
       });
       await Promise.all(batch); // Exécute toutes les mises à jour en parallèle
@@ -551,20 +570,15 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
     // Le chargement initial des données dépend de l'état d'authentification
     // pour s'assurer que les règles de sécurité Firestore sont respectées.
     if (!loadingUser) { // S'assure que l'état de l'utilisateur a été déterminé
-      if (currentUser) {
-        fetchTaches();
-        fetchClassement();
-        fetchRealisations(); 
-        fetchObjectives(); 
-        fetchCongratulatoryMessages(); 
-        fetchHistoricalPodiums(); 
-        fetchReports(); 
-      } else {
-        // Si non connecté, on peut charger certaines données publiques ou afficher une page de connexion
-        // Pour l'instant, on laisse le loading à false et on gère l'affichage en conséquence.
-        setLoading(false);
-        // Optionnel: charger des données publiques si elles existent et sont accessibles sans auth
-      }
+      // On peut toujours tenter de charger les données, les règles Firestore géreront les permissions
+      fetchTaches();
+      fetchClassement();
+      fetchRealisations(); 
+      fetchObjectives(); 
+      fetchCongratulatoryMessages(); 
+      fetchHistoricalPodiums(); 
+      fetchReports(); 
+      setLoading(false); // Fin du chargement initial
     }
   }, [currentUser, loadingUser, fetchTaches, fetchClassement, fetchRealisations, fetchObjectives, fetchCongratulatoryMessages, fetchHistoricalPodiums, fetchReports]);
 
