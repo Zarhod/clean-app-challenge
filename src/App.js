@@ -83,7 +83,7 @@ function AppContent() {
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
   const [realisations, setRealisations] = useState([]); 
-  // DÉCLARATION UNIQUE DE 'classement' - LIGNE 49
+  // DÉCLARATION UNIQUE DE 'classement' - C'EST LA SEULE DÉCLARATION DE CETTE VARIABLE.
   const [classement, setClassement] = useState([]); 
   const [historicalPodiums, setHistoricalPodiums] = useState([]); 
   const [objectives, setObjectives] = useState([]); 
@@ -134,7 +134,7 @@ function AppContent() {
   const [showExportSelectionModal, setShowExportSelectionModal] = useState(false); 
   const [showOverallRankingModal, setShowOverallRankingModal] = useState(false); 
   const [showAdminUserManagementModal, setShowAdminUserManagementModal] = useState(false); 
-  const [showAdminCongratulatoryMessagesModal, setShowAdminCongratulatoryMessagesModal] = useState(false);
+  const [showAdminCongratulatoryMessagesModal, setShowAdminCongratulatoryMessagesModal = useState(false);
 
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportedTaskDetails, setReportedTaskDetails] = useState(null); 
