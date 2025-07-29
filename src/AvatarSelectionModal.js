@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 const AvatarSelectionModal = ({ currentAvatar, onClose, onSave }) => {
   const [selectedAvatar, setSelectedAvatar] = useState(currentAvatar);
 
-  // Liste d'emojis pour les avatars (curated)
+  // Liste d'emojis pour les avatars (curated pour ne pas être excessive)
   const avatarOptions = [
     '😀', '😁', '😂', '😇', '😈', '😉', '😊', '😍', '😎', '🤓', '🤔', '🤫', '😶', '😐', '🙄', '😴', '🥳', '🤩',
     '🤖', '👾', '👽', '👻', '🎃', '😺', '🐶', '🐱', '🦁', '🐯', '🐼', '🐸', '🐙', '🐠', '🦋', '🐝', '🐞', '🕷️',
