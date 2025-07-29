@@ -2,6 +2,7 @@
 // Version mise à jour pour utiliser Firebase Authentication et Firestore avec des écouteurs en temps réel.
 // Tous les chemins Firestore sont maintenant à la racine de la base de données.
 // Les boutons des modales sont centrés sur mobile.
+// Gestion améliorée des erreurs de permission pour éviter les toasts sur la page de connexion.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -68,8 +69,8 @@ const calculateLevelAndXP = (currentXP) => {
 
 
 function AppContent() { 
-  // L'ID de l'application n'est plus utilisé pour construire les chemins de collection à la racine.
-  // Il est toujours disponible via `app.options.projectId` si nécessaire pour d'autres usages.
+  // La variable appId n'est plus utilisée pour construire les chemins de collection à la racine.
+  // Elle est supprimée pour éviter l'avertissement 'no-unused-vars'.
 
   // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
@@ -105,7 +106,7 @@ function AppContent() {
   
   const [showAdminTaskFormModal, setShowAdminTaskFormModal] = useState(false); 
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false); 
-  const [taskToDelete, setTaskToDelete] = useState(null); 
+  const [taskToDelete, setTaskToDelete] = null; // Initialisé à null
   const [newTaskData, setNewTaskData] = useState({ 
     ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
     Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
@@ -119,7 +120,7 @@ function AppContent() {
   });
   const [editingObjective, setEditingObjective] = useState(null); 
   const [showDeleteObjectiveConfirmModal, setShowDeleteObjectiveConfirmModal] = useState(false); 
-  const [objectiveToDelete, setObjectiveToDelete] = useState(null); 
+  const [objectiveToDelete, setObjectiveToDelete] = null; // Initialisé à null
 
   const [showHighlightsModal, setShowHighlightsModal] = useState(false);
   const [showObjectivesModal, setShowObjectivesModal] = useState(false);
@@ -231,7 +232,7 @@ function AppContent() {
 
   // Fonctions de récupération de données utilisant onSnapshot (CHEMINS MIS À JOUR)
   const setupTasksListener = useCallback(() => {
-    const tasksCollectionPath = 'tasks'; // Chemin à la racine
+    const tasksCollectionPath = 'tasks'; 
     console.log(`[setupTasksListener] Chemin de la collection de tâches: ${tasksCollectionPath}`);
 
     const q = query(collection(db, tasksCollectionPath));
@@ -254,7 +255,6 @@ function AppContent() {
         .map(tache => {
           if (!tache) return null; 
           
-          // Calcul des points pour les tâches de groupe
           if (tache.Sous_Taches_IDs && String(tache.Sous_Taches_IDs).trim() !== '') {
             const subTaskIds = String(tache.Sous_Taches_IDs).split(',').map(id => id.trim());
             let totalSubTaskPoints = 0;
@@ -266,12 +266,10 @@ function AppContent() {
             });
             return { ...tache, Calculated_Points: totalSubTaskPoints, isGroupTask: true }; 
           }
-          // Pour les tâches simples, utiliser leurs propres points
           return { ...tache, Calculated_Points: parseFloat(tache.Points) || 0, isGroupTask: false };
         })
         .filter(tache => tache !== null); 
 
-      // Filtrer pour n'afficher que les tâches de "premier niveau" sur l'écran principal
       const finalFilteredTaches = processedAndFilteredTaches.filter(tache => {
         const isTopLevel = tache.Parent_Task_ID === null || tache.Parent_Task_ID === undefined || String(tache.Parent_Task_ID).trim() === '';
         if (!isTopLevel) {
@@ -284,29 +282,37 @@ function AppContent() {
       console.log("[setupTasksListener] Tâches affichées (filtrage Parent_Task_ID activé):", finalFilteredTaches);
       initialLoadStatus.current.tasks = true;
     }, (error) => {
-      toast.error(`Erreur lors de la récupération des tâches: ${error.message}`); 
+      // MODIFICATION ICI: Seulement afficher le toast si un utilisateur est connecté
+      if (auth.currentUser) { 
+        toast.error(`Erreur lors de la récupération des tâches: ${error.message}`); 
+      }
       console.error("[setupTasksListener] Erreur Firestore:", error);
     });
     return unsubscribe;
-  }, []); // appId retiré des dépendances car les chemins sont à la racine
+  }, []); 
 
   const setupRealisationsListener = useCallback(() => {
-    const q = query(collection(db, 'realizations')); // Chemin à la racine
+    const q = query(collection(db, 'realizations')); 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       setRealisations(data);
       initialLoadStatus.current.realizations = true;
     }, (error) => {
-      toast.error(`Erreur lors de la récupération des réalisations: ${error.message}`);
+      // MODIFICATION ICI: Seulement afficher le toast si un utilisateur est connecté
+      if (auth.currentUser) { 
+        toast.error(`Erreur lors de la récupération des réalisations: ${error.message}`);
+      }
+      console.error("[setupRealisationsListener] Erreur Firestore:", error);
     });
     return unsubscribe;
   }, []);
 
   const setupClassementListener = useCallback(() => {
+    // MODIFICATION ICI: Ajout de la vérification auth.currentUser dans les gestionnaires d'erreurs
     const usersUnsubscribe = onSnapshot(collection(db, "users"), (usersSnapshot) => {
       const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      onSnapshot(collection(db, 'realizations'), (realisationsSnapshot) => { // Chemin à la racine
+      onSnapshot(collection(db, 'realizations'), (realisationsSnapshot) => { 
         const realisationsData = realisationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
         const today = new Date();
@@ -371,59 +377,83 @@ function AppContent() {
         setTotalGlobalCumulativePoints(globalCumulative);
         initialLoadStatus.current.classement = true;
       }, (error) => {
-        toast.error(`Erreur lors de la récupération des réalisations pour le classement: ${error.message}`);
+        // MODIFICATION ICI pour le toast des réalisations
+        if (auth.currentUser) {
+          toast.error(`Erreur lors de la récupération des réalisations pour le classement: ${error.message}`);
+        }
+        console.error("[setupClassementListener] Erreur Firestore (réalisations):", error);
       });
     }, (error) => {
-      toast.error(`Erreur lors de la récupération des utilisateurs pour le classement: ${error.message}`);
+      // MODIFICATION ICI pour le toast des utilisateurs
+      if (auth.currentUser) {
+        toast.error(`Erreur lors de la récupération des utilisateurs pour le classement: ${error.message}`);
+      }
+      console.error("[setupClassementListener] Erreur Firestore (utilisateurs):", error);
     });
     return usersUnsubscribe; 
-  }, []); // appId retiré des dépendances
+  }, []); 
 
   const setupObjectivesListener = useCallback(() => {
-    const q = query(collection(db, 'objectives')); // Chemin à la racine
+    const q = query(collection(db, 'objectives')); 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setObjectives(data);
       initialLoadStatus.current.objectives = true;
     }, (error) => {
-      toast.error(`Erreur lors de la récupération des objectifs: ${error.message}`);
+      // MODIFICATION ICI: Seulement afficher le toast si un utilisateur est connecté
+      if (auth.currentUser) {
+        toast.error(`Erreur lors de la récupération des objectifs: ${error.message}`);
+      }
+      console.error("[setupObjectivesListener] Erreur Firestore:", error);
     });
     return unsubscribe;
   }, []);
 
   const setupCongratulatoryMessagesListener = useCallback(() => {
-    const q = query(collection(db, 'congratulatory_messages')); // Chemin à la racine
+    const q = query(collection(db, 'congratulatory_messages')); 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setCongratulatoryMessages(data);
       initialLoadStatus.current.congratulatoryMessages = true;
     }, (error) => {
-      setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); 
-      toast.error(`Erreur lors de la récupération des messages de félicitation: ${error.message}`);
+      // MODIFICATION ICI: Seulement afficher le toast si un utilisateur est connecté
+      if (auth.currentUser) {
+        setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); 
+        toast.error(`Erreur lors de la récupération des messages de félicitation: ${error.message}`);
+      }
+      console.error("[setupCongratulatoryMessagesListener] Erreur Firestore:", error);
     });
     return unsubscribe;
   }, []);
 
   const setupHistoricalPodiumsListener = useCallback(() => {
-    const q = query(collection(db, 'historical_podiums')); // Chemin à la racine
+    const q = query(collection(db, 'historical_podiums')); 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setHistoricalPodiums(data);
       initialLoadStatus.current.historicalPodiums = true;
     }, (error) => {
-      toast.error(`Erreur lors de la récupération des podiums historiques: ${error.message}`);
+      // MODIFICATION ICI: Seulement afficher le toast si un utilisateur est connecté
+      if (auth.currentUser) {
+        toast.error(`Erreur lors de la récupération des podiums historiques: ${error.message}`);
+      }
+      console.error("[setupHistoricalPodiumsListener] Erreur Firestore:", error);
     });
     return unsubscribe;
   }, []);
 
   const setupReportsListener = useCallback(() => {
-    const q = query(collection(db, 'reports')); // Chemin à la racine
+    const q = query(collection(db, 'reports')); 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setReports(data);
       initialLoadStatus.current.reports = true;
     }, (error) => {
-      toast.error(`Erreur lors de la récupération des rapports: ${error.message}`);
+      // MODIFICATION ICI: Seulement afficher le toast si un utilisateur est connecté
+      if (auth.currentUser) {
+        toast.error(`Erreur lors de la récupération des rapports: ${error.message}`);
+      }
+      console.error("[setupReportsListener] Erreur Firestore:", error);
     });
     return unsubscribe;
   }, []);
@@ -528,7 +558,7 @@ function AppContent() {
   const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
     setLoading(true); 
     try {
-      const q = query(collection(db, 'realizations'), where("nomParticipant", "==", participantName)); // Chemin à la racine
+      const q = query(collection(db, 'realizations'), where("nomParticipant", "==", participantName)); 
       const querySnapshot = await getDocs(q);
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -556,7 +586,7 @@ function AppContent() {
   const fetchSubTasks = useCallback(async (parentTaskId) => {
     setLoading(true); 
     try {
-      const parentTaskDoc = await getDoc(doc(db, 'tasks', parentTaskId)); // Chemin à la racine
+      const parentTaskDoc = await getDoc(doc(db, 'tasks', parentTaskId)); 
       if (!parentTaskDoc.exists()) {
         throw new Error("Tâche parente introuvable.");
       }
@@ -569,7 +599,7 @@ function AppContent() {
 
       const subTaskIds = String(parentTaskData.Sous_Taches_IDs).split(',').map(id => id.trim());
       
-      const subTasksPromises = subTaskIds.map(id => getDoc(doc(db, 'tasks', id))); // Chemin à la racine
+      const subTasksPromises = subTaskIds.map(id => getDoc(doc(db, 'tasks', id))); 
       const subTaskDocs = await Promise.all(subTasksPromises);
       const sousTaches = subTaskDocs
         .filter(docSnap => docSnap.exists())
@@ -587,7 +617,6 @@ function AppContent() {
   const fetchGlobalCollectionDocs = useCallback(async (collectionName) => {
     setLoadingGlobalCollectionDocs(true);
     try {
-      // Toutes les collections sont maintenant à la racine
       const collectionPath = collectionName; 
       const q = query(collection(db, collectionPath));
       const querySnapshot = await getDocs(q);
@@ -599,7 +628,7 @@ function AppContent() {
     } finally {
       setLoadingGlobalCollectionDocs(false);
     }
-  }, []); // appId retiré des dépendances
+  }, []); 
 
   const recordTask = async (idTacheToRecord, isSubTask = false) => {
     if (!currentUser) {
@@ -618,7 +647,7 @@ function AppContent() {
       const pointsToSend = parseFloat(taskToRecord.Points) || 0;
       const categoryToSend = taskToRecord.Categorie || 'Non catégorisée';
 
-      await addDoc(collection(db, 'realizations'), { // Chemin à la racine
+      await addDoc(collection(db, 'realizations'), { 
         taskId: idTacheToRecord,
         userId: currentUser.uid,
         nomParticipant: currentUser.displayName || currentUser.email, 
@@ -646,7 +675,7 @@ function AppContent() {
       }
 
       if (String(taskToRecord.Frequence || '').toLowerCase() === 'ponctuel') {
-          await deleteDoc(doc(db, 'tasks', taskToRecord.id)); // Chemin à la racine
+          await deleteDoc(doc(db, 'tasks', taskToRecord.id)); 
           toast.success(`Tâche ponctuelle "${taskToRecord.Nom_Tache}" enregistrée et supprimée.`);
       } else {
           toast.success(`Tâche "${taskToRecord.Nom_Tache}" enregistrée avec succès.`);
@@ -695,7 +724,7 @@ function AppContent() {
           tasksToDelete.push(subTask.id); 
         }
 
-        batch.set(doc(collection(db, 'realizations')), { // Chemin à la racine
+        batch.set(doc(collection(db, 'realizations')), { 
           taskId: subTask.ID_Tache,
           userId: currentUser.uid,
           nomParticipant: currentUser.displayName || currentUser.email,
@@ -707,7 +736,7 @@ function AppContent() {
       });
       
       tasksToDelete.forEach(taskId => {
-        batch.delete(doc(db, 'tasks', taskId)); // Chemin à la racine
+        batch.delete(doc(db, 'tasks', taskId)); 
       });
 
       const userDocRef = doc(db, "users", currentUser.uid);
@@ -756,7 +785,7 @@ function AppContent() {
       const top3 = sortedClassement.slice(0, 3);
       const datePodium = new Date().toISOString().split('T')[0]; 
 
-      await addDoc(collection(db, 'historical_podiums'), { // Chemin à la racine
+      await addDoc(collection(db, 'historical_podiums'), { 
         Date_Podium: datePodium,
         top3: top3.map(p => ({ name: p.Nom_Participant, points: p.Points_Total_Semaine_Courante }))
       });
@@ -791,12 +820,12 @@ function AppContent() {
     }
     setLoading(true);
     try {
-      const realisationsQuery = query(collection(db, 'realizations')); // Chemin à la racine
+      const realisationsQuery = query(collection(db, 'realizations')); 
       const realisationsSnapshot = await getDocs(realisationsQuery);
       const batchDeleteRealisations = writeBatch(db);
 
       realisationsSnapshot.docs.forEach(realDoc => {
-        batchDeleteRealisations.delete(doc(db, 'realizations', realDoc.id)); // Chemin à la racine
+        batchDeleteRealisations.delete(doc(db, 'realizations', realDoc.id)); 
       });
       await batchDeleteRealisations.commit();
 
@@ -879,13 +908,13 @@ function AppContent() {
       const pointsToSave = parseFloat(newTaskData.Points);
 
       if (editingTask) {
-        await updateDoc(doc(db, 'tasks', editingTask.id), { // Chemin à la racine
+        await updateDoc(doc(db, 'tasks', editingTask.id), { 
           ...newTaskData,
           Points: pointsToSave 
         });
         toast.success('Tâche mise à jour avec succès.');
       } else {
-        await setDoc(doc(db, 'tasks', newTaskData.ID_Tache), { // Chemin à la racine
+        await setDoc(doc(db, 'tasks', newTaskData.ID_Tache), { 
           ...newTaskData,
           Points: pointsToSave 
         });
@@ -918,7 +947,7 @@ function AppContent() {
 
     setLoading(true);
     try {
-      await deleteDoc(doc(db, 'tasks', taskId)); // Chemin à la racine
+      await deleteDoc(doc(db, 'tasks', taskId)); 
       toast.success('Tâche supprimée avec succès.');
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
@@ -962,7 +991,7 @@ function AppContent() {
     setLoading(true);
     try {
       if (editingObjective) {
-        await updateDoc(doc(db, 'objectives', editingObjective.id), { // Chemin à la racine
+        await updateDoc(doc(db, 'objectives', editingObjective.id), { 
           ...newObjectiveData,
           Cible_Points: parseFloat(newObjectiveData.Cible_Points),
           Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
@@ -970,7 +999,7 @@ function AppContent() {
         });
         toast.success('Objectif mis à jour avec succès.');
       } else {
-        await setDoc(doc(db, 'objectives', newObjectiveData.ID_Objectif), { // Chemin à la racine
+        await setDoc(doc(db, 'objectives', newObjectiveData.ID_Objectif), { 
           ...newObjectiveData,
           Cible_Points: parseFloat(newObjectiveData.Cible_Points),
           Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
@@ -1005,7 +1034,7 @@ function AppContent() {
 
     setLoading(true);
     try {
-      await deleteDoc(doc(db, 'objectives', objectiveId)); // Chemin à la racine
+      await deleteDoc(doc(db, 'objectives', objectiveId)); 
       toast.success('Objectif supprimé avec succès.');
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
@@ -1041,7 +1070,7 @@ function AppContent() {
 
     setLoading(true);
     try {
-      await addDoc(collection(db, 'reports'), { // Chemin à la racine
+      await addDoc(collection(db, 'reports'), { 
         reportedTaskId: reportedTaskDetails.id,
         reportedUserId: reportedTaskDetails.reportedUserId,
         reportedParticipantName: reportedTaskDetails.participant,
@@ -1051,7 +1080,7 @@ function AppContent() {
         status: 'pending' 
       });
 
-      await deleteDoc(doc(db, 'realizations', reportedTaskDetails.realizationId)); // Chemin à la racine
+      await deleteDoc(doc(db, 'realizations', reportedTaskDetails.realizationId)); 
       toast.success(`Tâche signalée et réalisation supprimée.`);
 
       const DEDUCTION_POINTS = 5;
@@ -2537,7 +2566,7 @@ function AppContent() {
         onClose={() => setShowExportSelectionModal(false)}
         sizeClass="max-w-xs sm:max-w-sm"
       >
-        <div className="flex flex-col space-y-4 items-center"> {/* Centré sur mobile */}
+        <div className="flex flex-col space-y-4 items-center"> 
           <button
             onClick={handleExportClassement}
             className="w-full sm:w-auto bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"
