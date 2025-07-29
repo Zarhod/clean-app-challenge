@@ -4,22 +4,21 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
 import HistoricalPodiums from './HistoricalPodiums'; 
-// import AdminLoginButton from './AdminLoginButton'; // Supprimé car la logique est maintenant intégrée directement
 import AdminTaskFormModal from './AdminTaskFormModal'; 
 import ConfirmActionModal from './ConfirmActionModal'; 
 import ConfettiOverlay from './ConfettiOverlay'; 
 import TaskStatisticsChart from './TaskStatisticsChart'; 
 import AdminObjectiveFormModal from './AdminObjectiveFormModal'; 
 import ListAndInfoModal from './ListAndInfoModal'; 
-// import ExportSelectionModal from './ExportSelectionModal'; // Garde l'import si le composant est utilisé directement, sinon supprime
 import RankingCard from './RankingCard'; 
 import OverallRankingModal from './OverallRankingModal'; 
 import ReportTaskModal from './ReportTaskModal'; 
 import AuthModal from './Auth'; 
+import AdminUserManagementModal from './AdminUserManagementModal'; // Nouvelle importation pour la gestion des utilisateurs
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css'; // Correction ici: 'Reactify.css' -> 'ReactToastify.css'
+import 'react-toastify/dist/ReactToastify.css'; 
 
 // Importations Firebase
 import { db, auth } from './firebase';
@@ -34,7 +33,7 @@ const LOGO_FILENAME = 'logo.png';
 function AppContent() { 
   // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
-  const { currentUser, isAdmin, loadingUser } = useUser(); // Utilisation du hook de contexte
+  const { currentUser, isAdmin, loadingUser } = useUser(); 
 
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
@@ -43,10 +42,11 @@ function AppContent() {
   const [historicalPodiums, setHistoricalPodiums] = useState([]); 
   const [objectives, setObjectives] = useState([]); 
   const [congratulatoryMessages, setCongratulatoryMessages] = useState([]); 
-  const [loading, setLoading] = useState(true); // État de chargement des données (après auth)
+  const [loading, setLoading] = useState(true); 
 
   const [selectedTask, setSelectedTask] = useState(null); 
-  const [participantName, setParticipantName] = useState(''); 
+  // Initialise participantName avec le nom de l'utilisateur connecté
+  const [participantName, setParticipantName] = useState(currentUser?.displayName || currentUser?.email || ''); 
   const [showThankYouPopup, setShowThankYouPopup] = useState(null); 
   const [showConfetti, setShowConfetti] = useState(false); 
   
@@ -87,6 +87,7 @@ function AppContent() {
   const [showAdminTasksListModal, setShowAdminTasksListModal] = useState(false);
   const [showExportSelectionModal, setShowExportSelectionModal] = useState(false); 
   const [showOverallRankingModal, setShowOverallRankingModal] = useState(false); 
+  const [showAdminUserManagementModal, setShowAdminUserManagementModal] = useState(false); // Nouveau state pour la modale de gestion des utilisateurs
 
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportedTaskDetails, setReportedTaskDetails] = useState(null); 
@@ -96,6 +97,15 @@ function AppContent() {
   const logoClickTimerRef = useRef(null); 
 
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // Met à jour participantName si currentUser change
+  useEffect(() => {
+    if (currentUser) {
+      setParticipantName(currentUser.displayName || currentUser.email);
+    } else {
+      setParticipantName('');
+    }
+  }, [currentUser]);
 
   const fetchTaches = useCallback(async () => {
     try {
@@ -523,11 +533,11 @@ function AppContent() {
 
   useEffect(() => {
     const loadData = async () => {
-      if (!loadingUser) { // Une fois que l'état d'authentification Firebase est déterminé
-        if (currentUser) { // Si l'utilisateur est connecté, charger les données
-          setLoading(true); // Activer l'indicateur de chargement pour les données
+      if (!loadingUser) { 
+        if (currentUser) { 
+          setLoading(true); 
           try {
-            await Promise.all([ // Charger toutes les données simultanément
+            await Promise.all([ 
               fetchTaches(),
               fetchClassement(),
               fetchRealisations(),
@@ -540,9 +550,9 @@ function AppContent() {
             console.error("Erreur lors du chargement des données initiales pour l'utilisateur authentifié:", error);
             toast.error("Erreur lors du chargement des données initiales. Veuillez réessayer.");
           } finally {
-            setLoading(false); // Fin du chargement des données
+            setLoading(false); 
           }
-        } else { // Si aucun utilisateur n'est connecté, vider les états et préparer l'interface pour la connexion
+        } else { 
           setTaches([]);
           setAllRawTaches([]);
           setRealisations([]);
@@ -551,7 +561,7 @@ function AppContent() {
           setObjectives([]);
           setCongratulatoryMessages([]);
           setReports([]);
-          setLoading(false); // L'interface est prête pour l'utilisateur non authentifié
+          setLoading(false); 
         }
       }
     };
@@ -997,22 +1007,27 @@ function AppContent() {
     }
 
     const firstObjectiveCompleted = objectives.some(obj => 
-      obj.Est_Atteint && String(obj.Type_Cible || '').toLowerCase() === 'cumulatif' && 
-      parseFloat(participant.Points_Total_Cumulatif) >= parseFloat(obj.Cible_Points || 0) &&
-      !badges.some(b => b.name === 'Conquérant d\'Objectifs')
+      obj.Est_Atteint && 
+      (String(obj.Type_Cible || '').toLowerCase() === 'cumulatif' && parseFloat(participant.Points_Total_Cumulatif) >= parseFloat(obj.Cible_Points || 0))
     );
-    if (firstObjectiveCompleted) {
+    if (firstObjectiveCompleted && !badges.some(b => b.name === 'Conquérant d\'Objectifs')) {
       badges.push({ name: 'Conquérant d\'Objectifs', icon: '🎯', description: 'A complété son premier objectif.' });
     }
 
-    const allObjectivesCompleted = objectives.every(obj => 
-      obj.Est_Atteint && 
-      (String(obj.Type_Cible || '').toLowerCase() === 'cumulatif' && parseFloat(participant.Points_Total_Cumulatif) >= parseFloat(obj.Cible_Points || 0)) ||
-      (String(obj.Type_Cible || '').toLowerCase() === 'par_categorie' && 
-       participantRealisations.filter(r => String(r.categorieTache || '').toLowerCase() === String(obj.Categorie_Cible || '').toLowerCase()).length > 0 && 
-       participantRealisations.filter(r => String(r.categorieTache || '').toLowerCase() === String(obj.Categorie_Cible || '').toLowerCase()).reduce((sum, r) => sum + (parseFloat(r.pointsGagnes) || 0), 0) >= parseFloat(obj.Cible_Points || 0)
-      )
-    );
+    // Refactorisation de la logique pour allObjectivesCompleted
+    const allObjectivesCompleted = objectives.every(obj => {
+      const isCumulatifObjectiveMet = 
+        String(obj.Type_Cible || '').toLowerCase() === 'cumulatif' && 
+        parseFloat(participant.Points_Total_Cumulatif) >= parseFloat(obj.Cible_Points || 0);
+      
+      const isCategorieObjectiveMet = 
+        String(obj.Type_Cible || '').toLowerCase() === 'par_categorie' && 
+        participantRealisations.filter(r => String(r.categorieTache || '').toLowerCase() === String(obj.Categorie_Cible || '').toLowerCase()).length > 0 && 
+        participantRealisations.filter(r => String(r.categorieTache || '').toLowerCase() === String(obj.Categorie_Cible || '').toLowerCase()).reduce((sum, r) => sum + (parseFloat(r.pointsGagnes) || 0), 0) >= parseFloat(obj.Cible_Points || 0);
+      
+      return obj.Est_Atteint && (isCumulatifObjectiveMet || isCategorieObjectiveMet);
+    });
+
     if (allObjectivesCompleted && objectives.length > 0 && !badges.some(b => b.name === 'Maître des Objectifs')) {
       badges.push({ name: 'Maître des Objectifs', icon: '🏆', description: 'A complété tous les objectifs.' });
     }
@@ -1464,13 +1479,8 @@ function AppContent() {
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto"> 
           <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">Confirmer la Tâche</h3> 
           <p className="text-base sm:text-lg mb-4">Tâche: <strong className="text-text">{selectedTask.Nom_Tache}</strong> (<span className="font-semibold text-primary">{selectedTask.Calculated_Points} points</span>)</p>
-          {currentUser ? (
-            <p className="block text-text text-left font-medium mb-2 text-sm sm:text-base">
-              Validé par: <strong className="text-secondary">{currentUser.displayName || currentUser.email}</strong>
-            </p>
-          ) : (
-            <label htmlFor="participantName" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Votre Nom:</label>
-          )}
+          
+          <label htmlFor="participantName" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Validé par:</label>
           <input
             id="participantName"
             type="text"
@@ -1478,8 +1488,8 @@ function AppContent() {
             onChange={(e) => setParticipantName(e.target.value)}
             placeholder="Entrez votre nom"
             className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            readOnly={!!currentUser} 
-            disabled={!!currentUser} 
+            readOnly={true} // Toujours en lecture seule
+            disabled={true} // Toujours désactivé
             autoFocus
           />
           <div className="flex flex-col gap-3 sm:gap-4 mt-4"> 
@@ -1492,7 +1502,7 @@ function AppContent() {
               {loading ? 'Soumission...' : 'Valider la Tâche'} 
             </button>
             <button 
-              onClick={() => { setSelectedTask(null); setParticipantName(''); }} 
+              onClick={() => { setSelectedTask(null); setParticipantName(currentUser?.displayName || currentUser?.email || ''); }} 
               disabled={loading}
               className="bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg 
                          transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
@@ -1526,7 +1536,7 @@ function AppContent() {
       setSelectedTask(null);
       setSubTasks([]);
       setSelectedSubTasks([]);
-      setParticipantName('');
+      setParticipantName(currentUser?.displayName || currentUser?.email || ''); 
     };
 
     return (
@@ -1576,13 +1586,7 @@ function AppContent() {
             )
           )}
 
-          {currentUser ? (
-            <p className="block text-text text-left font-medium mb-2 text-sm sm:text-base">
-              Validé par: <strong className="text-secondary">{currentUser.displayName || currentUser.email}</strong>
-            </p>
-          ) : (
-            <label htmlFor="participantNameSplit" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Votre Nom:</label>
-          )}
+          <label htmlFor="participantNameSplit" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Validé par:</label>
           <input
             id="participantNameSplit"
             type="text"
@@ -1590,8 +1594,8 @@ function AppContent() {
             onChange={(e) => setParticipantName(e.target.value)}
             placeholder="Entrez votre nom"
             className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            readOnly={!!currentUser}
-            disabled={!!currentUser}
+            readOnly={true} // Toujours en lecture seule
+            disabled={true} // Toujours désactivé
             autoFocus
           />
 
@@ -1795,13 +1799,13 @@ function AppContent() {
     }));
     exportToCsv('classement_clean_app.csv', dataToExport, headers);
     setShowExportSelectionModal(false); 
-  }, [classement]); // Dépend de 'classement'
+  }, [classement]); 
 
   const handleExportRealisations = useCallback(() => {
     const headers = ['taskId', 'userId', 'nomParticipant', 'nomTacheEffectuee', 'categorieTache', 'pointsGagnes', 'timestamp'];
     exportToCsv('realisations_clean_app.csv', realisations, headers);
     setShowExportSelectionModal(false); 
-  }, [realisations]); // Dépend de 'realisations'
+  }, [realisations]); 
 
   const renderAdminObjectivesListModal = useCallback(() => {
     if (!showAdminObjectivesListModal) return null;
@@ -1972,6 +1976,12 @@ function AppContent() {
             className={`bg-error hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`} 
           >
             Réinitialiser les Points Hebdomadaires
+          </button>
+          <button
+            onClick={() => setShowAdminUserManagementModal(true)} // Nouveau bouton
+            className={`${adminButtonClasses} col-span-1`}
+          >
+            Gérer les Utilisateurs
           </button>
         </div>
 
@@ -2300,6 +2310,14 @@ function AppContent() {
         )}
         {showAuthModal && ( 
           <AuthModal onClose={() => setShowAuthModal(false)} />
+        )}
+
+        {/* Nouvelle modale pour la gestion des utilisateurs */}
+        {showAdminUserManagementModal && isAdmin && (
+          <AdminUserManagementModal
+            onClose={() => setShowAdminUserManagementModal(false)}
+            realisations={realisations} // Passer les réalisations pour calculer le nombre de tâches
+          />
         )}
 
       </div>
