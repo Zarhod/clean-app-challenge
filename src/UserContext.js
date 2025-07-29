@@ -1,7 +1,8 @@
+/* global __initial_auth_token */
 // src/UserContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from './firebase';
-import { onAuthStateChanged, signInWithCustomToken, signInAnonymously } from 'firebase/auth';
+import { onAuthStateChanged, signInWithCustomToken } from 'firebase/auth'; // signInAnonymously n'est plus importé car non utilisé
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 const UserContext = createContext();
