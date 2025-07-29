@@ -19,7 +19,7 @@ import AuthModal from './Auth';
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css'; // C'est ici que la correction est cruciale !
+import 'react-toastify/dist/ReactToastify.css'; // Correction ici: 'Reactify.css' -> 'ReactToastify.css'
 
 // Importations Firebase
 import { db, auth } from './firebase';
@@ -904,6 +904,13 @@ function AppContent() {
     return associatedSubtasks.every(subTask => !isSubTaskAvailable(subTask));
   }, [allRawTaches, isSubTaskAvailable]); 
 
+  // Helper function to determine if a task should be hidden
+  const isTaskHidden = useCallback((tache) => {
+    const isSingleTaskCompleted = !tache.isGroupTask && !isSubTaskAvailable(tache);
+    const isGroupTaskFullyCompleted = tache.isGroupTask && areAllSubtasksCompleted(tache);
+    return isSingleTaskCompleted || isGroupTaskFullyCompleted;
+  }, [isSubTaskAvailable, areAllSubtasksCompleted]);
+
   const handleLogoClick = () => {
     setLogoClickCount(prevCount => {
       const newCount = prevCount + 1;
@@ -1288,9 +1295,8 @@ function AppContent() {
       return (
         <div className="space-y-3">
           {tasks.map(tache => {
-            const shouldHideTask = (!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache));
-
-            if (shouldHideTask) {
+            // Utilisation de la fonction d'aide isTaskHidden
+            if (isTaskHidden(tache)) {
               return null; 
             }
 
@@ -1348,28 +1354,29 @@ function AppContent() {
           ))}
         </div>
 
-        {ponctuelTasks.filter(tache => !((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache)))).length > 0 && ( 
+        {/* Utilisation de la fonction d'aide isTaskHidden dans les filtres */}
+        {ponctuelTasks.filter(tache => !isTaskHidden(tache)).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Ponctuelles</h3> 
             {renderTasksList(ponctuelTasks)}
           </div>
         )}
 
-        {quotidienTasks.filter(tache => !((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache)))).length > 0 && ( 
+        {quotidienTasks.filter(tache => !isTaskHidden(tache)).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Quotidiennes</h3> 
             {renderTasksList(quotidienTasks)}
           </div>
         )}
 
-        {hebdomadaireTasks.filter(tache => !((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache)))).length > 0 && ( 
+        {hebdomadaireTasks.filter(tache => !isTaskHidden(tache)).length > 0 && ( 
           <div className="mb-6"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Hebdomadaires</h3> 
             {renderTasksList(hebdomadaireTasks)}
           </div>
         )}
 
-        {currentCategoryTasks.filter(tache => !((!tache.isGroupTask && !isSubTaskAvailable(tache)) || (tache.isGroupTask && areAllSubtasksCompleted(tache)))).length === 0 && (
+        {currentCategoryTasks.filter(tache => !isTaskHidden(tache)).length === 0 && (
           <p className="text-center text-lightText text-lg py-4">Aucune tâche disponible dans cette catégorie.</p>
         )}
       </div>
