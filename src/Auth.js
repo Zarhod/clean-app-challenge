@@ -15,15 +15,13 @@ const AuthModal = ({ onClose }) => {
   const handleAuth = async (e) => {
     e.preventDefault();
     setLoading(true);
-    let shouldHideLoading = true; // Drapeau pour contrôler l'état de chargement
+    let shouldHideLoading = true;
 
     try {
       if (isLogin) {
-        // Tentative de connexion
         await signInWithEmailAndPassword(auth, email, password);
         toast.success('Connexion réussie !');
       } else {
-        // Inscription
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
@@ -41,7 +39,7 @@ const AuthModal = ({ onClose }) => {
         });
         toast.success('Inscription réussie et profil créé !');
       }
-      onClose(); // Fermer la modale après succès
+      onClose();
     } catch (error) {
       console.error("Erreur d'authentification:", error);
       let errorMessage = "Une erreur est survenue lors de l'authentification.";
@@ -52,14 +50,13 @@ const AuthModal = ({ onClose }) => {
       } else if (error.code === 'auth/weak-password') {
         errorMessage = 'Le mot de passe est trop faible (6 caractères minimum).';
       } else if (error.code === 'auth/user-not-found') {
-        // Si l'utilisateur n'est pas trouvé lors de la connexion, basculer vers l'inscription
         toast.info('Compte non trouvé. Veuillez vous inscrire.');
-        setIsLogin(false); // Bascule vers le mode inscription
-        shouldHideLoading = false; // Ne pas masquer le loader immédiatement
+        setIsLogin(false);
+        shouldHideLoading = false;
       } else if (error.code === 'auth/wrong-password') {
-        errorMessage = 'Mot de passe incorrect.';
+        errorMessage = 'Email ou mot de passe incorrect.'; // Message plus spécifique pour le MDP/mail
       }
-      if (shouldHideLoading) { // N'afficher l'erreur que si on ne bascule pas vers l'inscription
+      if (shouldHideLoading) {
         toast.error(errorMessage);
       }
     } finally {
@@ -122,7 +119,7 @@ const AuthModal = ({ onClose }) => {
             {loading ? 'Chargement...' : (isLogin ? 'Se connecter' : 'S\'inscrire')}
           </button>
         </form>
-        <div className="flex flex-col items-center mt-4 space-y-2"> {/* Utilisation de flex-col et space-y pour empiler */}
+        <div className="flex flex-col items-center mt-4 space-y-2">
             <button
               onClick={() => setIsLogin(!isLogin)}
               className="text-primary hover:underline text-sm font-medium"

@@ -15,11 +15,12 @@ import OverallRankingModal from './OverallRankingModal';
 import ReportTaskModal from './ReportTaskModal'; 
 import AuthModal from './Auth'; // Import par défaut
 import AdminUserManagementModal from './AdminUserManagementModal'; 
-import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; // Nouvelle importation
+import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; 
+import WeeklyRecapModal from './WeeklyRecapModal'; // Nouvelle importation
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css'; // <-- Correction ici : capitalisation de 'ReactToastify.css'
+import 'react-toastify/dist/ReactToastify.css'; 
 
 // Importations Firebase
 import { db, auth } from './firebase';
@@ -89,7 +90,7 @@ function AppContent() {
   const [showExportSelectionModal, setShowExportSelectionModal] = useState(false); 
   const [showOverallRankingModal, setShowOverallRankingModal] = useState(false); 
   const [showAdminUserManagementModal, setShowAdminUserManagementModal] = useState(false); 
-  const [showAdminCongratulatoryMessagesModal, setShowAdminCongratulatoryMessagesModal] = useState(false); // Nouveau état pour la modale messages
+  const [showAdminCongratulatoryMessagesModal, setShowAdminCongratulatoryMessagesModal] = useState(false);
 
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportedTaskDetails, setReportedTaskDetails] = useState(null); 
@@ -105,8 +106,11 @@ function AppContent() {
   const [selectedGlobalCollection, setSelectedGlobalCollection] = useState(null);
   const [globalCollectionDocs, setGlobalCollectionDocs] = useState([]);
   const [loadingGlobalCollectionDocs, setLoadingGlobalCollectionDocs] = useState(false);
-  const [selectedDocumentDetails, setSelectedDocumentDetails] = useState(null); // Pour voir les détails complets d'un document
+  const [selectedDocumentDetails, setSelectedDocumentDetails] = useState(null);
 
+  // États pour le récapitulatif hebdomadaire
+  const [showWeeklyRecapModal, setShowWeeklyRecapModal] = useState(false);
+  const [weeklyRecapData, setWeeklyRecapData] = useState(null);
 
   // Met à jour participantName si currentUser change
   useEffect(() => {
@@ -567,6 +571,64 @@ function AppContent() {
     }
   };
 
+  // Fonction pour calculer le récapitulatif de la semaine précédente
+  const calculateWeeklyRecap = useCallback(async (userId, displayName) => {
+    const today = new Date();
+    const currentDayOfWeek = today.getDay(); // 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
+
+    // Calculer le début et la fin de la semaine précédente (du lundi au dimanche)
+    const startOfLastWeek = new Date(today);
+    startOfLastWeek.setDate(today.getDate() - (currentDayOfWeek === 0 ? 7 : currentDayOfWeek) - 6); // Aller au lundi de la semaine d'avant
+    startOfLastWeek.setHours(0, 0, 0, 0);
+
+    const endOfLastWeek = new Date(startOfLastWeek);
+    endOfLastWeek.setDate(startOfLastWeek.getDate() + 6); // Aller au dimanche de la semaine d'avant
+    endOfLastWeek.setHours(23, 59, 59, 999);
+
+    let pointsGained = 0;
+    const tasksCompleted = [];
+    let isWinner = false;
+
+    // Récupérer les réalisations de l'utilisateur pour la semaine précédente
+    const userRealisationsQuery = query(
+      collection(db, "realizations"),
+      where("userId", "==", userId)
+    );
+    const realisationsSnapshot = await getDocs(userRealisationsQuery);
+
+    realisationsSnapshot.docs.forEach(doc => {
+      const real = doc.data();
+      const realDate = new Date(real.timestamp);
+      if (realDate >= startOfLastWeek && realDate <= endOfLastWeek) {
+        pointsGained += (parseFloat(real.pointsGagnes) || 0);
+        tasksCompleted.push(real.nomTacheEffectuee);
+      }
+    });
+
+    // Vérifier si l'utilisateur était le premier du classement la semaine précédente
+    const lastWeekPodiums = historicalPodiums.filter(podium => {
+      const podiumDate = new Date(podium.Date_Podium);
+      return podiumDate >= startOfLastWeek && podiumDate <= endOfLastWeek;
+    });
+
+    if (lastWeekPodiums.length > 0) {
+      const topEntry = lastWeekPodiums[0].top3[0]; // Prend le premier podium trouvé et son vainqueur
+      if (topEntry && topEntry.name === displayName) {
+        isWinner = true;
+      }
+    }
+
+    return {
+      displayName: displayName,
+      pointsGained: pointsGained,
+      tasksCompleted: tasksCompleted,
+      isWinner: isWinner,
+      startDate: startOfLastWeek.toLocaleDateString('fr-FR'),
+      endDate: endOfLastWeek.toLocaleDateString('fr-FR')
+    };
+  }, [historicalPodiums]);
+
+
   useEffect(() => {
     const loadData = async () => {
       if (!loadingUser) { 
@@ -582,6 +644,35 @@ function AppContent() {
               fetchHistoricalPodiums(),
               fetchReports()
             ]);
+
+            // Logique du récapitulatif hebdomadaire
+            const today = new Date();
+            const currentDayOfWeek = today.getDay(); // 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
+            const currentMonday = new Date(today);
+            currentMonday.setDate(today.getDate() - (currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1));
+            currentMonday.setHours(0, 0, 0, 0);
+
+            const userDocRef = doc(db, "users", currentUser.uid);
+            const userDocSnap = await getDoc(userDocRef);
+            const userData = userDocSnap.exists() ? userDocSnap.data() : {};
+            const lastRecapDisplayed = userData.lastWeeklyRecapDisplayed ? new Date(userData.lastWeeklyRecapDisplayed) : null;
+
+            if (currentDayOfWeek === 1 && (!lastRecapDisplayed || lastRecapDisplayed.toDateString() !== currentMonday.toDateString())) {
+              const recap = await calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email);
+              setWeeklyRecapData(recap);
+              setShowWeeklyRecapModal(true);
+              // Mettre à jour la date de dernière affichage dans Firestore
+              await updateDoc(userDocRef, {
+                lastWeeklyRecapDisplayed: currentMonday.toISOString()
+              });
+            } else if (currentDayOfWeek !== 1 && lastRecapDisplayed && lastRecapDisplayed.toDateString() === currentMonday.toDateString()) {
+                // Si ce n'est plus lundi, mais le récap a été affiché ce lundi, on le garde en mémoire pour l'historique
+                const recap = await calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email);
+                setWeeklyRecapData(recap);
+            } else {
+                setWeeklyRecapData(null); // Réinitialiser si pas de récap à afficher
+            }
+
           } catch (error) {
             console.error("Erreur lors du chargement des données initiales pour l'utilisateur authentifié:", error);
             toast.error("Erreur lors du chargement des données initiales. Veuillez réessayer.");
@@ -620,7 +711,8 @@ function AppContent() {
     setObjectives,
     setCongratulatoryMessages,
     setReports,
-    setLoading
+    setLoading,
+    calculateWeeklyRecap // Ajouter calculateWeeklyRecap comme dépendance
   ]);
 
 
@@ -2104,7 +2196,6 @@ function AppContent() {
         <div className="flex flex-col gap-4 mb-6">
           {/* Container 1: Gestion des Tâches & Objectifs (sans titre) */}
           <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
-            {/* <h3 className="text-lg font-bold text-primary mb-3 text-center">Gestion des Tâches & Objectifs</h3> */} {/* Titre supprimé */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                   onClick={() => setShowAdminObjectivesListModal(true)}
@@ -2123,7 +2214,6 @@ function AppContent() {
 
           {/* Container 2: Gestion des Utilisateurs (sans titre) */}
           <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
-            {/* <h3 className="text-lg font-bold text-primary mb-3 text-center">Gestion des Utilisateurs</h3> */} {/* Titre supprimé */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={() => setShowAdminUserManagementModal(true)} 
@@ -2132,7 +2222,7 @@ function AppContent() {
                 Gérer les Utilisateurs
               </button>
               <button
-                onClick={() => setShowAdminCongratulatoryMessagesModal(true)} // Nouveau bouton
+                onClick={() => setShowAdminCongratulatoryMessagesModal(true)} 
                 className={`${adminButtonClasses} col-span-1`}
               >
                 Gérer les Messages de Félicitation
@@ -2274,11 +2364,7 @@ function AppContent() {
         <header className="relative flex flex-col items-center justify-center py-4 sm:py-6 px-4 mb-6 sm:mb-8 text-center">
           <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-20 sm:h-28 md:h-36 w-auto drop-shadow-xl" />
           <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1>
-          <div className="absolute top-4 right-4 z-10">
-            <button onClick={handleAuthAction} className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm">
-              Se connecter / S'inscrire
-            </button>
-          </div>
+          {/* Le bouton de connexion en haut à droite est supprimé quand non connecté */}
         </header>
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center border border-primary/20 mx-auto">
           <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-4">Bienvenue !</h2>
@@ -2290,7 +2376,7 @@ function AppContent() {
             className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-6 rounded-full shadow-lg 
                        transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
           >
-            Se connecter / S'inscire
+            Se connecter / S'inscrire
           </button>
         </div>
         {showAuthModal && ( 
@@ -2332,36 +2418,21 @@ function AppContent() {
             <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-20 sm:h-28 md:h-36 w-auto drop-shadow-xl cursor-pointer" onClick={handleLogoClick} /> 
           )}
           <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1> 
-          {/* Nouveau bloc pour le profil utilisateur et le bouton admin */}
-          <div className="absolute top-4 right-4 z-10 flex flex-col items-end space-y-1 bg-card p-2 rounded-lg shadow-md border border-primary/20 sm:w-auto w-fit"> {/* Ajusté pour mobile */}
-            {currentUser && (
-              <>
-                <button
-                  onClick={() => handleParticipantClick({ Nom_Participant: currentUser.displayName || currentUser.email })}
-                  className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap w-full text-center" // w-full et text-center pour mobile
-                >
-                  Bonjour, {currentUser.displayName || currentUser.email}
-                </button>
-                {isAdmin && (
-                  <button
-                    onClick={() => setActiveMainView('adminPanel')}
-                    className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-1.5 px-3 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-xs whitespace-nowrap w-full text-center" // w-full et text-center pour mobile
-                  >
-                    Console Admin
-                  </button>
-                )}
-                <button
-                  onClick={handleAuthAction}
-                  className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1.5 px-3 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-xs whitespace-nowrap w-full text-center" // w-full et text-center pour mobile
-                >
-                  Déconnexion
-                </button>
-              </>
-            )}
-          </div>
+          
+          {/* Bouton de déconnexion discret en haut à droite */}
+          {currentUser && (
+            <div className="absolute top-4 right-4 z-10">
+              <button
+                onClick={handleAuthAction}
+                className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-1.5 px-3 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-xs whitespace-nowrap"
+              >
+                Déconnexion
+              </button>
+            </div>
+          )}
         </header>
 
-        <nav className="flex justify-center mb-6 sm:mb-8"> 
+        <nav className="flex flex-col sm:flex-row justify-center items-center mb-6 sm:mb-8 gap-2 sm:gap-4"> 
           <div className="bg-neutralBg rounded-full p-1.5 flex justify-center gap-4 sm:gap-6 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto"> 
             <button
               className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
@@ -2385,6 +2456,25 @@ function AppContent() {
               Historique
             </button> 
           </div>
+          {/* Boutons Profil et Admin à côté de la nav bar */}
+          <div className="flex flex-row gap-2 sm:gap-4 mt-2 sm:mt-0">
+            {currentUser && (
+              <button
+                onClick={() => handleParticipantClick({ Nom_Participant: currentUser.displayName || currentUser.email })}
+                className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap"
+              >
+                Mon Profil
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => setActiveMainView('adminPanel')}
+                className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap"
+              >
+                Console Admin
+              </button>
+            )}
+          </div>
         </nav>
 
         <main>
@@ -2399,7 +2489,34 @@ function AppContent() {
             renderFullRankingCards()
           )}
           {activeMainView === 'historicalPodiums' && (
-            <HistoricalPodiums historicalPodiums={historicalPodiums} onClose={() => setActiveMainView('home')} />
+            <HistoricalPodiums historicalPodiums={historicalPodiums} onClose={() => setActiveMainView('home')}>
+              {weeklyRecapData && (
+                <div className="bg-neutralBg rounded-xl p-4 shadow-inner mb-6">
+                  <h3 className="text-xl font-bold text-primary mb-3 text-center">Votre Récapitulatif de la Semaine Précédente</h3>
+                  <p className="text-md text-text mb-2">
+                    Points gagnés : <strong className="text-success">{weeklyRecapData.pointsGained}</strong>
+                  </p>
+                  <p className="text-md text-text mb-2">
+                    Tâches complétées : <strong className="text-secondary">{weeklyRecapData.tasksCompleted.length}</strong>
+                  </p>
+                  {weeklyRecapData.tasksCompleted.length > 0 && (
+                    <ul className="list-disc list-inside text-sm text-lightText mt-1">
+                      {weeklyRecapData.tasksCompleted.map((task, index) => (
+                        <li key={index}>{task}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {weeklyRecapData.isWinner && (
+                    <p className="text-lg font-bold text-yellow-500 mt-3 text-center">
+                      Vous étiez le vainqueur de la semaine ! 🏆
+                    </p>
+                  )}
+                  <p className="text-xs text-lightText italic mt-3 text-center">
+                    Ce récapitulatif est mis à jour chaque lundi.
+                  </p>
+                </div>
+              )}
+            </HistoricalPodiums>
           )}
           {activeMainView === 'completedTasks' && (
             <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl">
@@ -2507,6 +2624,13 @@ function AppContent() {
 
         {showGlobalDataViewModal && isAdmin && renderGlobalDataViewModal()}
         {selectedDocumentDetails && isAdmin && renderDocumentDetailsModal()}
+
+        {showWeeklyRecapModal && weeklyRecapData && (
+          <WeeklyRecapModal
+            recapData={weeklyRecapData}
+            onClose={() => setShowWeeklyRecapModal(false)}
+          />
+        )}
 
       </div>
       <ToastContainer 
