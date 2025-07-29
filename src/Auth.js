@@ -54,7 +54,7 @@ const AuthModal = ({ onClose }) => {
         setIsLogin(false);
         shouldHideLoading = false;
       } else if (error.code === 'auth/wrong-password') {
-        errorMessage = 'Email ou mot de passe incorrect.'; // Message plus spécifique pour le MDP/mail
+        errorMessage = 'Email ou mot de passe incorrect.';
       }
       if (shouldHideLoading) {
         toast.error(errorMessage);

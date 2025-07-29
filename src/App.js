@@ -16,7 +16,8 @@ import ReportTaskModal from './ReportTaskModal';
 import AuthModal from './Auth'; // Import par défaut
 import AdminUserManagementModal from './AdminUserManagementModal'; 
 import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; 
-import WeeklyRecapModal from './WeeklyRecapModal'; // Nouvelle importation
+import WeeklyRecapModal from './WeeklyRecapModal'; 
+// import ImportTasksModal from './ImportTasksModal'; // SUPPRIMÉ: Plus d'importation Excel
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -111,6 +112,10 @@ function AppContent() {
   // États pour le récapitulatif hebdomadaire
   const [showWeeklyRecapModal, setShowWeeklyRecapModal] = useState(false);
   const [weeklyRecapData, setWeeklyRecapData] = useState(null);
+  
+  // SUPPRIMÉ: Pas besoin de l'état pour l'importation de tâches
+  // const [showImportTasksModal, setShowImportTasksModal] = useState(false);
+
 
   // Met à jour participantName si currentUser change
   useEffect(() => {
@@ -121,6 +126,7 @@ function AppContent() {
     }
   }, [currentUser]);
 
+  // Les fonctions fetchX ne gèrent plus le loading global, seulement leurs erreurs spécifiques
   const fetchTaches = useCallback(async () => {
     try {
       const q = query(collection(db, "tasks"));
@@ -158,10 +164,10 @@ function AppContent() {
         .filter(tache => String(tache.Parent_Task_ID || '').trim() === ''); 
       
       setTaches(processedAndFilteredTaches);
+      return processedAndFilteredTaches; // Retourne les données pour Promise.all
     } catch (err) {
       toast.error(`Erreur lors de la récupération des tâches: ${err.message}`); 
-    } finally {
-      // Le setLoading(false) global est géré par le useEffect principal
+      return [];
     }
   }, [setAllRawTaches, setTaches]); 
 
@@ -227,12 +233,13 @@ function AppContent() {
         .sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
       
       setClassement(currentClassement);
-
       const globalCumulative = currentClassement.reduce((sum, p) => sum + (parseFloat(p.Points_Total_Cumulatif) || 0), 0); 
       setTotalGlobalCumulativePoints(globalCumulative);
+      return currentClassement; // Retourne les données pour Promise.all
 
     } catch (err) {
       toast.error(`Erreur lors de la récupération du classement: ${err.message}`); 
+      return [];
     }
   }, [setClassement, setTotalGlobalCumulativePoints]); 
 
@@ -242,14 +249,16 @@ function AppContent() {
       const querySnapshot = await getDocs(q);
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setRealisations(data);
+      return data; // Retourne les données pour Promise.all
     }
     catch (err) {
       toast.error(`Erreur lors de la récupération des réalisations: ${err.message}`);
+      return [];
     }
   }, [setRealisations]); 
 
   const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
-    setLoading(true);
+    setLoading(true); // Cette fonction garde son propre loading car elle est appelée séparément
     try {
       const q = query(collection(db, "realizations"), where("nomParticipant", "==", participantName));
       const querySnapshot = await getDocs(q);
@@ -277,7 +286,7 @@ function AppContent() {
   }, [setParticipantWeeklyTasks, setLoading]); 
 
   const fetchSubTasks = useCallback(async (parentTaskId) => {
-    setLoading(true); 
+    setLoading(true); // Cette fonction garde son propre loading car elle est appelée séparément
     try {
       const parentTaskDoc = await getDoc(doc(db, "tasks", parentTaskId));
       if (!parentTaskDoc.exists()) {
@@ -313,8 +322,10 @@ function AppContent() {
       const querySnapshot = await getDocs(q);
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setObjectives(data);
+      return data; // Retourne les données pour Promise.all
     } catch (err) {
       toast.error(`Erreur: ${err.message}`);
+      return [];
     }
   }, [setObjectives]); 
 
@@ -324,8 +335,10 @@ function AppContent() {
       const querySnapshot = await getDocs(q);
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setCongratulatoryMessages(data);
+      return data; // Retourne les données pour Promise.all
     } catch (err) {
       setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); // Fallback
+      return [];
     }
   }, [setCongratulatoryMessages]); 
 
@@ -335,8 +348,10 @@ function AppContent() {
       const querySnapshot = await getDocs(q);
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setHistoricalPodiums(data);
+      return data; // Retourne les données pour Promise.all
     } catch (err) {
       toast.error(`Erreur: ${err.message}`);
+      return [];
     }
   }, [setHistoricalPodiums]); 
 
@@ -346,8 +361,10 @@ function AppContent() {
       const querySnapshot = await getDocs(q);
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setReports(data);
+      return data; // Retourne les données pour Promise.all
     } catch (err) {
       toast.error(`Erreur: ${err.message}`);
+      return [];
     }
   }, [setReports]); 
 
@@ -420,11 +437,16 @@ function AppContent() {
         setShowConfetti(true); 
         setSelectedTask(null); 
       }
-      fetchClassement(); 
-      fetchRealisations(); 
-      fetchTaches(); 
-      fetchObjectives(); 
-      fetchReports(); 
+      // Re-fetch all data to ensure UI is up-to-date after a task completion
+      await Promise.all([ 
+        fetchTaches(),
+        fetchClassement(),
+        fetchRealisations(),
+        fetchObjectives(),
+        fetchCongratulatoryMessages(),
+        fetchHistoricalPodiums(),
+        fetchReports()
+      ]);
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`); 
     } finally {
@@ -499,11 +521,16 @@ function AppContent() {
       setSelectedTask(null);
       setShowSplitTaskDialog(false); 
       setSelectedSubTasks([]);
-      fetchClassement();
-      fetchRealisations(); 
-      fetchTaches(); 
-      fetchObjectives(); 
-      fetchReports(); 
+      // Re-fetch all data to ensure UI is up-to-date after a task completion
+      await Promise.all([ 
+        fetchTaches(),
+        fetchClassement(),
+        fetchRealisations(),
+        fetchObjectives(),
+        fetchCongratulatoryMessages(),
+        fetchHistoricalPodiums(),
+        fetchReports()
+      ]);
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
@@ -542,12 +569,16 @@ function AppContent() {
       await Promise.all(batch); 
 
       toast.success('Points hebdomadaires réinitialisés et podium enregistré.');
-      fetchClassement(); 
-      fetchRealisations(); 
-      fetchTaches(); 
-      fetchObjectives(); 
-      fetchHistoricalPodiums(); 
-      fetchReports(); 
+      // Re-fetch all data after reset
+      await Promise.all([ 
+        fetchTaches(),
+        fetchClassement(),
+        fetchRealisations(),
+        fetchObjectives(),
+        fetchCongratulatoryMessages(),
+        fetchHistoricalPodiums(),
+        fetchReports()
+      ]);
     } catch (err) {
       toast.error(`Une erreur est survenue lors de la réinitialisation: ${err.message}`);
     } finally {
@@ -572,7 +603,8 @@ function AppContent() {
   };
 
   // Fonction pour calculer le récapitulatif de la semaine précédente
-  const calculateWeeklyRecap = useCallback(async (userId, displayName) => {
+  // Ne fait plus de requêtes Firestore, utilise les données passées en arguments
+  const calculateWeeklyRecap = useCallback((userId, displayName, allRealisations, allHistoricalPodiums) => {
     const today = new Date();
     const currentDayOfWeek = today.getDay(); // 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
 
@@ -589,15 +621,10 @@ function AppContent() {
     const tasksCompleted = [];
     let isWinner = false;
 
-    // Récupérer les réalisations de l'utilisateur pour la semaine précédente
-    const userRealisationsQuery = query(
-      collection(db, "realizations"),
-      where("userId", "==", userId)
-    );
-    const realisationsSnapshot = await getDocs(userRealisationsQuery);
+    // Utiliser les réalisations passées en argument
+    const userRealisations = allRealisations.filter(real => String(real.userId) === String(userId));
 
-    realisationsSnapshot.docs.forEach(doc => {
-      const real = doc.data();
+    userRealisations.forEach(real => {
       const realDate = new Date(real.timestamp);
       if (realDate >= startOfLastWeek && realDate <= endOfLastWeek) {
         pointsGained += (parseFloat(real.pointsGagnes) || 0);
@@ -605,15 +632,18 @@ function AppContent() {
       }
     });
 
-    // Vérifier si l'utilisateur était le premier du classement la semaine précédente
-    const lastWeekPodiums = historicalPodiums.filter(podium => {
+    // Utiliser les podiums historiques passés en argument
+    const lastWeekPodiums = allHistoricalPodiums.filter(podium => {
       const podiumDate = new Date(podium.Date_Podium);
+      // Vérifier si la date du podium tombe dans la semaine précédente (du lundi au dimanche)
       return podiumDate >= startOfLastWeek && podiumDate <= endOfLastWeek;
     });
 
     if (lastWeekPodiums.length > 0) {
-      const topEntry = lastWeekPodiums[0].top3[0]; // Prend le premier podium trouvé et son vainqueur
-      if (topEntry && topEntry.name === displayName) {
+      // Trier les podiums par date pour s'assurer d'obtenir le bon vainqueur de la semaine précédente
+      const sortedPodiums = [...lastWeekPodiums].sort((a, b) => new Date(b.Date_Podium) - new Date(a.Date_Podium));
+      const topEntry = sortedPodiums[0].top3[0]; 
+      if (topEntry && String(topEntry.name).trim() === String(displayName).trim()) {
         isWinner = true;
       }
     }
@@ -626,15 +656,17 @@ function AppContent() {
       startDate: startOfLastWeek.toLocaleDateString('fr-FR'),
       endDate: endOfLastWeek.toLocaleDateString('fr-FR')
     };
-  }, [historicalPodiums]);
+  }, []); // Dépendances vides pour calculateWeeklyRecap, car elle utilise les arguments
 
 
+  // Premier useEffect: Chargement initial des données et gestion du loading global
   useEffect(() => {
-    const loadData = async () => {
+    const loadInitialData = async () => {
       if (!loadingUser) { 
         if (currentUser) { 
           setLoading(true); 
           try {
+            // Appelle les fonctions fetch. Elles mettront à jour leurs états respectifs.
             await Promise.all([ 
               fetchTaches(),
               fetchClassement(),
@@ -644,35 +676,6 @@ function AppContent() {
               fetchHistoricalPodiums(),
               fetchReports()
             ]);
-
-            // Logique du récapitulatif hebdomadaire
-            const today = new Date();
-            const currentDayOfWeek = today.getDay(); // 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
-            const currentMonday = new Date(today);
-            currentMonday.setDate(today.getDate() - (currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1));
-            currentMonday.setHours(0, 0, 0, 0);
-
-            const userDocRef = doc(db, "users", currentUser.uid);
-            const userDocSnap = await getDoc(userDocRef);
-            const userData = userDocSnap.exists() ? userDocSnap.data() : {};
-            const lastRecapDisplayed = userData.lastWeeklyRecapDisplayed ? new Date(userData.lastWeeklyRecapDisplayed) : null;
-
-            if (currentDayOfWeek === 1 && (!lastRecapDisplayed || lastRecapDisplayed.toDateString() !== currentMonday.toDateString())) {
-              const recap = await calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email);
-              setWeeklyRecapData(recap);
-              setShowWeeklyRecapModal(true);
-              // Mettre à jour la date de dernière affichage dans Firestore
-              await updateDoc(userDocRef, {
-                lastWeeklyRecapDisplayed: currentMonday.toISOString()
-              });
-            } else if (currentDayOfWeek !== 1 && lastRecapDisplayed && lastRecapDisplayed.toDateString() === currentMonday.toDateString()) {
-                // Si ce n'est plus lundi, mais le récap a été affiché ce lundi, on le garde en mémoire pour l'historique
-                const recap = await calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email);
-                setWeeklyRecapData(recap);
-            } else {
-                setWeeklyRecapData(null); // Réinitialiser si pas de récap à afficher
-            }
-
           } catch (error) {
             console.error("Erreur lors du chargement des données initiales pour l'utilisateur authentifié:", error);
             toast.error("Erreur lors du chargement des données initiales. Veuillez réessayer.");
@@ -680,6 +683,7 @@ function AppContent() {
             setLoading(false); 
           }
         } else { 
+          // Réinitialise les états si l'utilisateur est déconnecté
           setTaches([]);
           setAllRawTaches([]);
           setRealisations([]);
@@ -688,31 +692,64 @@ function AppContent() {
           setObjectives([]);
           setCongratulatoryMessages([]);
           setReports([]);
+          setWeeklyRecapData(null); // Réinitialiser le récap si déconnecté
           setLoading(false); 
         }
       }
     };
-    loadData();
+    loadInitialData();
+  }, [
+    currentUser, loadingUser,
+    fetchTaches, fetchClassement, fetchRealisations, fetchObjectives,
+    fetchCongratulatoryMessages, fetchHistoricalPodiums, fetchReports,
+    // Les setters d'état ne sont pas des dépendances ici, car les fonctions fetch les appellent déjà.
+    // calculateWeeklyRecap n'est pas une dépendance ici, car elle est gérée dans un autre useEffect.
+  ]);
+
+  // Deuxième useEffect: Calcul et affichage du récapitulatif hebdomadaire
+  useEffect(() => {
+    const handleRecapLogic = async () => {
+      // S'assure que l'utilisateur est connecté et que les données nécessaires sont chargées
+      if (currentUser && realisations.length > 0 && historicalPodiums.length > 0) { 
+        const today = new Date();
+        const currentDayOfWeek = today.getDay(); 
+        const currentMonday = new Date(today);
+        currentMonday.setDate(today.getDate() - (currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1));
+        currentMonday.setHours(0, 0, 0, 0);
+
+        const userDocRef = doc(db, "users", currentUser.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        const userData = userDocSnap.exists() ? userDocSnap.data() : {};
+        const lastRecapDisplayed = userData.lastWeeklyRecapDisplayed ? new Date(userData.lastWeeklyRecapDisplayed) : null;
+
+        // Si c'est lundi et que le récap n'a pas été affiché ce lundi
+        if (currentDayOfWeek === 1 && (!lastRecapDisplayed || lastRecapDisplayed.toDateString() !== currentMonday.toDateString())) {
+          const recap = await calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email, realisations, historicalPodiums);
+          setWeeklyRecapData(recap);
+          setShowWeeklyRecapModal(true);
+          // Mettre à jour la date de dernière affichage dans Firestore
+          await updateDoc(userDocRef, {
+            lastWeeklyRecapDisplayed: currentMonday.toISOString()
+          });
+        } else if (lastRecapDisplayed && lastRecapDisplayed.toDateString() === currentMonday.toDateString()) {
+            // Si le récap a déjà été affiché ce lundi (ou si on est après lundi mais le même lundi), on le recalcule pour l'historique
+            const recap = await calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email, realisations, historicalPodiums);
+            setWeeklyRecapData(recap);
+        } else {
+            setWeeklyRecapData(null); // Réinitialiser si pas de récap à afficher
+        }
+      } else if (currentUser && (realisations.length === 0 || historicalPodiums.length === 0)) {
+        // Si l'utilisateur est connecté mais que les données ne sont pas encore là, réinitialiser le récap
+        setWeeklyRecapData(null);
+      }
+    };
+    // Déclenche la logique du récap lorsque l'utilisateur, les réalisations ou les podiums changent
+    handleRecapLogic();
   }, [
     currentUser,
-    loadingUser,
-    fetchTaches,
-    fetchClassement,
-    fetchRealisations,
-    fetchObjectives,
-    fetchCongratulatoryMessages,
-    fetchHistoricalPodiums,
-    fetchReports,
-    setTaches,
-    setAllRawTaches,
-    setRealisations,
-    setClassement,
-    setHistoricalPodiums,
-    setObjectives,
-    setCongratulatoryMessages,
-    setReports,
-    setLoading,
-    calculateWeeklyRecap // Ajouter calculateWeeklyRecap comme dépendance
+    realisations, // Dépend de realisations
+    historicalPodiums, // Dépend de historicalPodiums
+    calculateWeeklyRecap // calculateWeeklyRecap est stable
   ]);
 
 
@@ -952,11 +989,16 @@ function AppContent() {
         console.warn(`Utilisateur signalé (${reportedTaskDetails.reportedUserId}) non trouvé dans la collection 'users'.`);
       }
 
-      fetchClassement();
-      fetchRealisations();
-      fetchTaches(); 
-      fetchObjectives();
-      fetchReports(); 
+      // Re-fetch all data after report
+      await Promise.all([ 
+        fetchTaches(),
+        fetchClassement(),
+        fetchRealisations(),
+        fetchObjectives(),
+        fetchCongratulatoryMessages(),
+        fetchHistoricalPodiums(),
+        fetchReports()
+      ]);
     } catch (err) {
       toast.error(`Une erreur est survenue lors du signalement: ${err.message}`);
     } finally {
@@ -2235,7 +2277,7 @@ function AppContent() {
             <h3 className="text-base font-bold text-primary mb-3 text-center">Outils Avancés</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2"> {/* Espacement réduit */}
               <button
-                onClick={() => setShowGlobalDataViewModal(true)} // Déplacé ici
+                onClick={() => setShowGlobalDataViewModal(true)} 
                 className={`${subtleAdminButtonClasses} col-span-1`}
               >
                 Vision Globale de la BDD
@@ -2246,6 +2288,13 @@ function AppContent() {
               >
                 Exporter les Données (CSV)
               </button>
+              {/* SUPPRIMÉ: Bouton d'importation Excel */}
+              {/* <button
+                onClick={() => setShowImportTasksModal(true)}
+                className={`${subtleAdminButtonClasses} col-span-1`}
+              >
+                Importer les Tâches (Excel)
+              </button> */}
               <button
                 onClick={() => setShowConfirmResetModal(true)}
                 className={`bg-error/80 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`} 
@@ -2490,7 +2539,7 @@ function AppContent() {
           )}
           {activeMainView === 'historicalPodiums' && (
             <HistoricalPodiums historicalPodiums={historicalPodiums} onClose={() => setActiveMainView('home')}>
-              {weeklyRecapData && (
+              {weeklyRecapData && ( // Affiche le récapitulatif ici
                 <div className="bg-neutralBg rounded-xl p-4 shadow-inner mb-6">
                   <h3 className="text-xl font-bold text-primary mb-3 text-center">Votre Récapitulatif de la Semaine Précédente</h3>
                   <p className="text-md text-text mb-2">
@@ -2631,6 +2680,14 @@ function AppContent() {
             onClose={() => setShowWeeklyRecapModal(false)}
           />
         )}
+
+        {/* SUPPRIMÉ: Modale d'importation Excel */}
+        {/* {showImportTasksModal && isAdmin && (
+          <ImportTasksModal
+            onClose={() => setShowImportTasksModal(false)}
+            onImportSuccess={fetchTaches} // Re-fetch tasks after successful import
+          />
+        )} */}
 
       </div>
       <ToastContainer 
