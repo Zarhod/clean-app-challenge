@@ -1,11 +1,11 @@
 // src/App.js
-// Version mise à jour pour utiliser Firebase Authentication et Firestore avec des écouteurs en temps réel.
+// Version mise à jour pour utiliser Firebase Authentication et Firestore.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
 import HistoricalPodiums from './HistoricalPodiums'; 
 import AdminTaskFormModal from './AdminTaskFormModal'; 
-import ConfirmActionModal from './ConfirmActionModal'; // Assurez-vous que ce composant existe
+import ConfirmActionModal from './ConfirmActionModal'; 
 import ConfettiOverlay from './ConfettiOverlay'; 
 import TaskStatisticsChart from './TaskStatisticsChart'; 
 import AdminObjectiveFormModal from './AdminObjectiveFormModal'; 
@@ -13,12 +13,11 @@ import ListAndInfoModal from './ListAndInfoModal';
 import RankingCard from './RankingCard'; 
 import OverallRankingModal from './OverallRankingModal'; 
 import ReportTaskModal from './ReportTaskModal'; 
-import AuthModal from './Auth'; 
+import AuthModal from './Auth'; // Import par défaut
 import AdminUserManagementModal from './AdminUserManagementModal'; 
 import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; 
 import WeeklyRecapModal from './WeeklyRecapModal'; 
-import TaskHistoryModal from './TaskHistoryModal'; // Nouveau: Historique des tâches
-import AvatarSelectionModal from './AvatarSelectionModal'; // Nouveau: Sélection d'avatar
+// import ImportTasksModal from './ImportTasksModal'; // SUPPRIMÉ: Plus d'importation Excel
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -26,15 +25,20 @@ import 'react-toastify/dist/ReactToastify.css';
 
 // Importations Firebase
 import { db, auth } from './firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, writeBatch, onSnapshot } from 'firebase/firestore'; 
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, writeBatch, onSnapshot } from 'firebase/firestore'; // Ajout de onSnapshot
 import { signOut } from 'firebase/auth';
 
 // Importation du contexte utilisateur
 import { UserProvider, useUser } from './UserContext';
 
+// NOUVEAU: Importation des composants pour les nouvelles fonctionnalités
+import TaskHistoryModal from './TaskHistoryModal'; // Nouveau: Historique des tâches
+import AvatarSelectionModal from './AvatarSelectionModal'; // Nouveau: Sélection d'avatar
+
+
 const LOGO_FILENAME = 'logo.png'; 
 
-// Fonctions utilitaires pour la gamification (déplacées en dehors du composant pour éviter les re-déclarations)
+// NOUVEAU: Fonction utilitaire pour la gamification (déplacée en dehors du composant pour éviter les re-déclarations)
 const calculateLevelAndXP = (currentXP) => {
   let level = 1;
   let xpNeededForNextLevel = 100; // XP pour le niveau 2
@@ -83,7 +87,6 @@ function AppContent() {
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
   const [realisations, setRealisations] = useState([]); 
-  // DÉCLARATION UNIQUE DE 'classement' - C'EST LA SEULE DÉCLARATION DE CETTE VARIABLE.
   const [classement, setClassement] = useState([]); 
   const [historicalPodiums, setHistoricalPodiums] = useState([]); 
   const [objectives, setObjectives] = useState([]); 
@@ -91,6 +94,7 @@ function AppContent() {
   const [loading, setLoading] = useState(true); 
 
   const [selectedTask, setSelectedTask] = useState(null); 
+  // Initialise participantName avec le nom de l'utilisateur connecté
   const [participantName, setParticipantName] = useState(currentUser?.displayName || currentUser?.email || ''); 
   const [showThankYouPopup, setShowThankYouPopup] = useState(null); 
   const [showConfetti, setShowConfetti] = useState(false); 
@@ -107,6 +111,7 @@ function AppContent() {
   const [selectedSubTasks, setSelectedSubTasks] = useState([]); 
   
   const [showConfirmResetModal, setShowConfirmResetModal] = useState(false); 
+  // NOUVEAU: Ajout de l'état pour la réinitialisation des réalisations
   const [showConfirmResetRealisationsModal, setShowConfirmResetRealisationsModal] = useState(false);
   
   const [showAdminTaskFormModal, setShowAdminTaskFormModal] = useState(false); 
@@ -145,25 +150,28 @@ function AppContent() {
 
   const [showAuthModal, setShowAuthModal] = useState(false);
 
+  // Nouvel état pour la vision globale de la BDD
   const [showGlobalDataViewModal, setShowGlobalDataViewModal] = useState(false);
   const [selectedGlobalCollection, setSelectedGlobalCollection] = useState(null);
   const [globalCollectionDocs, setGlobalCollectionDocs] = useState([]);
   const [loadingGlobalCollectionDocs, setLoadingGlobalCollectionDocs] = useState(false);
   const [selectedDocumentDetails, setSelectedDocumentDetails] = useState(null);
 
+  // États pour le récapitulatif hebdomadaire
   const [showWeeklyRecapModal, setShowWeeklyRecapModal] = useState(false);
   const [weeklyRecapData, setWeeklyRecapData] = useState(null);
-
+  
+  // NOUVEAU: États pour l'historique des tâches et la sélection d'avatar
   const [showTaskHistoryModal, setShowTaskHistoryModal] = useState(false); 
   const [taskHistoryTaskId, setTaskHistoryTaskId] = useState(null); 
 
   const [showAvatarSelectionModal, setShowAvatarSelectionModal] = useState(false); 
 
-  // États pour la pagination des réalisations
+  // NOUVEAU: États pour la pagination des réalisations
   const [realizationsPerPage] = useState(10);
   const [currentRealizationsPage, setCurrentRealizationsPage] = useState(1);
 
-  // Ref pour suivre l'état de chargement initial de chaque collection
+  // NOUVEAU: Ref pour suivre l'état de chargement initial de chaque collection
   const initialLoadStatus = useRef({
     tasks: false,
     realizations: false,
@@ -174,6 +182,7 @@ function AppContent() {
     reports: false,
   });
 
+
   // Met à jour participantName si currentUser change
   useEffect(() => {
     if (currentUser) {
@@ -183,7 +192,7 @@ function AppContent() {
     }
   }, [currentUser]);
 
-  // Fonctions de récupération de données utilisant onSnapshot
+  // NOUVEAU: Fonctions de récupération de données utilisant onSnapshot pour des mises à jour en temps réel
   const setupTasksListener = useCallback(() => {
     const q = query(collection(db, "tasks"));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -253,9 +262,9 @@ function AppContent() {
             Points_Total_Cumulatif: parseFloat(user.totalCumulativePoints || 0),
             Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0), 
             Date_Mise_A_Jour: user.dateJoined || '',
-            Avatar: user.avatar || '👤', 
-            Level: user.level || 1, 
-            XP: user.xp || 0 
+            Avatar: user.avatar || '👤', // NOUVEAU: Ajout de l'avatar au classement
+            Level: user.level || 1, // NOUVEAU: Ajout du niveau
+            XP: user.xp || 0 // NOUVEAU: Ajout de l'XP
           };
         });
 
@@ -308,7 +317,6 @@ function AppContent() {
     return usersUnsubscribe; 
   }, []);
 
-
   const setupObjectivesListener = useCallback(() => {
     const q = query(collection(db, "objectives"));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -358,7 +366,7 @@ function AppContent() {
     return unsubscribe;
   }, []);
 
-  // Effet principal pour gérer les écouteurs en temps réel et l'état de chargement global
+  // NOUVEAU: Effet principal pour gérer les écouteurs en temps réel et l'état de chargement global
   useEffect(() => {
     const unsubscribes = [];
     let timeoutId;
@@ -371,7 +379,7 @@ function AppContent() {
         timeoutId = setTimeout(() => {
           setLoading(false);
           console.warn("Certaines données n'ont pas été chargées initialement après un délai.");
-        }, 5000); 
+        }, 5000); // Définir un timeout pour éviter un état de chargement infini
       }
     };
 
@@ -384,9 +392,11 @@ function AppContent() {
       unsubscribes.push(setupHistoricalPodiumsListener());
       unsubscribes.push(setupReportsListener());
 
+      // Donner un petit délai pour que les listeners aient le temps de récupérer les données initiales
       setTimeout(checkInitialLoad, 500); 
 
     } else if (!loadingUser && !currentUser) {
+      // Si aucun utilisateur n'est connecté, réinitialiser tous les états et arrêter le chargement
       setTaches([]);
       setAllRawTaches([]);
       setRealisations([]);
@@ -400,10 +410,12 @@ function AppContent() {
     }
 
     return () => {
+      // Nettoyage des listeners lors du démontage du composant ou du changement de dépendances
       unsubscribes.forEach(unsubscribe => unsubscribe());
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
+      // Réinitialiser les statuts de chargement pour la prochaine fois
       Object.keys(initialLoadStatus.current).forEach(key => initialLoadStatus.current[key] = false);
     };
   }, [
@@ -413,12 +425,15 @@ function AppContent() {
     setupReportsListener
   ]);
 
-  // Deuxième useEffect: Calcul et affichage du récapitulatif hebdomadaire
+  // NOUVEAU: Deuxième useEffect: Calcul et affichage du récapitulatif hebdomadaire
   useEffect(() => {
     const handleRecapLogic = async () => {
+      // S'assure que l'utilisateur est connecté et que les données nécessaires sont chargées
       if (currentUser && realisations.length > 0 && historicalPodiums.length > 0) { 
         const today = new Date();
-        const currentDayOfWeek = today.getDay(); 
+        const currentDayOfWeek = today.getDay(); // 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
+
+        // Calculer le début de la semaine actuelle (Lundi)
         const currentMonday = new Date(today);
         currentMonday.setDate(today.getDate() - (currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1));
         currentMonday.setHours(0, 0, 0, 0);
@@ -428,29 +443,34 @@ function AppContent() {
         const userData = userDocSnap.exists() ? userDocSnap.data() : {};
         const lastRecapDisplayed = userData.lastWeeklyRecapDisplayed ? new Date(userData.lastWeeklyRecapDisplayed) : null;
 
+        // Si c'est lundi et que le récap n'a pas été affiché ce lundi
         if (currentDayOfWeek === 1 && (!lastRecapDisplayed || lastRecapDisplayed.toDateString() !== currentMonday.toDateString())) {
           const recap = calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email, realisations, historicalPodiums);
           setWeeklyRecapData(recap);
           setShowWeeklyRecapModal(true);
+          // Mettre à jour la date de dernière affichage dans Firestore
           await updateDoc(userDocRef, {
             lastWeeklyRecapDisplayed: currentMonday.toISOString()
           });
         } else if (lastRecapDisplayed && lastRecapDisplayed.toDateString() === currentMonday.toDateString()) {
+            // Si le récap a déjà été affiché ce lundi (ou si on est après lundi mais le même lundi), on le recalcule pour l'historique
             const recap = calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email, realisations, historicalPodiums);
             setWeeklyRecapData(recap);
         } else {
-            setWeeklyRecapData(null); 
+            setWeeklyRecapData(null); // Réinitialiser si pas de récap à afficher
         }
       } else if (currentUser && (realisations.length === 0 || historicalPodiums.length === 0)) {
+        // Si l'utilisateur est connecté mais que les données ne sont pas encore là, réinitialiser le récap
         setWeeklyRecapData(null);
       }
     };
+    // Déclenche la logique du récap lorsque l'utilisateur, les réalisations ou les podiums changent
     handleRecapLogic();
   }, [
     currentUser,
-    realisations, 
-    historicalPodiums, 
-    calculateWeeklyRecap 
+    realisations, // Dépend de realisations
+    historicalPodiums, // Dépend de historicalPodiums
+    calculateWeeklyRecap // calculateWeeklyRecap est stable
   ]);
 
 
@@ -513,6 +533,7 @@ function AppContent() {
     }
   }, [setSubTasks, setLoading]); 
 
+  // Nouvelle fonction pour charger les documents d'une collection donnée
   const fetchGlobalCollectionDocs = useCallback(async (collectionName) => {
     setLoadingGlobalCollectionDocs(true);
     try {
@@ -561,6 +582,7 @@ function AppContent() {
         const userData = userDocSnap.data();
         const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + pointsToSend;
         const newWeeklyPoints = (userData.weeklyPoints || 0) + pointsToSend;
+        // NOUVEAU: Mise à jour de l'XP et du niveau
         const newXP = (userData.xp || 0) + pointsToSend; 
         const { level: newLevel } = calculateLevelAndXP(newXP);
 
@@ -572,8 +594,9 @@ function AppContent() {
         });
       }
 
+      // Si la tâche est ponctuelle, la supprimer de la collection 'tasks'
       if (String(taskToRecord.Frequence || '').toLowerCase() === 'ponctuel') {
-          await deleteDoc(doc(db, "tasks", taskToRecord.id)); 
+          await deleteDoc(doc(db, "tasks", taskToRecord.id)); // Utiliser taskToRecord.id qui est l'ID du document Firestore
           toast.success(`Tâche ponctuelle "${taskToRecord.Nom_Tache}" enregistrée et supprimée.`);
       } else {
           toast.success(`Tâche "${taskToRecord.Nom_Tache}" enregistrée avec succès.`);
@@ -643,6 +666,7 @@ function AppContent() {
         const userData = userDocSnap.data();
         const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + totalPointsGained;
         const newWeeklyPoints = (userData.weeklyPoints || 0) + totalPointsGained;
+        // NOUVEAU: Mise à jour de l'XP et du niveau
         const newXP = (userData.xp || 0) + totalPointsGained; 
         const { level: newLevel } = calculateLevelAndXP(newXP);
 
@@ -665,7 +689,8 @@ function AppContent() {
       setSelectedTask(null);
       setShowSplitTaskDialog(false); 
       setSelectedSubTasks([]);
-    } catch (err) {
+    }
+    catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
@@ -711,6 +736,7 @@ function AppContent() {
     }
   };
 
+  // NOUVEAU: Fonction pour réinitialiser toutes les réalisations et les points des utilisateurs
   const resetRealisations = async () => {
     if (!isAdmin) {
       toast.error("Accès refusé. Vous n'êtes pas administrateur.");
@@ -737,8 +763,8 @@ function AppContent() {
           weeklyPoints: 0,
           totalCumulativePoints: 0,
           previousWeeklyPoints: 0, 
-          xp: 0, 
-          level: 1 
+          xp: 0, // NOUVEAU: Réinitialisation de l'XP
+          level: 1 // NOUVEAU: Réinitialisation du niveau
         });
       });
       await batchResetUsers.commit();
@@ -767,22 +793,25 @@ function AppContent() {
     }
   };
 
+  // Fonction pour calculer le récapitulatif de la semaine précédente
   const calculateWeeklyRecap = useCallback((userId, displayName, allRealisations, allHistoricalPodiums) => {
     const today = new Date();
-    const currentDayOfWeek = today.getDay(); 
+    const currentDayOfWeek = today.getDay(); // 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
 
+    // Calculer le début et la fin de la semaine précédente (du lundi au dimanche)
     const startOfLastWeek = new Date(today);
-    startOfLastWeek.setDate(today.getDate() - (currentDayOfWeek === 0 ? 7 : currentDayOfWeek) - 6); 
+    startOfLastWeek.setDate(today.getDate() - (currentDayOfWeek === 0 ? 7 : currentDayOfWeek) - 6); // Aller au lundi de la semaine d'avant
     startOfLastWeek.setHours(0, 0, 0, 0);
 
     const endOfLastWeek = new Date(startOfLastWeek);
-    endOfLastWeek.setDate(startOfLastWeek.getDate() + 6); 
+    endOfLastWeek.setDate(startOfLastWeek.getDate() + 6); // Aller au dimanche de la semaine d'avant
     endOfLastWeek.setHours(23, 59, 59, 999);
 
     let pointsGained = 0;
     const tasksCompleted = [];
     let isWinner = false;
 
+    // Utiliser les réalisations passées en argument
     const userRealisations = allRealisations.filter(real => String(real.userId) === String(userId));
 
     userRealisations.forEach(real => {
@@ -793,12 +822,15 @@ function AppContent() {
       }
     });
 
+    // Utiliser les podiums historiques passés en argument
     const lastWeekPodiums = allHistoricalPodiums.filter(podium => {
       const podiumDate = new Date(podium.Date_Podium);
+      // Vérifier si la date du podium tombe dans la semaine précédente (du lundi au dimanche)
       return podiumDate >= startOfLastWeek && podiumDate <= endOfLastWeek;
     });
 
     if (lastWeekPodiums.length > 0) {
+      // Trier les podiums par date pour s'assurer d'obtenir le bon vainqueur de la semaine précédente
       const sortedPodiums = [...lastWeekPodiums].sort((a, b) => new Date(b.Date_Podium) - new Date(a.Date_Podium));
       const topEntry = sortedPodiums[0].top3[0]; 
       if (topEntry && String(topEntry.name).trim() === String(displayName).trim()) {
@@ -814,7 +846,7 @@ function AppContent() {
       startDate: startOfLastWeek.toLocaleDateString('fr-FR'),
       endDate: endOfLastWeek.toLocaleDateString('fr-FR')
     };
-  }, []); 
+  }, []); // Dépendances vides pour calculateWeeklyRecap, car elle utilise les arguments
 
 
   const handleTaskFormChange = (e) => {
@@ -1037,6 +1069,7 @@ function AppContent() {
         const reportedUserData = reportedUserSnap.data();
         const newTotalCumulativePoints = Math.max(0, (reportedUserData.totalCumulativePoints || 0) - DEDUCTION_POINTS);
         const newWeeklyPoints = Math.max(0, (reportedUserData.weeklyPoints || 0) - DEDUCTION_POINTS);
+        // NOUVEAU: Déduction d'XP et ajustement de niveau
         const newXP = Math.max(0, (reportedUserData.xp || 0) - DEDUCTION_POINTS);
         const { level: newLevel } = calculateLevelAndXP(newXP);
         
@@ -1061,6 +1094,7 @@ function AppContent() {
 
 
   const handleParticipantClick = useCallback(async (participant) => {
+    // Chercher l'utilisateur par son displayName
     const usersQuery = query(collection(db, "users"), where("displayName", "==", participant.Nom_Participant));
     const usersSnapshot = await getDocs(usersQuery);
     if (!usersSnapshot.empty) {
@@ -1093,6 +1127,10 @@ function AppContent() {
         } else if (frequence === 'hebdomadaire') {
           return realDate >= startOfCurrentWeek;
         } else if (frequence === 'ponctuel') {
+          // For 'ponctuel' tasks, once completed, they are no longer available.
+          // The task document itself will be deleted from 'tasks' collection,
+          // so this check primarily serves for group tasks where subtasks might be 'ponctuel'
+          // but the parent task remains until all subtasks are done.
           return true; 
         }
       }
@@ -1126,72 +1164,81 @@ function AppContent() {
     }
     const subTaskIds = String(groupTask.Sous_Taches_IDs).split(',').map(id => id.trim());
     
+    // Filter allRawTaches to get only the actual subtasks that still exist in the database
     const existingSubtasks = allRawTaches.filter(t => subTaskIds.includes(String(t.ID_Tache)));
 
     if (existingSubtasks.length === 0) {
-        return true; 
+        return true; // All subtasks (that existed) are considered completed/deleted
     }
 
     return existingSubtasks.every(subTask => !isSubTaskAvailable(subTask));
   }, [allRawTaches, isSubTaskAvailable]); 
 
+  // Helper function to determine if a task should be hidden
   const isTaskHidden = useCallback((tache) => {
     const isSingleTaskCompleted = !tache.isGroupTask && !isSubTaskAvailable(tache);
     const isGroupTaskFullyCompleted = tache.isGroupTask && areAllSubtasksCompleted(tache);
     return isSingleTaskCompleted || isGroupTaskFullyCompleted;
   }, [isSubTaskAvailable, areAllSubtasksCompleted]);
 
+  // NOUVEAU: Fonction pour gérer le clic sur le logo (easter egg)
   const handleLogoClick = () => {
     setLogoClickCount(prevCount => {
       const newCount = prevCount + 1;
       
+      // Réinitialiser le compteur si pas de clic dans un court laps de temps
       if (logoClickTimerRef.current) {
         clearTimeout(logoClickTimerRef.current);
       }
       logoClickTimerRef.current = setTimeout(() => {
         setLogoClickCount(0);
-      }, 500); 
+      }, 500); // 500ms pour les clics consécutifs
 
+      // Si 5 clics ou plus, déclencher le confettis et l'emoji
       if (newCount >= 5) {
-        setLogoClickCount(0); 
-        clearTimeout(logoClickTimerRef.current); 
+        setLogoClickCount(0); // Réinitialiser le compteur après le déclenchement
+        clearTimeout(logoClickTimerRef.current); // Annuler le timer
 
         confetti({
           particleCount: 150,
           spread: 90,
-          origin: { y: 0.2, x: 0.5 }, 
-          colors: ['#a8e6cf', '#dcedc1', '#ffd3b6', '#ffaaa5', '#ff8b94', '#6a0dad', '#800080', '#ffc0cb', '#0000ff'] 
+          origin: { y: 0.2, x: 0.5 }, // Du centre vers le haut
+          colors: ['#a8e6cf', '#dcedc1', '#ffd3b6', '#ffaaa5', '#ff8b94', '#6a0dad', '#800080', '#ffc0cb', '#0000ff'] // Couleurs pastel et vives
         });
 
-        setShowChickEmoji(true); 
+        setShowChickEmoji(true); // Afficher l'emoji
         setTimeout(() => {
-          setShowChickEmoji(false); 
-        }, 20000); 
+          setShowChickEmoji(false); // Cacher l'emoji après 20 secondes
+        }, 20000); // 20 secondes
       }
       return newCount;
     });
   };
 
+  // NOUVEAU: Fonction pour obtenir les badges d'un participant
   const getParticipantBadges = useCallback((participant) => {
     const badges = [];
     const participantRealisations = realisations.filter(r => String(r.nomParticipant).trim() === String(participant.Nom_Participant).trim());
     
     const totalPoints = parseFloat(participant.Points_Total_Cumulatif) || 0;
 
+    // Badge "Premier Pas"
     if (participantRealisations.length > 0 && !badges.some(b => b.name === 'Premier Pas')) {
         badges.push({ name: 'Premier Pas', icon: '🐣', description: 'A complété sa première tâche.' });
     }
     
+    // Badge "Actif de la Semaine"
     const tasksThisWeek = participantRealisations.filter(real => {
         const realDate = new Date(real.timestamp);
         const today = new Date();
-        const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1))); 
+        const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1))); // Lundi de la semaine courante
         return realDate >= startOfWeek;
     }).length;
     if (tasksThisWeek >= 3 && !badges.some(b => b.name === 'Actif de la Semaine')) {
         badges.push({ name: 'Actif de la Semaine', icon: '⚡', description: '3 tâches ou plus complétées cette semaine.' });
     }
 
+    // Badges de catégorie (ex: cuisine, salle)
     const kitchenTasks = participantRealisations.filter(r => String(r.categorieTache || '').toLowerCase() === 'cuisine').length;
     if (kitchenTasks >= 5 && !badges.some(b => b.name === 'Chef Propre')) {
       badges.push({ name: 'Chef Propre', icon: '🍳', description: '5 tâches de cuisine complétées.' });
@@ -1202,6 +1249,7 @@ function AppContent() {
       badges.push({ name: 'Maître de Salon', icon: '🛋️', description: '5 tâches de salle complétées.' });
     }
 
+    // Badges de points cumulés
     if (totalPoints >= 100 && !badges.some(b => b.name === 'Grand Nettoyeur')) {
       badges.push({ name: 'Grand Nettoyeur', icon: '✨', description: 'Atteint 100 points cumulés.' });
     }
@@ -1212,6 +1260,7 @@ function AppContent() {
       badges.push({ name: 'Légende de la Propreté', icon: '🌟', description: 'Atteint 1000 points cumulés.' });
     }
 
+    // Badges de vainqueur hebdomadaire
     const hasBeenWeeklyWinner = historicalPodiums.some(podium => 
         podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.Nom_Participant).trim()
     );
@@ -1226,6 +1275,7 @@ function AppContent() {
         badges.push({ name: 'Triple Couronne', icon: '👑', description: 'A été premier 3 fois ou plus.' });
     }
 
+    // Badge "Conquérant d'Objectifs" (premier objectif complété)
     const firstObjectiveCompleted = objectives.some(obj => 
       obj.Est_Atteint && 
       (String(obj.Type_Cible || '').toLowerCase() === 'cumulatif' && parseFloat(participant.Points_Total_Cumulatif) >= parseFloat(obj.Cible_Points || 0))
@@ -1234,6 +1284,7 @@ function AppContent() {
       badges.push({ name: 'Conquérant d\'Objectifs', icon: '🎯', description: 'A complété son premier objectif.' });
     }
 
+    // Badge "Maître des Objectifs" (tous les objectifs complétés)
     const allObjectivesCompleted = objectives.every(obj => {
       const isCumulatifObjectiveMet = 
         String(obj.Type_Cible || '').toLowerCase() === 'cumulatif' && 
@@ -1251,6 +1302,7 @@ function AppContent() {
       badges.push({ name: 'Maître des Objectifs', icon: '🏆', description: 'A complété tous les objectifs.' });
     }
 
+    // Badge "Vigie de la Propreté" (a signalé une tâche)
     const hasReportedTask = reports.some(r => String(r.reporterUserId || '') === String(currentUser?.uid || ''));
     if (hasReportedTask && !badges.some(b => b.name === 'Vigie de la Propreté')) {
         badges.push({ name: 'Vigie de la Propreté', icon: '👁️', description: 'A signalé une tâche problématique.' });
@@ -1311,6 +1363,7 @@ function AppContent() {
     }).length;
 
     const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
+    // Filtrer pour n'afficher que les participants avec des points > 0
     const top3WithPoints = sortedClassement.filter(p => parseFloat(p.Points_Total_Semaine_Courante) > 0).slice(0, 3);
 
     return (
@@ -1320,7 +1373,7 @@ function AppContent() {
         </p>
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-secondary mb-6 sm:mb-8 whitespace-nowrap overflow-hidden text-ellipsis">🏆 Podium de la Semaine 🏆</h2> 
         
-        {Array.isArray(classement) && top3WithPoints.length > 0 ? ( 
+        {Array.isArray(classement) && top3WithPoints.length > 0 ? ( // Condition mise à jour ici
           <>
             <div className="flex justify-center items-end mt-4 sm:mt-6 gap-2 sm:gap-4"> 
               {/* 2ème Place */}
@@ -1523,6 +1576,7 @@ function AppContent() {
     const hebdomadaireTasks = currentCategoryTasks.filter(t => (String(t.Frequence || '')).toLowerCase() === 'hebdomadaire' || !(t.Frequence)); 
 
     const renderTasksList = (tasks) => {
+      // Filter tasks to only show those that are not hidden
       const visibleTasks = tasks.filter(tache => !isTaskHidden(tache));
 
       if (visibleTasks.length === 0) {
@@ -1530,7 +1584,7 @@ function AppContent() {
       }
       return (
         <div className="space-y-3">
-          {visibleTasks.map(tache => { 
+          {visibleTasks.map(tache => { // Iterate over visibleTasks
             const cardClasses = `bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center sm:items-center justify-between 
                                  cursor-pointer shadow-lg hover:shadow-xl transition duration-200 ease-in-out transform hover:-translate-y-1 border border-blue-100`; 
 
@@ -1585,6 +1639,7 @@ function AppContent() {
           ))}
         </div>
 
+        {/* Filtrer les tâches une seule fois et stocker le résultat */}
         {ponctuelTasks.filter(tache => !isTaskHidden(tache)).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Ponctuelles</h3> 
@@ -1623,7 +1678,7 @@ function AppContent() {
       );
     }
 
-    // Pagination logic
+    // NOUVEAU: Pagination logic
     const indexOfLastRealization = currentRealizationsPage * realizationsPerPage;
     const indexOfFirstRealization = indexOfLastRealization - realizationsPerPage;
     const currentRealizations = realisations.slice(indexOfFirstRealization, indexOfLastRealization);
@@ -1636,7 +1691,7 @@ function AppContent() {
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8"> 
         <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Tâches Terminées</h2>
         <div className="space-y-3 text-left"> 
-          {currentRealizations.map((real, index) => (
+          {currentRealizations.map((real, index) => ( // Utiliser currentRealizations
             <div key={real.id || real.timestamp + real.nomParticipant + index} 
                  className="bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-lg border border-blue-100"> 
               <div className="flex-1 min-w-0 mb-2 sm:mb-0"> 
@@ -1651,7 +1706,7 @@ function AppContent() {
                       <span>le {new Date(real.timestamp).toLocaleDateString('fr-FR')} à {new Date(real.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span> 
                   </div>
               </div>
-              <div className="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0">
+              <div className="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0"> {/* NOUVEAU: Flex pour les boutons */}
                 {currentUser && ( 
                   <button
                     onClick={() => handleReportClick(real)}
@@ -1660,6 +1715,7 @@ function AppContent() {
                     Signaler
                   </button>
                 )}
+                {/* NOUVEAU: Bouton Historique */}
                 <button
                   onClick={() => {
                     setTaskHistoryTaskId(real.taskId);
@@ -1674,7 +1730,7 @@ function AppContent() {
           ))}
         </div>
 
-        {/* Pagination Controls */}
+        {/* NOUVEAU: Pagination Controls */}
         {totalPages > 1 && (
           <div className="flex justify-center items-center gap-2 mt-6">
             <button
@@ -1749,8 +1805,8 @@ function AppContent() {
             onChange={(e) => setParticipantName(e.target.value)}
             placeholder="Entrez votre nom"
             className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            readOnly={true} 
-            disabled={true} 
+            readOnly={true} // Toujours en lecture seule
+            disabled={true} // Toujours désactivé
             autoFocus
           />
           <div className="flex flex-col gap-3 sm:gap-4 mt-4"> 
@@ -1855,8 +1911,8 @@ function AppContent() {
             onChange={(e) => setParticipantName(e.target.value)}
             placeholder="Entrez votre nom"
             className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            readOnly={true} 
-            disabled={true} 
+            readOnly={true} // Toujours en lecture seule
+            disabled={true} // Toujours désactivé
             autoFocus
           />
 
@@ -1893,6 +1949,7 @@ function AppContent() {
       : 0;
 
     const participantBadges = getParticipantBadges(selectedParticipantProfile);
+    // NOUVEAU: Calcul du niveau et de l'XP pour le profil
     const { level, xpNeededForNextLevel } = calculateLevelAndXP(selectedParticipantProfile.XP || 0);
     const xpProgress = xpNeededForNextLevel > 0 ? ((selectedParticipantProfile.XP || 0) / xpNeededForNextLevel) * 100 : 0;
 
@@ -1901,6 +1958,7 @@ function AppContent() {
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8"> 
         <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Profil de {selectedParticipantProfile.displayName || selectedParticipantProfile.email}</h2> 
         <div className="mb-6 p-4 bg-neutralBg rounded-xl shadow-inner"> 
+          {/* NOUVEAU: Affichage de l'avatar, du niveau et de l'XP */}
           <div className="flex items-center justify-center mb-4">
             <span className="text-6xl mr-4">{selectedParticipantProfile.Avatar || '👤'}</span>
             <div className="text-left">
@@ -1924,6 +1982,7 @@ function AppContent() {
           <p className="text-base sm:text-lg text-lightText mt-2">
             Points Cumulatifs: <span className="font-bold">{participantCumulativePoints}</span>
           </p>
+          {/* NOUVEAU: Bouton pour changer l'avatar */}
           {currentUser && selectedParticipantProfile.id === currentUser.uid && (
             <button
               onClick={() => setShowAvatarSelectionModal(true)}
@@ -1932,6 +1991,7 @@ function AppContent() {
               Changer mon Avatar
             </button>
           )}
+          {/* NOUVEAU: Affichage des badges */}
           {participantBadges.length > 0 && (
             <div className="mt-4">
               <h4 className="text-lg font-semibold text-primary mb-2">Vos Badges:</h4>
@@ -1995,7 +2055,7 @@ function AppContent() {
 
     return (
       <ConfirmActionModal
-        title="Confirmer la Réinitialisation Hebdomadaire"
+        title="Confirmer la Réinitialisation"
         message="Êtes-vous sûr de vouloir réinitialiser les points hebdomadaires et enregistrer le podium ? Cette action est irréversible."
         confirmText="Oui, Réinitialiser"
         cancelText="Non, Annuler"
@@ -2006,6 +2066,7 @@ function AppContent() {
     );
   };
 
+  // NOUVEAU: Modale de confirmation pour la réinitialisation des réalisations
   const renderConfirmResetRealisationsModal = () => {
     if (!showConfirmResetRealisationsModal) return null;
 
@@ -2094,6 +2155,7 @@ function AppContent() {
   };
 
   const handleExportClassement = useCallback(() => {
+    // NOUVEAU: Ajout des headers pour Avatar, Level, XP
     const headers = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Points_Total_Semaine_Precedente', 'Date_Mise_A_Jour', 'Avatar', 'Level', 'XP'];
     const dataToExport = classement.map(p => ({
         Nom_Participant: p.Nom_Participant,
@@ -2101,9 +2163,9 @@ function AppContent() {
         Points_Total_Cumulatif: p.Points_Total_Cumulatif,
         Points_Total_Semaine_Precedente: p.Points_Total_Semaine_Precedente || 0,
         Date_Mise_A_Jour: p.Date_Mise_A_Jour || '',
-        Avatar: p.Avatar || '👤',
-        Level: p.Level || 1,
-        XP: p.XP || 0
+        Avatar: p.Avatar || '👤', // NOUVEAU: Export de l'avatar
+        Level: p.Level || 1, // NOUVEAU: Export du niveau
+        XP: p.XP || 0 // NOUVEAU: Export de l'XP
     }));
     exportToCsv('classement_clean_app.csv', dataToExport, headers);
     setShowExportSelectionModal(false); 
@@ -2248,6 +2310,7 @@ function AppContent() {
     );
   }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal, showAdminTasksListModal]);
 
+  // Nouvelle fonction pour le rendu de la modale de vision globale de la BDD
   const renderGlobalDataViewModal = useCallback(() => {
     if (!showGlobalDataViewModal) return null;
 
@@ -2335,6 +2398,7 @@ function AppContent() {
     );
   }, [showGlobalDataViewModal, selectedGlobalCollection, globalCollectionDocs, loadingGlobalCollectionDocs, fetchGlobalCollectionDocs]);
 
+  // Nouvelle fonction pour le rendu de la modale de détails d'un document
   const renderDocumentDetailsModal = useCallback(() => {
     if (!selectedDocumentDetails) return null;
     return (
@@ -2417,12 +2481,20 @@ function AppContent() {
               >
                 Exporter les Données (CSV)
               </button>
+              {/* SUPPRIMÉ: Bouton d'importation Excel */}
+              {/* <button
+                onClick={() => setShowImportTasksModal(true)}
+                className={`${subtleAdminButtonClasses} col-span-1`}
+              >
+                Importer les Tâches (Excel)
+              </button> */}
               <button
                 onClick={() => setShowConfirmResetModal(true)}
                 className={`bg-error/80 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`} 
               >
                 Réinitialiser les Points Hebdomadaires
               </button>
+              {/* NOUVEAU: Bouton pour réinitialiser les réalisations */}
               <button
                 onClick={() => setShowConfirmResetRealisationsModal(true)} 
                 className={`bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`} 
@@ -2471,7 +2543,7 @@ function AppContent() {
               rank={index + 1}
               type="weekly" 
               onParticipantClick={handleParticipantClick} 
-              getParticipantBadges={getParticipantBadges}
+              getParticipantBadges={getParticipantBadges} // NOUVEAU: Passage de la fonction getParticipantBadges
             />
           ))}
         </div>
@@ -2493,7 +2565,7 @@ function AppContent() {
         </div>
       </div>
     );
-  }, [classement, handleParticipantClick, getParticipantBadges]);
+  };
 
   const renderExportSelectionModal = useCallback(() => {
     if (!showExportSelectionModal) return null;
@@ -2541,6 +2613,7 @@ function AppContent() {
         <header className="relative flex flex-col items-center justify-center py-4 sm:py-6 px-4 mb-6 sm:mb-8 text-center">
           <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-20 sm:h-28 md:h-36 w-auto drop-shadow-xl" />
           <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1>
+          {/* Le bouton de connexion en haut à droite est supprimé quand non connecté */}
         </header>
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center border border-primary/20 mx-auto">
           <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-4">Bienvenue !</h2>
@@ -2588,6 +2661,7 @@ function AppContent() {
     <div className="min-h-screen bg-gradient-to-br from-background-light to-background-dark font-sans p-4 sm:p-6"> 
       <div className="max-w-4xl mx-auto">
         <header className="relative flex flex-col items-center justify-center py-4 sm:py-6 px-4 mb-6 sm:mb-8 text-center"> 
+          {/* NOUVEAU: Easter egg du logo */}
           {showChickEmoji ? (
             <span className="text-7xl sm:text-8xl mb-3 sm:mb-4 cursor-pointer" onClick={handleLogoClick}>🐣</span>
           ) : (
@@ -2609,7 +2683,7 @@ function AppContent() {
         </header>
 
         <nav className="flex flex-col sm:flex-row justify-center items-center mb-6 sm:mb-8 gap-2 sm:gap-4"> 
-          <div className="bg-neutralBg rounded-full p-1.5 flex justify-center gap-2 sm:gap-4 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto"> 
+          <div className="bg-neutralBg rounded-full p-1.5 flex justify-center gap-4 sm:gap-6 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto"> 
             <button
               className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
                 ${activeMainView === 'home' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
@@ -2631,10 +2705,13 @@ function AppContent() {
             >
               Historique
             </button> 
+          </div>
+          {/* Boutons Profil et Admin à côté de la nav bar */}
+          <div className="flex flex-row gap-2 sm:gap-4 mt-2 sm:mt-0">
             {currentUser && (
               <button
                 onClick={() => handleParticipantClick({ Nom_Participant: currentUser.displayName || currentUser.email })}
-                className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap flex-shrink-0"
+                className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap"
               >
                 Mon Profil
               </button>
@@ -2642,7 +2719,7 @@ function AppContent() {
             {isAdmin && (
               <button
                 onClick={() => setActiveMainView('adminPanel')}
-                className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap flex-shrink-0"
+                className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm whitespace-nowrap"
               >
                 Console Admin
               </button>
@@ -2663,7 +2740,7 @@ function AppContent() {
           )}
           {activeMainView === 'historicalPodiums' && (
             <HistoricalPodiums historicalPodiums={historicalPodiums} onClose={() => setActiveMainView('home')}>
-              {weeklyRecapData && ( 
+              {weeklyRecapData && ( // Affiche le récapitulatif ici
                 <div className="bg-neutralBg rounded-xl p-4 shadow-inner mb-6">
                   <h3 className="text-xl font-bold text-primary mb-3 text-center">Votre Récapitulatif de la Semaine Précédente</h3>
                   <p className="text-md text-text mb-2">
@@ -2703,10 +2780,12 @@ function AppContent() {
             renderAdminPanel()
           )}
         </main>
+        {/* Modales et popups */}
         {renderTaskDialog()}
         {renderThankYouPopup()} 
         {renderSplitTaskDialog()} 
         {renderConfirmResetModal()} 
+        {/* NOUVEAU: Modale pour la réinitialisation des réalisations */}
         {renderConfirmResetRealisationsModal()} 
         {renderDeleteConfirmModal()} 
         {renderDeleteObjectiveConfirmModal()} 
@@ -2730,7 +2809,7 @@ function AppContent() {
             classement={classement}
             onClose={() => setShowOverallRankingModal(false)}
             onParticipantClick={handleParticipantClick}
-            getParticipantBadges={getParticipantBadges}
+            getParticipantBadges={getParticipantBadges} // NOUVEAU: Passage de la fonction getParticipantBadges
           />
         )}
 
@@ -2805,6 +2884,7 @@ function AppContent() {
           />
         )}
 
+        {/* NOUVEAU: Modale Historique des tâches */}
         {showTaskHistoryModal && (
           <TaskHistoryModal
             taskId={taskHistoryTaskId}
@@ -2817,6 +2897,7 @@ function AppContent() {
           />
         )}
 
+        {/* NOUVEAU: Modale de sélection d'avatar */}
         {showAvatarSelectionModal && currentUser && (
           <AvatarSelectionModal
             currentAvatar={currentUser.avatar || '👤'}
