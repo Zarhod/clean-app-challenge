@@ -1,5 +1,5 @@
 // src/App.js
-// Version mise à jour pour utiliser Firebase Authentication et Firestore.
+// Version mise à jour pour utiliser Firebase Authentication et Firestore avec des écouteurs en temps réel.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -13,7 +13,7 @@ import ListAndInfoModal from './ListAndInfoModal';
 import RankingCard from './RankingCard'; 
 import OverallRankingModal from './OverallRankingModal'; 
 import ReportTaskModal from './ReportTaskModal'; 
-import AuthModal from './Auth'; // Import par défaut
+import AuthModal from './Auth'; 
 import AdminUserManagementModal from './AdminUserManagementModal'; 
 import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; 
 import WeeklyRecapModal from './WeeklyRecapModal'; 
@@ -24,7 +24,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 // Importations Firebase
 import { db, auth } from './firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, writeBatch } from 'firebase/firestore'; // Ajout de writeBatch
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, writeBatch, onSnapshot } from 'firebase/firestore'; // Ajout de onSnapshot
 import { signOut } from 'firebase/auth';
 
 // Importation du contexte utilisateur
@@ -47,7 +47,6 @@ function AppContent() {
   const [loading, setLoading] = useState(true); 
 
   const [selectedTask, setSelectedTask] = useState(null); 
-  // Initialise participantName avec le nom de l'utilisateur connecté
   const [participantName, setParticipantName] = useState(currentUser?.displayName || currentUser?.email || ''); 
   const [showThankYouPopup, setShowThankYouPopup] = useState(null); 
   const [showConfetti, setShowConfetti] = useState(false); 
@@ -64,7 +63,6 @@ function AppContent() {
   const [selectedSubTasks, setSelectedSubTasks] = useState([]); 
   
   const [showConfirmResetModal, setShowConfirmResetModal] = useState(false); 
-  // Nouvel état pour la réinitialisation des réalisations
   const [showConfirmResetRealisationsModal, setShowConfirmResetRealisationsModal] = useState(false);
   
   const [showAdminTaskFormModal, setShowAdminTaskFormModal] = useState(false); 
@@ -103,17 +101,26 @@ function AppContent() {
 
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // Nouvel état pour la vision globale de la BDD
   const [showGlobalDataViewModal, setShowGlobalDataViewModal] = useState(false);
   const [selectedGlobalCollection, setSelectedGlobalCollection] = useState(null);
   const [globalCollectionDocs, setGlobalCollectionDocs] = useState([]);
   const [loadingGlobalCollectionDocs, setLoadingGlobalCollectionDocs] = useState(false);
   const [selectedDocumentDetails, setSelectedDocumentDetails] = useState(null);
 
-  // États pour le récapitulatif hebdomadaire
   const [showWeeklyRecapModal, setShowWeeklyRecapModal] = useState(false);
   const [weeklyRecapData, setWeeklyRecapData] = useState(null);
-  
+
+  // Ref pour suivre l'état de chargement initial de chaque collection
+  const initialLoadStatus = useRef({
+    tasks: false,
+    realizations: false,
+    classement: false,
+    objectives: false,
+    congratulatoryMessages: false,
+    historicalPodiums: false,
+    reports: false,
+  });
+
   // Met à jour participantName si currentUser change
   useEffect(() => {
     if (currentUser) {
@@ -123,27 +130,21 @@ function AppContent() {
     }
   }, [currentUser]);
 
-  // Les fonctions fetchX ne gèrent plus le loading global, seulement leurs erreurs spécifiques
-  const fetchTaches = useCallback(async () => {
-    try {
-      const q = query(collection(db, "tasks"));
-      const querySnapshot = await getDocs(q);
-      
-      const rawData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      if (!Array.isArray(rawData)) { 
-        throw new Error("Les données reçues ne sont pas un tableau.");
-      }
+  // Fonctions de récupération de données utilisant onSnapshot
+  // Elles ne gèrent plus le `setLoading` global, mais mettent à jour leurs états respectifs.
+  // Elles retournent la fonction de désabonnement.
 
+  const setupTasksListener = useCallback(() => {
+    const q = query(collection(db, "tasks"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const rawData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       const cleanedRawData = rawData.filter(tache => tache && tache.ID_Tache);
       setAllRawTaches(cleanedRawData); 
 
       const tachesMap = new Map(cleanedRawData.map(t => [String(t.ID_Tache), t]));
-
       const processedAndFilteredTaches = cleanedRawData
         .map(tache => {
           if (!tache) return null; 
-
           if (tache.Sous_Taches_IDs && String(tache.Sous_Taches_IDs).trim() !== '') {
             const subTaskIds = String(tache.Sous_Taches_IDs).split(',').map(id => id.trim());
             let totalSubTaskPoints = 0;
@@ -159,100 +160,255 @@ function AppContent() {
         })
         .filter(tache => tache !== null) 
         .filter(tache => String(tache.Parent_Task_ID || '').trim() === ''); 
-      
       setTaches(processedAndFilteredTaches);
-      return processedAndFilteredTaches; // Retourne les données pour Promise.all
-    } catch (err) {
-      toast.error(`Erreur lors de la récupération des tâches: ${err.message}`); 
-      return [];
-    }
-  }, [setAllRawTaches, setTaches]); 
+      initialLoadStatus.current.tasks = true;
+    }, (error) => {
+      toast.error(`Erreur lors de la récupération des tâches: ${error.message}`); 
+    });
+    return unsubscribe;
+  }, []);
 
-  const fetchClassement = useCallback(async () => {
-    try {
-      const usersQuery = query(collection(db, "users"));
-      const usersSnapshot = await getDocs(usersQuery);
-      const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      const realisationsQuery = query(collection(db, "realizations"));
-      const realisationsSnapshot = await getDocs(realisationsQuery);
-      const realisationsData = realisationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const dayOfWeek = today.getDay(); 
-      const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
-      const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
-      startOfCurrentWeek.setHours(0, 0, 0, 0);
-
-      const participantScores = {};
-      usersData.forEach(user => {
-        participantScores[user.displayName] = {
-          Nom_Participant: user.displayName,
-          Points_Total_Semaine_Courante: parseFloat(user.weeklyPoints || 0), 
-          Points_Total_Cumulatif: parseFloat(user.totalCumulativePoints || 0),
-          Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0), 
-          Date_Mise_A_Jour: user.dateJoined || '' 
-        };
-      });
-
-      const tempWeeklyPoints = {};
-      const tempCumulativePoints = {};
-
-      realisationsData.forEach(real => {
-        const participant = real.nomParticipant;
-        const points = parseFloat(real.pointsGagnes) || 0;
-        const realDate = new Date(real.timestamp);
-        realDate.setHours(0, 0, 0, 0);
-
-        if (realDate >= startOfCurrentWeek) {
-          tempWeeklyPoints[participant] = (tempWeeklyPoints[participant] || 0) + points;
-        }
-        tempCumulativePoints[participant] = (tempCumulativePoints[participant] || 0) + points;
-      });
-
-      usersData.forEach(user => {
-        const displayName = user.displayName;
-        if (!participantScores[displayName]) {
-          participantScores[displayName] = {
-            Nom_Participant: displayName,
-            Points_Total_Semaine_Courante: 0,
-            Points_Total_Cumulatif: 0,
-            Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0),
-            Date_Mise_A_Jour: user.dateJoined || ''
-          };
-        }
-        participantScores[displayName].Points_Total_Semaine_Courante = tempWeeklyPoints[displayName] || 0;
-        participantScores[displayName].Points_Total_Cumulatif = tempCumulativePoints[displayName] || 0;
-      });
-      
-      const currentClassement = Object.values(participantScores)
-        .sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
-      
-      setClassement(currentClassement);
-      const globalCumulative = currentClassement.reduce((sum, p) => sum + (parseFloat(p.Points_Total_Cumulatif) || 0), 0); 
-      setTotalGlobalCumulativePoints(globalCumulative);
-      return currentClassement; // Retourne les données pour Promise.all
-
-    } catch (err) {
-      toast.error(`Erreur lors de la récupération du classement: ${err.message}`); 
-      return [];
-    }
-  }, [setClassement, setTotalGlobalCumulativePoints]); 
-
-  const fetchRealisations = useCallback(async () => {
-    try {
-      const q = query(collection(db, "realizations"));
-      const querySnapshot = await getDocs(q);
+  const setupRealisationsListener = useCallback(() => {
+    const q = query(collection(db, "realizations"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setRealisations(data);
-      return data; // Retourne les données pour Promise.all
+      initialLoadStatus.current.realizations = true;
+    }, (error) => {
+      toast.error(`Erreur lors de la récupération des réalisations: ${error.message}`);
+    });
+    return unsubscribe;
+  }, []);
+
+  const setupClassementListener = useCallback(() => {
+    // Écoute les changements dans les utilisateurs et les réalisations pour mettre à jour le classement
+    // Note: un classement en temps réel parfait nécessiterait une Cloud Function pour agréger les points
+    // en temps réel et stocker le classement dans une collection dédiée. Ici, nous recalculons côté client.
+    const usersUnsubscribe = onSnapshot(collection(db, "users"), (usersSnapshot) => {
+      const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      onSnapshot(collection(db, "realizations"), (realisationsSnapshot) => {
+        const realisationsData = realisationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dayOfWeek = today.getDay(); 
+        const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
+        const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
+        startOfCurrentWeek.setHours(0, 0, 0, 0);
+
+        const participantScores = {};
+        usersData.forEach(user => {
+          participantScores[user.displayName] = {
+            Nom_Participant: user.displayName,
+            Points_Total_Semaine_Courante: parseFloat(user.weeklyPoints || 0), 
+            Points_Total_Cumulatif: parseFloat(user.totalCumulativePoints || 0),
+            Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0), 
+            Date_Mise_A_Jour: user.dateJoined || '' 
+          };
+        });
+
+        const tempWeeklyPoints = {};
+        const tempCumulativePoints = {};
+
+        realisationsData.forEach(real => {
+          const participant = real.nomParticipant;
+          const points = parseFloat(real.pointsGagnes) || 0;
+          const realDate = new Date(real.timestamp);
+          realDate.setHours(0, 0, 0, 0);
+
+          if (realDate >= startOfCurrentWeek) {
+            tempWeeklyPoints[participant] = (tempWeeklyPoints[participant] || 0) + points;
+          }
+          tempCumulativePoints[participant] = (tempCumulativePoints[participant] || 0) + points;
+        });
+
+        usersData.forEach(user => {
+          const displayName = user.displayName;
+          if (!participantScores[displayName]) {
+            participantScores[displayName] = {
+              Nom_Participant: displayName,
+              Points_Total_Semaine_Courante: 0,
+              Points_Total_Cumulatif: 0,
+              Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0),
+              Date_Mise_A_Jour: user.dateJoined || ''
+            };
+          }
+          participantScores[displayName].Points_Total_Semaine_Courante = tempWeeklyPoints[displayName] || 0;
+          participantScores[displayName].Points_Total_Cumulatif = tempCumulativePoints[displayName] || 0;
+        });
+        
+        const currentClassement = Object.values(participantScores)
+          .sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
+        
+        setClassement(currentClassement);
+        const globalCumulative = currentClassement.reduce((sum, p) => sum + (parseFloat(p.Points_Total_Cumulatif) || 0), 0); 
+        setTotalGlobalCumulativePoints(globalCumulative);
+        initialLoadStatus.current.classement = true;
+      }, (error) => {
+        toast.error(`Erreur lors de la récupération des réalisations pour le classement: ${error.message}`);
+      });
+    }, (error) => {
+      toast.error(`Erreur lors de la récupération des utilisateurs pour le classement: ${error.message}`);
+    });
+    return usersUnsubscribe; // Retourne la fonction de désabonnement principale
+  }, []);
+
+
+  const setupObjectivesListener = useCallback(() => {
+    const q = query(collection(db, "objectives"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setObjectives(data);
+      initialLoadStatus.current.objectives = true;
+    }, (error) => {
+      toast.error(`Erreur lors de la récupération des objectifs: ${error.message}`);
+    });
+    return unsubscribe;
+  }, []);
+
+  const setupCongratulatoryMessagesListener = useCallback(() => {
+    const q = query(collection(db, "congratulatory_messages"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCongratulatoryMessages(data);
+      initialLoadStatus.current.congratulatoryMessages = true;
+    }, (error) => {
+      setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); // Fallback
+      toast.error(`Erreur lors de la récupération des messages de félicitation: ${error.message}`);
+    });
+    return unsubscribe;
+  }, []);
+
+  const setupHistoricalPodiumsListener = useCallback(() => {
+    const q = query(collection(db, "historical_podiums"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setHistoricalPodiums(data);
+      initialLoadStatus.current.historicalPodiums = true;
+    }, (error) => {
+      toast.error(`Erreur lors de la récupération des podiums historiques: ${error.message}`);
+    });
+    return unsubscribe;
+  }, []);
+
+  const setupReportsListener = useCallback(() => {
+    const q = query(collection(db, "reports"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setReports(data);
+      initialLoadStatus.current.reports = true;
+    }, (error) => {
+      toast.error(`Erreur lors de la récupération des rapports: ${error.message}`);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Effet principal pour gérer les écouteurs en temps réel et l'état de chargement global
+  useEffect(() => {
+    const unsubscribes = [];
+    let timeoutId;
+
+    const checkInitialLoad = () => {
+      const allLoaded = Object.values(initialLoadStatus.current).every(status => status);
+      if (allLoaded) {
+        setLoading(false);
+      } else {
+        // Fallback pour le cas où un listener ne se déclenche pas ou prend du temps
+        timeoutId = setTimeout(() => {
+          setLoading(false);
+          console.warn("Certaines données n'ont pas été chargées initialement après un délai.");
+        }, 5000); // 5 secondes de délai max pour le chargement initial
+      }
+    };
+
+    if (!loadingUser && currentUser) {
+      unsubscribes.push(setupTasksListener());
+      unsubscribes.push(setupRealisationsListener());
+      unsubscribes.push(setupClassementListener());
+      unsubscribes.push(setupObjectivesListener());
+      unsubscribes.push(setupCongratulatoryMessagesListener());
+      unsubscribes.push(setupHistoricalPodiumsListener());
+      unsubscribes.push(setupReportsListener());
+
+      // Vérifie le chargement initial après un court délai pour laisser le temps aux listeners de se déclencher
+      setTimeout(checkInitialLoad, 500); 
+
+    } else if (!loadingUser && !currentUser) {
+      // Si déconnecté, réinitialise les états et arrête le chargement
+      setTaches([]);
+      setAllRawTaches([]);
+      setRealisations([]);
+      setClassement([]);
+      setHistoricalPodiums([]);
+      setObjectives([]);
+      setCongratulatoryMessages([]);
+      setReports([]);
+      setWeeklyRecapData(null);
+      setLoading(false);
     }
-    catch (err) {
-      toast.error(`Erreur lors de la récupération des réalisations: ${err.message}`);
-      return [];
-    }
-  }, [setRealisations]); 
+
+    return () => {
+      // Désabonnement de tous les listeners lors du démontage du composant ou du changement de currentUser
+      unsubscribes.forEach(unsubscribe => unsubscribe());
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      // Réinitialise l'état de chargement initial pour la prochaine fois
+      Object.keys(initialLoadStatus.current).forEach(key => initialLoadStatus.current[key] = false);
+    };
+  }, [
+    currentUser, loadingUser,
+    setupTasksListener, setupRealisationsListener, setupClassementListener,
+    setupObjectivesListener, setupCongratulatoryMessagesListener, setupHistoricalPodiumsListener,
+    setupReportsListener
+  ]);
+
+  // Deuxième useEffect: Calcul et affichage du récapitulatif hebdomadaire
+  useEffect(() => {
+    const handleRecapLogic = async () => {
+      // S'assure que l'utilisateur est connecté et que les données nécessaires sont chargées
+      if (currentUser && realisations.length > 0 && historicalPodiums.length > 0) { 
+        const today = new Date();
+        const currentDayOfWeek = today.getDay(); 
+        const currentMonday = new Date(today);
+        currentMonday.setDate(today.getDate() - (currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1));
+        currentMonday.setHours(0, 0, 0, 0);
+
+        const userDocRef = doc(db, "users", currentUser.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        const userData = userDocSnap.exists() ? userDocSnap.data() : {};
+        const lastRecapDisplayed = userData.lastWeeklyRecapDisplayed ? new Date(userData.lastWeeklyRecapDisplayed) : null;
+
+        // Si c'est lundi et que le récap n'a pas été affiché ce lundi
+        if (currentDayOfWeek === 1 && (!lastRecapDisplayed || lastRecapDisplayed.toDateString() !== currentMonday.toDateString())) {
+          const recap = calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email, realisations, historicalPodiums);
+          setWeeklyRecapData(recap);
+          setShowWeeklyRecapModal(true);
+          // Mettre à jour la date de dernière affichage dans Firestore
+          await updateDoc(userDocRef, {
+            lastWeeklyRecapDisplayed: currentMonday.toISOString()
+          });
+        } else if (lastRecapDisplayed && lastRecapDisplayed.toDateString() === currentMonday.toDateString()) {
+            // Si le récap a déjà été affiché ce lundi (ou si on est après lundi mais le même lundi), on le recalcule pour l'historique
+            const recap = calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email, realisations, historicalPodiums);
+            setWeeklyRecapData(recap);
+        } else {
+            setWeeklyRecapData(null); // Réinitialiser si pas de récap à afficher
+        }
+      } else if (currentUser && (realisations.length === 0 || historicalPodiums.length === 0)) {
+        // Si l'utilisateur est connecté mais que les données ne sont pas encore là, réinitialiser le récap
+        setWeeklyRecapData(null);
+      }
+    };
+    // Déclenche la logique du récap lorsque l'utilisateur, les réalisations ou les podiums changent
+    handleRecapLogic();
+  }, [
+    currentUser,
+    realisations, 
+    historicalPodiums, 
+    calculateWeeklyRecap 
+  ]);
+
 
   const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
     setLoading(true); // Cette fonction garde son propre loading car elle est appelée séparément
@@ -312,58 +468,6 @@ function AppContent() {
       setLoading(false);
     }
   }, [setSubTasks, setLoading]); 
-
-  const fetchObjectives = useCallback(async () => {
-    try {
-      const q = query(collection(db, "objectives"));
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setObjectives(data);
-      return data; // Retourne les données pour Promise.all
-    } catch (err) {
-      toast.error(`Erreur: ${err.message}`);
-      return [];
-    }
-  }, [setObjectives]); 
-
-  const fetchCongratulatoryMessages = useCallback(async () => {
-    try {
-      const q = query(collection(db, "congratulatory_messages"));
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setCongratulatoryMessages(data);
-      return data; // Retourne les données pour Promise.all
-    } catch (err) {
-      setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); // Fallback
-      return [];
-    }
-  }, [setCongratulatoryMessages]); 
-
-  const fetchHistoricalPodiums = useCallback(async () => {
-    try {
-      const q = query(collection(db, "historical_podiums"));
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setHistoricalPodiums(data);
-      return data; // Retourne les données pour Promise.all
-    } catch (err) {
-      toast.error(`Erreur: ${err.message}`);
-      return [];
-    }
-  }, [setHistoricalPodiums]); 
-
-  const fetchReports = useCallback(async () => {
-    try {
-      const q = query(collection(db, "reports"));
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setReports(data);
-      return data; // Retourne les données pour Promise.all
-    } catch (err) {
-      toast.error(`Erreur: ${err.message}`);
-      return [];
-    }
-  }, [setReports]); 
 
   // Nouvelle fonction pour charger les documents d'une collection donnée
   const fetchGlobalCollectionDocs = useCallback(async (collectionName) => {
@@ -434,16 +538,7 @@ function AppContent() {
         setShowConfetti(true); 
         setSelectedTask(null); 
       }
-      // Re-fetch all data to ensure UI is up-to-date after a task completion
-      await Promise.all([ 
-        fetchTaches(),
-        fetchClassement(),
-        fetchRealisations(),
-        fetchObjectives(),
-        fetchCongratulatoryMessages(),
-        fetchHistoricalPodiums(),
-        fetchReports()
-      ]);
+      // Pas besoin de re-fetcher manuellement grâce aux listeners onSnapshot
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`); 
     } finally {
@@ -468,18 +563,20 @@ function AppContent() {
     setLoading(true);
     try {
       let totalPointsGained = 0;
-      const tasksToDelete = []; // Pour stocker les tâches ponctuelles à supprimer
+      const tasksToDelete = []; 
 
-      const batchPromises = availableSelectedSubTasks.map(subTask => {
+      const batch = writeBatch(db); // Utilisation d'un batch pour les écritures multiples
+
+      availableSelectedSubTasks.forEach(subTask => {
         const points = parseFloat(subTask.Points) || 0;
         const category = subTask.Categorie || 'Non catégorisée';
         totalPointsGained += points;
 
         if (String(subTask.Frequence || '').toLowerCase() === 'ponctuel') {
-          tasksToDelete.push(subTask.id); // Stocker l'ID du document Firestore
+          tasksToDelete.push(subTask.id); 
         }
 
-        return addDoc(collection(db, "realizations"), {
+        batch.set(doc(collection(db, "realizations")), { // addDoc est remplacé par set sur un nouveau doc
           taskId: subTask.ID_Tache,
           userId: currentUser.uid,
           nomParticipant: currentUser.displayName || currentUser.email,
@@ -489,12 +586,10 @@ function AppContent() {
           timestamp: new Date().toISOString()
         });
       });
-      await Promise.all(batchPromises);
-
-      // Supprimer les tâches ponctuelles après l'enregistrement des réalisations
-      const deletePromises = tasksToDelete.map(taskId => deleteDoc(doc(db, "tasks", taskId)));
-      await Promise.all(deletePromises);
-
+      
+      tasksToDelete.forEach(taskId => {
+        batch.delete(doc(db, "tasks", taskId));
+      });
 
       const userDocRef = doc(db, "users", currentUser.uid);
       const userDocSnap = await getDoc(userDocRef);
@@ -502,11 +597,12 @@ function AppContent() {
         const userData = userDocSnap.data();
         const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + totalPointsGained;
         const newWeeklyPoints = (userData.weeklyPoints || 0) + totalPointsGained;
-        await updateDoc(userDocRef, {
+        batch.update(userDocRef, {
           totalCumulativePoints: newTotalCumulativePoints,
           weeklyPoints: newWeeklyPoints
         });
       }
+      await batch.commit(); // Exécute toutes les opérations en une seule fois
 
       const completedTaskNames = availableSelectedSubTasks.map(st => st.Nom_Tache).join(', ');
       const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
@@ -518,16 +614,7 @@ function AppContent() {
       setSelectedTask(null);
       setShowSplitTaskDialog(false); 
       setSelectedSubTasks([]);
-      // Re-fetch all data to ensure UI is up-to-date after a task completion
-      await Promise.all([ 
-        fetchTaches(),
-        fetchClassement(),
-        fetchRealisations(),
-        fetchObjectives(),
-        fetchCongratulatoryMessages(),
-        fetchHistoricalPodiums(),
-        fetchReports()
-      ]);
+      // Pas besoin de re-fetcher manuellement grâce aux listeners onSnapshot
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
@@ -553,7 +640,7 @@ function AppContent() {
 
       const usersQuery = query(collection(db, "users"));
       const usersSnapshot = await getDocs(usersQuery);
-      const batch = writeBatch(db); // Utilisation d'un batch pour les mises à jour
+      const batch = writeBatch(db); 
 
       usersSnapshot.docs.forEach(userDoc => {
         const userRef = doc(db, "users", userDoc.id);
@@ -563,19 +650,10 @@ function AppContent() {
           previousWeeklyPoints: userData.weeklyPoints || 0 
         });
       });
-      await batch.commit(); // Exécute le batch
+      await batch.commit(); 
 
       toast.success('Points hebdomadaires réinitialisés et podium enregistré.');
-      // Re-fetch all data after reset
-      await Promise.all([ 
-        fetchTaches(),
-        fetchClassement(),
-        fetchRealisations(),
-        fetchObjectives(),
-        fetchCongratulatoryMessages(),
-        fetchHistoricalPodiums(),
-        fetchReports()
-      ]);
+      // Pas besoin de re-fetcher manuellement grâce aux listeners onSnapshot
     } catch (err) {
       toast.error(`Une erreur est survenue lors de la réinitialisation des points hebdomadaires: ${err.message}`);
     } finally {
@@ -610,22 +688,13 @@ function AppContent() {
         batchResetUsers.update(userRef, {
           weeklyPoints: 0,
           totalCumulativePoints: 0,
-          previousWeeklyPoints: 0 // Réinitialiser également les points de la semaine précédente
+          previousWeeklyPoints: 0 
         });
       });
       await batchResetUsers.commit();
 
       toast.success('Toutes les réalisations et les points des utilisateurs ont été réinitialisés.');
-      // Re-fetch all data to reflect the changes
-      await Promise.all([ 
-        fetchTaches(),
-        fetchClassement(),
-        fetchRealisations(),
-        fetchObjectives(),
-        fetchCongratulatoryMessages(),
-        fetchHistoricalPodiums(),
-        fetchReports()
-      ]);
+      // Pas besoin de re-fetcher manuellement grâce aux listeners onSnapshot
     } catch (err) {
       toast.error(`Une erreur est survenue lors de la réinitialisation des réalisations: ${err.message}`);
     } finally {
@@ -649,26 +718,22 @@ function AppContent() {
     }
   };
 
-  // Fonction pour calculer le récapitulatif de la semaine précédente
-  // Ne fait plus de requêtes Firestore, utilise les données passées en arguments
   const calculateWeeklyRecap = useCallback((userId, displayName, allRealisations, allHistoricalPodiums) => {
     const today = new Date();
-    const currentDayOfWeek = today.getDay(); // 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
+    const currentDayOfWeek = today.getDay(); 
 
-    // Calculer le début et la fin de la semaine précédente (du lundi au dimanche)
     const startOfLastWeek = new Date(today);
-    startOfLastWeek.setDate(today.getDate() - (currentDayOfWeek === 0 ? 7 : currentDayOfWeek) - 6); // Aller au lundi de la semaine d'avant
+    startOfLastWeek.setDate(today.getDate() - (currentDayOfWeek === 0 ? 7 : currentDayOfWeek) - 6); 
     startOfLastWeek.setHours(0, 0, 0, 0);
 
     const endOfLastWeek = new Date(startOfLastWeek);
-    endOfLastWeek.setDate(startOfLastWeek.getDate() + 6); // Aller au dimanche de la semaine d'avant
+    endOfLastWeek.setDate(startOfLastWeek.getDate() + 6); 
     endOfLastWeek.setHours(23, 59, 59, 999);
 
     let pointsGained = 0;
     const tasksCompleted = [];
     let isWinner = false;
 
-    // Utiliser les réalisations passées en argument
     const userRealisations = allRealisations.filter(real => String(real.userId) === String(userId));
 
     userRealisations.forEach(real => {
@@ -679,15 +744,12 @@ function AppContent() {
       }
     });
 
-    // Utiliser les podiums historiques passés en argument
     const lastWeekPodiums = allHistoricalPodiums.filter(podium => {
       const podiumDate = new Date(podium.Date_Podium);
-      // Vérifier si la date du podium tombe dans la semaine précédente (du lundi au dimanche)
       return podiumDate >= startOfLastWeek && podiumDate <= endOfLastWeek;
     });
 
     if (lastWeekPodiums.length > 0) {
-      // Trier les podiums par date pour s'assurer d'obtenir le bon vainqueur de la semaine précédente
       const sortedPodiums = [...lastWeekPodiums].sort((a, b) => new Date(b.Date_Podium) - new Date(a.Date_Podium));
       const topEntry = sortedPodiums[0].top3[0]; 
       if (topEntry && String(topEntry.name).trim() === String(displayName).trim()) {
@@ -703,101 +765,7 @@ function AppContent() {
       startDate: startOfLastWeek.toLocaleDateString('fr-FR'),
       endDate: endOfLastWeek.toLocaleDateString('fr-FR')
     };
-  }, []); // Dépendances vides pour calculateWeeklyRecap, car elle utilise les arguments
-
-
-  // Premier useEffect: Chargement initial des données et gestion du loading global
-  useEffect(() => {
-    const loadInitialData = async () => {
-      if (!loadingUser) { 
-        if (currentUser) { 
-          setLoading(true); 
-          try {
-            // Appelle les fonctions fetch. Elles mettront à jour leurs états respectifs.
-            await Promise.all([ 
-              fetchTaches(),
-              fetchClassement(),
-              fetchRealisations(),
-              fetchObjectives(),
-              fetchCongratulatoryMessages(),
-              fetchHistoricalPodiums(),
-              fetchReports()
-            ]);
-          } catch (error) {
-            console.error("Erreur lors du chargement des données initiales pour l'utilisateur authentifié:", error);
-            toast.error("Erreur lors du chargement des données initiales. Veuillez réessayer.");
-          } finally {
-            setLoading(false); 
-          }
-        } else { 
-          // Réinitialise les états si l'utilisateur est déconnecté
-          setTaches([]);
-          setAllRawTaches([]);
-          setRealisations([]);
-          setClassement([]);
-          setHistoricalPodiums([]);
-          setObjectives([]);
-          setCongratulatoryMessages([]);
-          setReports([]);
-          setWeeklyRecapData(null); // Réinitialiser le récap si déconnecté
-          setLoading(false); 
-        }
-      }
-    };
-    loadInitialData();
-  }, [
-    currentUser, loadingUser,
-    fetchTaches, fetchClassement, fetchRealisations, fetchObjectives,
-    fetchCongratulatoryMessages, fetchHistoricalPodiums, fetchReports,
-    // Les setters d'état ne sont pas des dépendances ici, car les fonctions fetch les appellent déjà.
-    // calculateWeeklyRecap n'est pas une dépendance ici, car elle est gérée dans un autre useEffect.
-  ]);
-
-  // Deuxième useEffect: Calcul et affichage du récapitulatif hebdomadaire
-  useEffect(() => {
-    const handleRecapLogic = async () => {
-      // S'assure que l'utilisateur est connecté et que les données nécessaires sont chargées
-      if (currentUser && realisations.length > 0 && historicalPodiums.length > 0) { 
-        const today = new Date();
-        const currentDayOfWeek = today.getDay(); 
-        const currentMonday = new Date(today);
-        currentMonday.setDate(today.getDate() - (currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1));
-        currentMonday.setHours(0, 0, 0, 0);
-
-        const userDocRef = doc(db, "users", currentUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        const userData = userDocSnap.exists() ? userDocSnap.data() : {};
-        const lastRecapDisplayed = userData.lastWeeklyRecapDisplayed ? new Date(userData.lastWeeklyRecapDisplayed) : null;
-
-        // Si c'est lundi et que le récap n'a pas été affiché ce lundi
-        if (currentDayOfWeek === 1 && (!lastRecapDisplayed || lastRecapDisplayed.toDateString() !== currentMonday.toDateString())) {
-          const recap = await calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email, realisations, historicalPodiums);
-          setWeeklyRecapData(recap);
-          setShowWeeklyRecapModal(true);
-          // Mettre à jour la date de dernière affichage dans Firestore
-          await updateDoc(userDocRef, {
-            lastWeeklyRecapDisplayed: currentMonday.toISOString()
-          });
-        } else if (lastRecapDisplayed && lastRecapDisplayed.toDateString() === currentMonday.toDateString()) {
-            // Si le récap a déjà été affiché ce lundi (ou si on est après lundi mais le même lundi), on le recalcule pour l'historique
-            const recap = await calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email, realisations, historicalPodiums);
-            setWeeklyRecapData(recap);
-        } else {
-            setWeeklyRecapData(null); // Réinitialiser si pas de récap à afficher
-        }
-      } else if (currentUser && (realisations.length === 0 || historicalPodiums.length === 0)) {
-        // Si l'utilisateur est connecté mais que les données ne sont pas encore là, réinitialiser le récap
-        setWeeklyRecapData(null);
-      }
-    };
-    // Déclenche la logique du récap lorsque l'utilisateur, les réalisations ou les podiums changent
-    handleRecapLogic();
-  }, [
-    currentUser,
-    realisations, // Dépend de realisations
-    historicalPodiums, // Dépend de historicalPodiums
-    calculateWeeklyRecap // calculateWeeklyRecap est stable
-  ]);
+  }, []); 
 
 
   const handleTaskFormChange = (e) => {
@@ -850,7 +818,6 @@ function AppContent() {
         toast.success('Tâche ajoutée avec succès.');
       }
       
-      fetchTaches(); 
       setShowAdminTaskFormModal(false); 
       setEditingTask(null);
       setNewTaskData({ 
@@ -879,9 +846,6 @@ function AppContent() {
     try {
       await deleteDoc(doc(db, "tasks", taskId));
       toast.success('Tâche supprimée avec succès.');
-      fetchTaches(); 
-      fetchRealisations(); 
-      fetchReports(); 
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
@@ -889,7 +853,7 @@ function AppContent() {
       setShowDeleteConfirmModal(false); 
       setTaskToDelete(null);
     }
-  }, [isAdmin, fetchTaches, fetchRealisations, fetchReports, setLoading, setShowDeleteConfirmModal, setTaskToDelete]);
+  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete]);
 
   const handleObjectiveFormChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -941,7 +905,6 @@ function AppContent() {
         toast.success('Objectif ajouté avec succès.');
       }
       
-      fetchObjectives(); 
       setShowAdminObjectiveFormModal(false); 
       setEditingObjective(null);
       setNewObjectiveData({ 
@@ -970,7 +933,6 @@ function AppContent() {
     try {
       await deleteDoc(doc(db, "objectives", objectiveId));
       toast.success('Objectif supprimé avec succès.');
-      fetchObjectives(); 
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
@@ -978,7 +940,7 @@ function AppContent() {
       setShowDeleteObjectiveConfirmModal(false); 
       setObjectiveToDelete(null);
     }
-  }, [isAdmin, fetchObjectives, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete]);
+  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete]);
 
   const handleReportClick = (taskRealisation) => {
     if (!currentUser) {
@@ -1035,17 +997,6 @@ function AppContent() {
       } else {
         console.warn(`Utilisateur signalé (${reportedTaskDetails.reportedUserId}) non trouvé dans la collection 'users'.`);
       }
-
-      // Re-fetch all data after report
-      await Promise.all([ 
-        fetchTaches(),
-        fetchClassement(),
-        fetchRealisations(),
-        fetchObjectives(),
-        fetchCongratulatoryMessages(),
-        fetchHistoricalPodiums(),
-        fetchReports()
-      ]);
     } catch (err) {
       toast.error(`Une erreur est survenue lors du signalement: ${err.message}`);
     } finally {
@@ -1057,7 +1008,6 @@ function AppContent() {
 
 
   const handleParticipantClick = useCallback(async (participant) => {
-    // Chercher l'utilisateur par son displayName
     const usersQuery = query(collection(db, "users"), where("displayName", "==", participant.Nom_Participant));
     const usersSnapshot = await getDocs(usersQuery);
     if (!usersSnapshot.empty) {
@@ -1090,10 +1040,6 @@ function AppContent() {
         } else if (frequence === 'hebdomadaire') {
           return realDate >= startOfCurrentWeek;
         } else if (frequence === 'ponctuel') {
-          // For 'ponctuel' tasks, once completed, they are no longer available.
-          // The task document itself will be deleted from 'tasks' collection,
-          // so this check primarily serves for group tasks where subtasks might be 'ponctuel'
-          // but the parent task remains until all subtasks are done.
           return true; 
         }
       }
@@ -1127,17 +1073,15 @@ function AppContent() {
     }
     const subTaskIds = String(groupTask.Sous_Taches_IDs).split(',').map(id => id.trim());
     
-    // Filter allRawTaches to get only the actual subtasks that still exist in the database
     const existingSubtasks = allRawTaches.filter(t => subTaskIds.includes(String(t.ID_Tache)));
 
     if (existingSubtasks.length === 0) {
-        return true; // All subtasks (that existed) are considered completed/deleted
+        return true; 
     }
 
     return existingSubtasks.every(subTask => !isSubTaskAvailable(subTask));
   }, [allRawTaches, isSubTaskAvailable]); 
 
-  // Helper function to determine if a task should be hidden
   const isTaskHidden = useCallback((tache) => {
     const isSingleTaskCompleted = !tache.isGroupTask && !isSubTaskAvailable(tache);
     const isGroupTaskFullyCompleted = tache.isGroupTask && areAllSubtasksCompleted(tache);
@@ -1237,7 +1181,6 @@ function AppContent() {
       badges.push({ name: 'Conquérant d\'Objectifs', icon: '🎯', description: 'A complété son premier objectif.' });
     }
 
-    // Refactorisation de la logique pour allObjectivesCompleted
     const allObjectivesCompleted = objectives.every(obj => {
       const isCumulatifObjectiveMet = 
         String(obj.Type_Cible || '').toLowerCase() === 'cumulatif' && 
@@ -1315,7 +1258,6 @@ function AppContent() {
     }).length;
 
     const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
-    // Filtrer pour n'afficher que les participants avec des points > 0
     const top3WithPoints = sortedClassement.filter(p => parseFloat(p.Points_Total_Semaine_Courante) > 0).slice(0, 3);
 
     return (
@@ -1325,7 +1267,7 @@ function AppContent() {
         </p>
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-secondary mb-6 sm:mb-8 whitespace-nowrap overflow-hidden text-ellipsis">🏆 Podium de la Semaine 🏆</h2> 
         
-        {Array.isArray(classement) && top3WithPoints.length > 0 ? ( // Condition mise à jour ici
+        {Array.isArray(classement) && top3WithPoints.length > 0 ? ( 
           <>
             <div className="flex justify-center items-end mt-4 sm:mt-6 gap-2 sm:gap-4"> 
               {/* 2ème Place */}
@@ -1528,7 +1470,6 @@ function AppContent() {
     const hebdomadaireTasks = currentCategoryTasks.filter(t => (String(t.Frequence || '')).toLowerCase() === 'hebdomadaire' || !(t.Frequence)); 
 
     const renderTasksList = (tasks) => {
-      // Filter tasks to only show those that are not hidden
       const visibleTasks = tasks.filter(tache => !isTaskHidden(tache));
 
       if (visibleTasks.length === 0) {
@@ -1536,7 +1477,7 @@ function AppContent() {
       }
       return (
         <div className="space-y-3">
-          {visibleTasks.map(tache => { // Iterate over visibleTasks
+          {visibleTasks.map(tache => { 
             const cardClasses = `bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center sm:items-center justify-between 
                                  cursor-pointer shadow-lg hover:shadow-xl transition duration-200 ease-in-out transform hover:-translate-y-1 border border-blue-100`; 
 
@@ -1591,7 +1532,6 @@ function AppContent() {
           ))}
         </div>
 
-        {/* Filtrer les tâches une seule fois et stocker le résultat */}
         {ponctuelTasks.filter(tache => !isTaskHidden(tache)).length > 0 && ( 
           <div className="mb-6 border-b border-neutralBg pb-4"> 
             <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Ponctuelles</h3> 
@@ -1712,8 +1652,8 @@ function AppContent() {
             onChange={(e) => setParticipantName(e.target.value)}
             placeholder="Entrez votre nom"
             className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            readOnly={true} // Toujours en lecture seule
-            disabled={true} // Toujours désactivé
+            readOnly={true} 
+            disabled={true} 
             autoFocus
           />
           <div className="flex flex-col gap-3 sm:gap-4 mt-4"> 
@@ -1818,8 +1758,8 @@ function AppContent() {
             onChange={(e) => setParticipantName(e.target.value)}
             placeholder="Entrez votre nom"
             className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            readOnly={true} // Toujours en lecture seule
-            disabled={true} // Toujours désactivé
+            readOnly={true} 
+            disabled={true} 
             autoFocus
           />
 
@@ -1941,7 +1881,6 @@ function AppContent() {
     );
   };
 
-  // Nouvelle modal de confirmation pour la réinitialisation des réalisations
   const renderConfirmResetRealisationsModal = () => {
     if (!showConfirmResetRealisationsModal) return null;
 
@@ -2063,7 +2002,7 @@ function AppContent() {
             });
             setShowAdminObjectiveFormModal(true); 
           }}
-          className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full mb-4 text-sm" // Bouton violet
+          className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full mb-4 text-sm" 
         >
           Ajouter un Nouvel Objectif
         </button>
@@ -2129,7 +2068,7 @@ function AppContent() {
             }); 
             setShowAdminTaskFormModal(true); 
           }}
-          className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full mb-4 text-sm" // Bouton violet
+          className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full mb-4 text-sm" 
         >
           Ajouter une Nouvelle Tâche
         </button>
@@ -2181,7 +2120,6 @@ function AppContent() {
     );
   }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal, showAdminTasksListModal]);
 
-  // Nouvelle fonction pour le rendu de la modale de vision globale de la BDD
   const renderGlobalDataViewModal = useCallback(() => {
     if (!showGlobalDataViewModal) return null;
 
@@ -2269,7 +2207,6 @@ function AppContent() {
     );
   }, [showGlobalDataViewModal, selectedGlobalCollection, globalCollectionDocs, loadingGlobalCollectionDocs, fetchGlobalCollectionDocs]);
 
-  // Nouvelle fonction pour le rendu de la modale de détails d'un document
   const renderDocumentDetailsModal = useCallback(() => {
     if (!selectedDocumentDetails) return null;
     return (
@@ -2291,7 +2228,6 @@ function AppContent() {
       return null; 
     }
 
-    // Classes pour les boutons d'administration
     const adminPurpleButtonClasses = "bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm";
     const subtleAdminButtonClasses = "bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs";
 
@@ -2306,13 +2242,13 @@ function AppContent() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                   onClick={() => setShowAdminObjectivesListModal(true)}
-                  className={`${adminPurpleButtonClasses} col-span-1`} // Bouton violet
+                  className={`${adminPurpleButtonClasses} col-span-1`} 
               >
                   Gérer les Objectifs
               </button>
               <button
                   onClick={() => setShowAdminTasksListModal(true)}
-                  className={`${adminPurpleButtonClasses} col-span-1`} // Bouton violet
+                  className={`${adminPurpleButtonClasses} col-span-1`} 
               >
                   Gérer les Tâches
               </button>
@@ -2338,9 +2274,9 @@ function AppContent() {
           </div>
 
           {/* Container 3: Outils Avancés (plus petit et moins visible) */}
-          <div className="bg-neutralBg/50 rounded-xl p-3 shadow-inner border border-gray-200"> {/* Plus subtil */}
+          <div className="bg-neutralBg/50 rounded-xl p-3 shadow-inner border border-gray-200"> 
             <h3 className="text-base font-bold text-primary mb-3 text-center">Outils Avancés</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2"> {/* Espacement réduit */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2"> 
               <button
                 onClick={() => setShowGlobalDataViewModal(true)} 
                 className={`${subtleAdminButtonClasses} col-span-1`}
@@ -2360,7 +2296,7 @@ function AppContent() {
                 Réinitialiser les Points Hebdomadaires
               </button>
               <button
-                onClick={() => setShowConfirmResetRealisationsModal(true)} // Nouveau bouton
+                onClick={() => setShowConfirmResetRealisationsModal(true)} 
                 className={`bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`} 
               >
                 Réinitialiser les Réalisations
@@ -2477,7 +2413,6 @@ function AppContent() {
         <header className="relative flex flex-col items-center justify-center py-4 sm:py-6 px-4 mb-6 sm:mb-8 text-center">
           <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-20 sm:h-28 md:h-36 w-auto drop-shadow-xl" />
           <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1>
-          {/* Le bouton de connexion en haut à droite est supprimé quand non connecté */}
         </header>
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center border border-primary/20 mx-auto">
           <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-4">Bienvenue !</h2>
@@ -2546,7 +2481,7 @@ function AppContent() {
         </header>
 
         <nav className="flex flex-col sm:flex-row justify-center items-center mb-6 sm:mb-8 gap-2 sm:gap-4"> 
-          <div className="bg-neutralBg rounded-full p-1.5 flex justify-center gap-2 sm:gap-4 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto"> {/* Gap ajusté */}
+          <div className="bg-neutralBg rounded-full p-1.5 flex justify-center gap-2 sm:gap-4 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto"> 
             <button
               className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
                 ${activeMainView === 'home' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
@@ -2568,7 +2503,6 @@ function AppContent() {
             >
               Historique
             </button> 
-            {/* Boutons Profil et Admin DANS le même conteneur */}
             {currentUser && (
               <button
                 onClick={() => handleParticipantClick({ Nom_Participant: currentUser.displayName || currentUser.email })}
@@ -2601,7 +2535,7 @@ function AppContent() {
           )}
           {activeMainView === 'historicalPodiums' && (
             <HistoricalPodiums historicalPodiums={historicalPodiums} onClose={() => setActiveMainView('home')}>
-              {weeklyRecapData && ( // Affiche le récapitulatif ici
+              {weeklyRecapData && ( 
                 <div className="bg-neutralBg rounded-xl p-4 shadow-inner mb-6">
                   <h3 className="text-xl font-bold text-primary mb-3 text-center">Votre Récapitulatif de la Semaine Précédente</h3>
                   <p className="text-md text-text mb-2">
@@ -2641,12 +2575,11 @@ function AppContent() {
             renderAdminPanel()
           )}
         </main>
-        {/* Modales et popups */}
         {renderTaskDialog()}
         {renderThankYouPopup()} 
         {renderSplitTaskDialog()} 
         {renderConfirmResetModal()} 
-        {renderConfirmResetRealisationsModal()} {/* Nouvelle modale */}
+        {renderConfirmResetRealisationsModal()} 
         {renderDeleteConfirmModal()} 
         {renderDeleteObjectiveConfirmModal()} 
         <ConfettiOverlay show={showConfetti} onComplete={() => setShowConfetti(false)} /> 
