@@ -13,7 +13,7 @@ import ListAndInfoModal from './ListAndInfoModal';
 import RankingCard from './RankingCard'; 
 import OverallRankingModal from './OverallRankingModal'; 
 import ReportTaskModal from './ReportTaskModal'; 
-import AuthModal from './Auth'; // <-- Correction ici: import par défaut
+import AuthModal from './Auth'; // Import par défaut
 import AdminUserManagementModal from './AdminUserManagementModal'; 
 import confetti from 'canvas-confetti'; 
 
@@ -97,6 +97,14 @@ function AppContent() {
   const logoClickTimerRef = useRef(null); 
 
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // Nouvel état pour la vision globale de la BDD
+  const [showGlobalDataViewModal, setShowGlobalDataViewModal] = useState(false);
+  const [selectedGlobalCollection, setSelectedGlobalCollection] = useState(null);
+  const [globalCollectionDocs, setGlobalCollectionDocs] = useState([]);
+  const [loadingGlobalCollectionDocs, setLoadingGlobalCollectionDocs] = useState(false);
+  const [selectedDocumentDetails, setSelectedDocumentDetails] = useState(null); // Pour voir les détails complets d'un document
+
 
   // Met à jour participantName si currentUser change
   useEffect(() => {
@@ -337,6 +345,21 @@ function AppContent() {
     }
   }, [setReports]); 
 
+  // Nouvelle fonction pour charger les documents d'une collection donnée
+  const fetchGlobalCollectionDocs = useCallback(async (collectionName) => {
+    setLoadingGlobalCollectionDocs(true);
+    try {
+      const q = query(collection(db, collectionName));
+      const querySnapshot = await getDocs(q);
+      const docs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setGlobalCollectionDocs(docs);
+    } catch (err) {
+      toast.error(`Erreur lors du chargement des documents de ${collectionName}: ${err.message}`);
+      setGlobalCollectionDocs([]);
+    } finally {
+      setLoadingGlobalCollectionDocs(false);
+    }
+  }, []);
 
   const recordTask = async (idTacheToRecord, isSubTask = false) => {
     if (!currentUser) {
@@ -1957,6 +1980,110 @@ function AppContent() {
     );
   }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal, showAdminTasksListModal]);
 
+  // Nouvelle fonction pour le rendu de la modale de vision globale de la BDD
+  const renderGlobalDataViewModal = useCallback(() => {
+    if (!showGlobalDataViewModal) return null;
+
+    const collectionsList = [
+      { name: 'users', label: 'Utilisateurs' },
+      { name: 'tasks', label: 'Tâches' },
+      { name: 'realizations', label: 'Réalisations' },
+      { name: 'objectives', label: 'Objectifs' },
+      { name: 'historical_podiums', label: 'Podiums Historiques' },
+      { name: 'congratulatory_messages', label: 'Messages de Félicitations' },
+      { name: 'reports', label: 'Rapports' },
+    ];
+
+    return (
+      <ListAndInfoModal
+        title="Vision Globale de la Base de Données"
+        onClose={() => {
+          setShowGlobalDataViewModal(false);
+          setSelectedGlobalCollection(null);
+          setGlobalCollectionDocs([]);
+          setSelectedDocumentDetails(null);
+        }}
+        sizeClass="max-w-full sm:max-w-xl md:max-w-2xl"
+      >
+        {!selectedGlobalCollection ? (
+          <div className="space-y-3">
+            <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">Sélectionnez une Collection</h4>
+            <div className="grid grid-cols-2 gap-3">
+              {collectionsList.map(col => (
+                <button
+                  key={col.name}
+                  onClick={() => {
+                    setSelectedGlobalCollection(col.name);
+                    fetchGlobalCollectionDocs(col.name);
+                  }}
+                  className="bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"
+                >
+                  {col.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">Documents de la Collection "{selectedGlobalCollection}"</h4>
+            <button
+              onClick={() => {
+                setSelectedGlobalCollection(null);
+                setGlobalCollectionDocs([]);
+              }}
+              className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs mb-4"
+            >
+              ← Retour aux Collections
+            </button>
+            {loadingGlobalCollectionDocs ? (
+              <div className="flex justify-center items-center py-4">
+                <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
+                <p className="ml-3 text-lightText">Chargement des documents...</p>
+              </div>
+            ) : (
+              globalCollectionDocs.length > 0 ? (
+                <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
+                  {globalCollectionDocs.map(doc => (
+                    <div key={doc.id} className="bg-white rounded-lg p-3 shadow-sm border border-neutralBg/50 flex justify-between items-center">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-text text-sm truncate">ID: {doc.id}</p>
+                        <p className="text-xs text-lightText truncate">{JSON.stringify(doc).substring(0, 100)}...</p>
+                      </div>
+                      <button
+                        onClick={() => setSelectedDocumentDetails(doc)}
+                        className="bg-accent hover:bg-yellow-600 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs ml-2 flex-shrink-0"
+                      >
+                        Voir Détails
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-lightText text-lg">Aucun document dans cette collection.</p>
+              )
+            )}
+          </div>
+        )}
+      </ListAndInfoModal>
+    );
+  }, [showGlobalDataViewModal, selectedGlobalCollection, globalCollectionDocs, loadingGlobalCollectionDocs, fetchGlobalCollectionDocs]);
+
+  // Nouvelle fonction pour le rendu de la modale de détails d'un document
+  const renderDocumentDetailsModal = useCallback(() => {
+    if (!selectedDocumentDetails) return null;
+    return (
+      <ListAndInfoModal
+        title={`Détails du Document: ${selectedDocumentDetails.id}`}
+        onClose={() => setSelectedDocumentDetails(null)}
+        sizeClass="max-w-full sm:max-w-md md:max-w-lg"
+      >
+        <pre className="bg-gray-100 p-4 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-words">
+          {JSON.stringify(selectedDocumentDetails, null, 2)}
+        </pre>
+      </ListAndInfoModal>
+    );
+  }, [selectedDocumentDetails]);
+
 
   const renderAdminPanel = () => {
     if (!isAdmin) {
@@ -1969,37 +2096,63 @@ function AppContent() {
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl mb-6 sm:mb-8">
         <h2 className="text-2xl sm:text-3xl font-bold text-secondary mb-6 text-center">Panneau d'Administration</h2>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 p-3 bg-neutralBg rounded-xl shadow-inner"> 
-          <button
-              onClick={() => setShowAdminObjectivesListModal(true)}
-              className={`${adminButtonClasses} col-span-1`}
-          >
-              Gérer les Objectifs
-          </button>
-          <button
-              onClick={() => setShowAdminTasksListModal(true)}
-              className={`${adminButtonClasses} col-span-1`}
-          >
-              Gérer les Tâches
-          </button>
-          <button
-            onClick={() => setShowExportSelectionModal(true)}
-            className={`${adminButtonClasses} col-span-1`}
-          >
-            Exporter les Données (CSV)
-          </button>
-          <button
-            onClick={() => setShowConfirmResetModal(true)}
-            className={`bg-error hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`} 
-          >
-            Réinitialiser les Points Hebdomadaires
-          </button>
-          <button
-            onClick={() => setShowAdminUserManagementModal(true)} 
-            className={`${adminButtonClasses} col-span-1`}
-          >
-            Gérer les Utilisateurs
-          </button>
+        <div className="flex flex-col gap-4 mb-6">
+          {/* Container 1: Gestion des Tâches & Objectifs */}
+          <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
+            <h3 className="text-lg font-bold text-primary mb-3 text-center">Gestion des Tâches & Objectifs</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                  onClick={() => setShowAdminObjectivesListModal(true)}
+                  className={`${adminButtonClasses} col-span-1`}
+              >
+                  Gérer les Objectifs
+              </button>
+              <button
+                  onClick={() => setShowAdminTasksListModal(true)}
+                  className={`${adminButtonClasses} col-span-1`}
+              >
+                  Gérer les Tâches
+              </button>
+            </div>
+          </div>
+
+          {/* Container 2: Gestion des Utilisateurs */}
+          <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
+            <h3 className="text-lg font-bold text-primary mb-3 text-center">Gestion des Utilisateurs</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={() => setShowAdminUserManagementModal(true)} 
+                className={`${adminButtonClasses} col-span-1`}
+              >
+                Gérer les Utilisateurs
+              </button>
+              <button
+                onClick={() => setShowGlobalDataViewModal(true)} // Nouveau bouton
+                className={`${adminButtonClasses} col-span-1`}
+              >
+                Vision Globale de la BDD
+              </button>
+            </div>
+          </div>
+
+          {/* Container 3: Outils Avancés */}
+          <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
+            <h3 className="text-lg font-bold text-primary mb-3 text-center">Outils Avancés</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={() => setShowExportSelectionModal(true)}
+                className={`${adminButtonClasses} col-span-1`}
+              >
+                Exporter les Données (CSV)
+              </button>
+              <button
+                onClick={() => setShowConfirmResetModal(true)}
+                className={`bg-error hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`} 
+              >
+                Réinitialiser les Points Hebdomadaires
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="mb-6 p-3 bg-neutralBg rounded-xl shadow-inner"> 
@@ -2169,7 +2322,7 @@ function AppContent() {
           )}
           <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1> 
           {/* Nouveau bloc pour le profil utilisateur et le bouton admin */}
-          <div className="absolute top-4 right-4 z-10 flex flex-col sm:flex-row items-end sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+          <div className="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2 bg-card p-2 rounded-lg shadow-md"> {/* Encadré et empilé */}
             {currentUser && (
               <>
                 <button
@@ -2334,6 +2487,9 @@ function AppContent() {
             realisations={realisations} 
           />
         )}
+
+        {showGlobalDataViewModal && isAdmin && renderGlobalDataViewModal()}
+        {selectedDocumentDetails && isAdmin && renderDocumentDetailsModal()}
 
       </div>
       <ToastContainer 
