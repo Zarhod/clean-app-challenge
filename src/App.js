@@ -24,7 +24,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 // Importations Firebase
 import { db, auth } from './firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc } from 'firebase/firestore'; // <<< setDoc ajouté ici
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc } from 'firebase/firestore'; 
 import { signOut } from 'firebase/auth';
 
 // Importation du contexte utilisateur
@@ -35,6 +35,8 @@ const LOGO_FILENAME = 'logo.png';
 // REMOVED: ADMIN_PASSWORD is no longer needed with Firebase Auth roles
 
 function AppContent() { // Renommé pour être enveloppé par UserProvider
+  // eslint-disable-next-line no-unused-vars
+  const [logoClickCount, setLogoClickCount] = useState(0); // <-- Le commentaire ESLint est ici
   const { currentUser, isAdmin, loadingUser } = useUser(); // Utilisation du hook de contexte
 
   const [taches, setTaches] = useState([]); 
@@ -84,8 +86,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
   const [showDeleteObjectiveConfirmModal, setShowDeleteObjectiveConfirmModal] = useState(false); 
   const [objectiveToDelete, setObjectiveToDelete] = useState(null); 
 
-  // REMOVED: isAdmin state is now from UserContext
-
   const [showHighlightsModal, setShowHighlightsModal] = useState(false);
   const [showObjectivesModal, setShowObjectivesModal] = useState(false);
   const [showAdminObjectivesListModal, setShowAdminObjectivesListModal] = useState(false);
@@ -99,19 +99,14 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
   const [reports, setReports] = useState([]); // ÉTAT POUR LES SIGNALEMENTS
 
   // États Easter Egg
-  const [logoClickCount, setLogoClickCount] = useState(0); 
   const [showChickEmoji, setShowChickEmoji] = useState(false);
   const logoClickTimerRef = useRef(null); 
 
   // État pour la modale d'authentification
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-
-  // REMOVED: getHeaders is no longer needed as Firebase SDK handles it
-
   const fetchTaches = useCallback(async () => {
     try {
-      // Requête Firestore pour récupérer toutes les tâches
       const q = query(collection(db, "tasks"));
       const querySnapshot = await getDocs(q);
       
@@ -157,17 +152,14 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
 
   const fetchClassement = useCallback(async () => {
     try {
-      // Récupérer tous les utilisateurs
       const usersQuery = query(collection(db, "users"));
       const usersSnapshot = await getDocs(usersQuery);
       const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // Récupérer toutes les réalisations
       const realisationsQuery = query(collection(db, "realizations"));
       const realisationsSnapshot = await getDocs(realisationsQuery);
       const realisationsData = realisationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      // Calculer les points hebdomadaires et cumulatifs
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const dayOfWeek = today.getDay(); 
@@ -181,13 +173,11 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
           Nom_Participant: user.displayName,
           Points_Total_Semaine_Courante: parseFloat(user.weeklyPoints || 0), 
           Points_Total_Cumulatif: parseFloat(user.totalCumulativePoints || 0),
-          Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0), // Assurez-vous d'avoir ce champ dans user doc
-          Date_Mise_A_Jour: user.dateJoined || '' // Ou une date de dernière activité
+          Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0), 
+          Date_Mise_A_Jour: user.dateJoined || '' 
         };
       });
 
-      // Recalculer les points à partir des réalisations pour s'assurer de la fraîcheur
-      // et gérer les cas où les points ne sont pas mis à jour immédiatement sur le profil
       const tempWeeklyPoints = {};
       const tempCumulativePoints = {};
 
@@ -203,7 +193,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
         }
       });
 
-      // Fusionner les scores calculés avec les données utilisateur pour le classement
       usersData.forEach(user => {
         const displayName = user.displayName;
         if (!participantScores[displayName]) {
@@ -343,7 +332,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
     }
   }, [setHistoricalPodiums, setError]);
 
-  // NOUVELLE FONCTION: Récupérer les signalements
   const fetchReports = useCallback(async () => {
     try {
       const q = query(collection(db, "reports"));
@@ -374,18 +362,16 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       const pointsToSend = parseFloat(taskToRecord.Points) || 0;
       const categoryToSend = taskToRecord.Categorie || 'Non catégorisée';
 
-      // Ajouter la réalisation à Firestore
       await addDoc(collection(db, "realizations"), {
         taskId: idTacheToRecord,
         userId: currentUser.uid,
-        nomParticipant: currentUser.displayName || currentUser.email, // Utilise le displayName ou l'email
+        nomParticipant: currentUser.displayName || currentUser.email, 
         nomTacheEffectuee: taskToRecord.Nom_Tache,
         categorieTache: categoryToSend,
         pointsGagnes: pointsToSend,
         timestamp: new Date().toISOString()
       });
 
-      // Mettre à jour les points de l'utilisateur dans son document 'users'
       const userDocRef = doc(db, "users", currentUser.uid);
       const userDocSnap = await getDoc(userDocRef);
       if (userDocSnap.exists()) {
@@ -400,8 +386,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
 
       const completedTask = taches.find(t => t.ID_Tache === idTacheToRecord);
       if (completedTask && String(completedTask.Frequence || '').toLowerCase() === 'ponctuel') {
-          // Pour les tâches ponctuelles, on ne les supprime pas du tout car elles sont des définitions.
-          // Leur disponibilité est gérée par isSubTaskAvailable.
           toast.success(`Tâche ponctuelle "${completedTask.Nom_Tache}" enregistrée.`);
       } else {
           toast.success(`Tâche "${completedTask ? completedTask.Nom_Tache : 'inconnue'}" enregistrée avec succès.`);
@@ -411,7 +395,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
         const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
         setShowThankYouPopup({ name: currentUser.displayName || currentUser.email, task: completedTask ? completedTask.Nom_Tache : 'Tâche inconnue', message: randomMessage }); 
         setShowConfetti(true); 
-        // setParticipantName(''); // Plus besoin de réinitialiser le nom ici
         setSelectedTask(null); 
       }
       fetchClassement(); 
@@ -459,11 +442,9 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
         };
       });
 
-      // Enregistrer toutes les réalisations en une seule fois (ou en batch si beaucoup)
       const batchPromises = tasksToRecordPayload.map(taskData => addDoc(collection(db, "realizations"), taskData));
       await Promise.all(batchPromises);
 
-      // Mettre à jour les points de l'utilisateur
       const userDocRef = doc(db, "users", currentUser.uid);
       const userDocSnap = await getDoc(userDocRef);
       if (userDocSnap.exists()) {
@@ -483,7 +464,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
 
       toast.success(`Tâches enregistrées avec succès.`);
 
-      // setParticipantName(''); // Plus besoin de réinitialiser le nom ici
       setSelectedTask(null);
       setShowSplitTaskDialog(false); 
       setSelectedSubTasks([]);
@@ -507,7 +487,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
     }
     setLoading(true);
     try {
-      // 1. Enregistrer le podium de la semaine avant de réinitialiser
       const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
       const top3 = sortedClassement.slice(0, 3);
       const datePodium = new Date().toISOString().split('T')[0]; 
@@ -517,20 +496,19 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
         top3: top3.map(p => ({ name: p.Nom_Participant, points: p.Points_Total_Semaine_Courante }))
       });
 
-      // 2. Réinitialiser les points hebdomadaires de tous les utilisateurs
       const usersQuery = query(collection(db, "users"));
       const usersSnapshot = await getDocs(usersQuery);
-      const batch = []; // Utilise un batch pour des écritures multiples
+      const batch = []; 
 
       usersSnapshot.docs.forEach(userDoc => {
         const userRef = doc(db, "users", userDoc.id);
         const userData = userDoc.data();
         batch.push(updateDoc(userRef, {
           weeklyPoints: 0,
-          previousWeeklyPoints: userData.weeklyPoints || 0 // Sauvegarde les points de la semaine précédente
+          previousWeeklyPoints: userData.weeklyPoints || 0 
         }));
       });
-      await Promise.all(batch); // Exécute toutes les mises à jour en parallèle
+      await Promise.all(batch); 
 
       toast.success('Points hebdomadaires réinitialisés et podium enregistré.');
       fetchClassement(); 
@@ -548,10 +526,8 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
     }
   };
 
-  // Logique de connexion/déconnexion admin simplifiée (maintenant via Firebase Auth)
   const handleAuthAction = async () => {
     if (currentUser) {
-      // Si déjà connecté, c'est une déconnexion
       try {
         await signOut(auth);
         toast.info('Déconnecté.');
@@ -561,16 +537,12 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
         console.error("Erreur déconnexion:", error);
       }
     } else {
-      // Sinon, ouvrir la modale d'authentification
       setShowAuthModal(true);
     }
   };
 
   useEffect(() => {
-    // Le chargement initial des données dépend de l'état d'authentification
-    // pour s'assurer que les règles de sécurité Firestore sont respectées.
-    if (!loadingUser) { // S'assure que l'état de l'utilisateur a été déterminé
-      // On peut toujours tenter de charger les données, les règles Firestore géreront les permissions
+    if (!loadingUser) { 
       fetchTaches();
       fetchClassement();
       fetchRealisations(); 
@@ -578,7 +550,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       fetchCongratulatoryMessages(); 
       fetchHistoricalPodiums(); 
       fetchReports(); 
-      setLoading(false); // Fin du chargement initial
+      setLoading(false); 
     }
   }, [currentUser, loadingUser, fetchTaches, fetchClassement, fetchRealisations, fetchObjectives, fetchCongratulatoryMessages, fetchHistoricalPodiums, fetchReports]);
 
@@ -620,15 +592,13 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
     setLoading(true);
     try {
       if (editingTask) {
-        // Mise à jour d'une tâche existante
         await updateDoc(doc(db, "tasks", editingTask.id), {
           ...newTaskData,
           Points: newTaskData.Points === '' ? '' : parseFloat(newTaskData.Points) 
         });
         toast.success('Tâche mise à jour avec succès.');
       } else {
-        // Ajout d'une nouvelle tâche
-        await setDoc(doc(db, "tasks", newTaskData.ID_Tache), { // Utilise setDoc avec ID_Tache comme ID de document
+        await setDoc(doc(db, "tasks", newTaskData.ID_Tache), { 
           ...newTaskData,
           Points: newTaskData.Points === '' ? '' : parseFloat(newTaskData.Points) 
         });
@@ -717,7 +687,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
         });
         toast.success('Objectif mis à jour avec succès.');
       } else {
-        await setDoc(doc(db, "objectives", newObjectiveData.ID_Objectif), { // Utilise setDoc avec ID_Objectif
+        await setDoc(doc(db, "objectives", newObjectiveData.ID_Objectif), { 
           ...newObjectiveData,
           Cible_Points: parseFloat(newObjectiveData.Cible_Points),
           Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
@@ -765,7 +735,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
     }
   };
 
-  // NOUVELLE FONCTION: Gérer le clic sur le bouton "Signaler"
   const handleReportClick = (taskRealisation) => {
     if (!currentUser) {
       toast.warn('Veuillez vous connecter pour signaler une tâche.');
@@ -773,16 +742,15 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       return;
     }
     setReportedTaskDetails({
-      id: taskRealisation.taskId, // Utilise taskId de la réalisation
+      id: taskRealisation.taskId, 
       name: taskRealisation.nomTacheEffectuee,
       participant: taskRealisation.nomParticipant,
-      realizationId: taskRealisation.id, // L'ID du document de réalisation à supprimer
-      reportedUserId: taskRealisation.userId // L'ID Firebase de l'utilisateur qui a fait la fausse tâche
+      realizationId: taskRealisation.id, 
+      reportedUserId: taskRealisation.userId 
     });
     setShowReportModal(true);
   };
 
-  // NOUVELLE FONCTION: Soumettre le signalement
   const submitReport = async (reporterNameInput) => {
     if (!currentUser) {
       toast.warn('Vous devez être connecté pour signaler une tâche.');
@@ -792,7 +760,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
 
     setLoading(true);
     try {
-      // 1. Enregistrer le signalement
       await addDoc(collection(db, "reports"), {
         reportedTaskId: reportedTaskDetails.id,
         reportedUserId: reportedTaskDetails.reportedUserId,
@@ -800,14 +767,12 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
         reporterUserId: currentUser.uid,
         reporterName: reporterNameInput.trim(),
         timestamp: new Date().toISOString(),
-        status: 'pending' // Statut initial du rapport
+        status: 'pending' 
       });
 
-      // 2. Supprimer la réalisation frauduleuse
       await deleteDoc(doc(db, "realizations", reportedTaskDetails.realizationId));
       toast.success(`Tâche signalée et réalisation supprimée.`);
 
-      // 3. Déduire les points du participant signalé
       const DEDUCTION_POINTS = 5;
       const reportedUserRef = doc(db, "users", reportedTaskDetails.reportedUserId);
       const reportedUserSnap = await getDoc(reportedUserRef);
@@ -826,7 +791,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
         console.warn(`Utilisateur signalé (${reportedTaskDetails.reportedUserId}) non trouvé dans la collection 'users'.`);
       }
 
-      // Re-fetch ALL data to reflect changes (task reset, points deduction, reports status)
       fetchClassement();
       fetchRealisations();
       fetchTaches(); 
@@ -844,7 +808,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
 
 
   const handleParticipantClick = async (participant) => {
-    // Trouver l'UID de l'utilisateur à partir de son nom d'affichage
     const usersQuery = query(collection(db, "users"), where("displayName", "==", participant.Nom_Participant));
     const usersSnapshot = await getDocs(usersQuery);
     if (!usersSnapshot.empty) {
@@ -867,10 +830,9 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
     const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
     startOfCurrentWeek.setHours(0, 0, 0, 0); 
 
-    // Vérifier si la tâche est déjà complétée (dans Realisations)
     const isCompletedInRealisations = realisations.some(real => {
-      if (String(real.taskId || '') === String(subTask.ID_Tache)) { // Utilisez taskId pour Firestore
-        const realDate = new Date(real.timestamp); // Utilisez timestamp pour Firestore
+      if (String(real.taskId || '') === String(subTask.ID_Tache)) { 
+        const realDate = new Date(real.timestamp); 
         realDate.setHours(0, 0, 0, 0);
 
         if (frequence === 'quotidien') {
@@ -884,8 +846,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       return false;
     });
 
-    // Une tâche est disponible si elle n'est PAS complétée dans Realisations.
-    // Si elle a été signalée, sa réalisation est supprimée, elle redevient donc disponible.
     return !isCompletedInRealisations;
   }, [realisations]); 
 
@@ -897,7 +857,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
       return;
     }
     setSelectedTask(task);
-    // Le nom du participant est maintenant le displayName de l'utilisateur connecté
     setParticipantName(currentUser.displayName || currentUser.email); 
 
     if (task.Sous_Taches_IDs && String(task.Sous_Taches_IDs).trim() !== '') {
@@ -923,7 +882,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
     return associatedSubtasks.every(subTask => !isSubTaskAvailable(subTask));
   }, [allRawTaches, isSubTaskAvailable]); 
 
-  // Logique Easter Egg
   const handleLogoClick = () => {
     setLogoClickCount(prevCount => {
       const newCount = prevCount + 1;
@@ -1010,14 +968,13 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
     }
 
     const hasCompletedGroupTask = participantRealisations.some(r => {
-        const taskDef = allRawTaches.find(t => String(t.ID_Tache) === String(r.taskId)); // Utilisez taskId
+        const taskDef = allRawTaches.find(t => String(t.ID_Tache) === String(r.taskId)); 
         return taskDef && (taskDef.Parent_Task_ID || (taskDef.Sous_Taches_IDs && taskDef.Sous_Taches_IDs.trim() !== ''));
     });
     if (hasCompletedGroupTask && !badges.some(b => b.name === 'Esprit d\'équipe')) {
         badges.push({ name: 'Esprit d\'équipe', icon: '🤝', description: 'A complété une tâche de groupe.' });
     }
 
-    // NOUVEAUX BADGES: "Meilleure Balance" et "Bonnet d'Âne"
     const reporterCounts = {};
     const reportedCounts = {};
 
@@ -1029,12 +986,10 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
         reportedCounts[reported] = (reportedCounts[reported] || 0) + 1;
     });
 
-    // "Meilleure Balance"
     if (reporterCounts[String(participant.Nom_Participant).trim()] && reporterCounts[String(participant.Nom_Participant).trim()] > 0 && !badges.some(b => b.name === 'Meilleure Balance')) {
         badges.push({ name: 'Meilleure Balance', icon: '⚖️', description: 'A signalé au moins une tâche non conforme.' });
     }
 
-    // "Bonnet d'Âne"
     if (reportedCounts[String(participant.Nom_Participant).trim()] && reportedCounts[String(participant.Nom_Participant).trim()] > 0 && !badges.some(b => b.name === 'Bonnet d\'Âne')) {
         badges.push({ name: 'Bonnet d\'Âne', icon: '🫏', description: 'A été signalé au moins une fois pour une tâche non conforme.' });
     }
@@ -1208,10 +1163,10 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
     startOfCurrentWeek.setHours(0, 0, 0, 0);
 
     realisations.forEach(real => {
-        const realDate = new Date(real.timestamp); // Utilisez timestamp
+        const realDate = new Date(real.timestamp); 
         realDate.setHours(0, 0, 0, 0);
         if (realDate >= startOfCurrentWeek) {
-            const name = String(real.nomParticipant).trim(); // Utilisez nomParticipant
+            const name = String(real.nomParticipant).trim(); 
             tasksByParticipantThisWeek.set(name, (tasksByParticipantThisWeek.get(name) || 0) + 1);
         }
     });
@@ -1420,21 +1375,21 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
         <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Tâches Terminées</h2>
         <div className="space-y-3 text-left"> 
           {realisations.map((real, index) => (
-            <div key={real.id || real.timestamp + real.nomParticipant + index} // Utilise real.id de Firestore
+            <div key={real.id || real.timestamp + real.nomParticipant + index} 
                  className="bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-lg border border-blue-100"> 
               <div className="flex-1 min-w-0 mb-2 sm:mb-0"> 
                   <h4 className="text-secondary text-base sm:text-xl font-extrabold leading-tight mb-1">
-                      {real.nomTacheEffectuee} {/* Utilise nomTacheEffectuee */}
+                      {real.nomTacheEffectuee} 
                   </h4>
                   <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-sm text-lightText">
-                      <span>par <strong className="text-text">{real.nomParticipant}</strong></span> {/* Utilise nomParticipant */}
-                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(real.categorieTache)}`}> {/* Utilise categorieTache */}
+                      <span>par <strong className="text-text">{real.nomParticipant}</strong></span> 
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(real.categorieTache)}`}> 
                           {real.categorieTache || 'Non catégorisé'}
                       </span>
-                      <span>le {new Date(real.timestamp).toLocaleDateString('fr-FR')} à {new Date(real.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span> {/* Utilise timestamp */}
+                      <span>le {new Date(real.timestamp).toLocaleDateString('fr-FR')} à {new Date(real.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span> 
                   </div>
               </div>
-              {currentUser && ( // Affiche le bouton "Signaler" uniquement si l'utilisateur est connecté
+              {currentUser && ( 
                 <button
                   onClick={() => handleReportClick(real)}
                   className="ml-0 sm:ml-4 mt-2 sm:mt-0 bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs flex-shrink-0"
@@ -1483,9 +1438,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
 
   const renderTaskDialog = () => {
     if (!selectedTask || selectedTask.isGroupTask) return null; 
-    // Le nom du participant est déjà défini par currentUser.displayName dans handleTaskClick
-    // et mis à jour si l'utilisateur change de nom ou se connecte.
-    // L'input est maintenant en lecture seule ou masqué si l'utilisateur est connecté.
     return (
       <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4"> 
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto"> 
@@ -1496,7 +1448,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
               Validé par: <strong className="text-secondary">{currentUser.displayName || currentUser.email}</strong>
             </p>
           ) : (
-            // Ce bloc ne devrait normalement pas s'afficher car handleTaskClick demande la connexion
             <label htmlFor="participantName" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Votre Nom:</label>
           )}
           <input
@@ -1506,14 +1457,14 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
             onChange={(e) => setParticipantName(e.target.value)}
             placeholder="Entrez votre nom"
             className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            readOnly={!!currentUser} // Lecture seule si connecté
-            disabled={!!currentUser} // Désactivé si connecté
+            readOnly={!!currentUser} 
+            disabled={!!currentUser} 
             autoFocus
           />
           <div className="flex flex-col gap-3 sm:gap-4 mt-4"> 
             <button 
               onClick={() => recordTask(selectedTask.ID_Tache)} 
-              disabled={loading || !currentUser} // Désactivé si pas connecté
+              disabled={loading || !currentUser} 
               className="bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg 
                          transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
             >
@@ -1537,9 +1488,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
     if (!showSplitTaskDialog || !selectedTask || !selectedTask.isGroupTask) {
       return null;
     }
-    // Le nom du participant est déjà défini par currentUser.displayName dans handleTaskClick
-    // et mis à jour si l'utilisateur change de nom ou se connecte.
-    // L'input est maintenant en lecture seule ou masqué si l'utilisateur est connecté.
     const handleSubTaskChange = (subTask) => {
       if (isSubTaskAvailable(subTask)) {
         setSelectedSubTasks(prev => 
@@ -1653,7 +1601,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
   const renderParticipantProfile = () => {
     if (!selectedParticipantProfile) return null;
 
-    const participantCumulativePoints = selectedParticipantProfile.totalCumulativePoints || 0; // Utilise totalCumulativePoints
+    const participantCumulativePoints = selectedParticipantProfile.totalCumulativePoints || 0; 
     const engagementPercentage = totalGlobalCumulativePoints > 0 
       ? ((participantCumulativePoints / totalGlobalCumulativePoints) * 100).toFixed(2) 
       : 0;
@@ -1662,7 +1610,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
 
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8"> 
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Profil de {selectedParticipantProfile.displayName || selectedParticipantProfile.email}</h2> {/* Utilise displayName */}
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Profil de {selectedParticipantProfile.displayName || selectedParticipantProfile.email}</h2> 
         <div className="mb-6 p-4 bg-neutralBg rounded-xl shadow-inner"> 
           <p className="text-lg sm:text-xl font-semibold text-text">
             Score d'Engagement Global: <span className="text-primary font-bold">{engagementPercentage}%</span>
@@ -2069,7 +2017,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
   };
 
 
-  if (loadingUser || loading) { // Attendre que l'utilisateur soit chargé
+  if (loadingUser || loading) { 
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4"> 
         <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast mb-4 sm:mb-6"></div> 
@@ -2090,11 +2038,10 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
             <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-20 sm:h-28 md:h-36 w-auto drop-shadow-xl cursor-pointer" onClick={handleLogoClick} /> 
           )}
           <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1> 
-          {/* Le bouton AdminLoginButton est maintenant un bouton d'authentification générique */}
           <AdminLoginButton 
-            currentUser={currentUser} // Passe l'utilisateur actuel
-            isAdmin={isAdmin} // Passe le statut admin
-            onAuthAction={handleAuthAction} // Gère la connexion/déconnexion
+            currentUser={currentUser} 
+            isAdmin={isAdmin} 
+            onAuthAction={handleAuthAction} 
             onOpenAdminPanel={() => setActiveMainView('adminPanel')} 
           />
         </header>
@@ -2170,9 +2117,9 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
                 {renderObjectivesContent()}
             </ListAndInfoModal>
         )}
-        {showAdminObjectivesListModal && isAdmin && renderAdminObjectivesListModal()} {/* Rendu conditionnel par isAdmin */}
-        {showAdminTasksListModal && isAdmin && renderAdminTasksListModal()} {/* Rendu conditionnel par isAdmin */}
-        {showExportSelectionModal && isAdmin && ( // Rendu conditionnel par isAdmin
+        {showAdminObjectivesListModal && isAdmin && renderAdminObjectivesListModal()} 
+        {showAdminTasksListModal && isAdmin && renderAdminTasksListModal()} 
+        {showExportSelectionModal && isAdmin && ( 
             <ExportSelectionModal
                 onClose={() => setShowExportSelectionModal(false)}
                 onExportClassement={handleExportClassement}
@@ -2188,7 +2135,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
           />
         )}
 
-        {showReportModal && currentUser && ( // Rendu conditionnel par currentUser
+        {showReportModal && currentUser && ( 
           <ReportTaskModal
             show={showReportModal}
             onClose={() => { setShowReportModal(false); setReportedTaskDetails(null); }}
@@ -2198,7 +2145,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
           />
         )}
 
-        {showAdminObjectiveFormModal && isAdmin && ( // Rendu conditionnel par isAdmin
+        {showAdminObjectiveFormModal && isAdmin && ( 
           <AdminObjectiveFormModal
             objectiveData={newObjectiveData}
             onFormChange={handleObjectiveFormChange}
@@ -2215,7 +2162,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
             editingObjective={editingObjective}
           />
         )}
-        {showAdminTaskFormModal && isAdmin && ( // Rendu conditionnel par isAdmin
+        {showAdminTaskFormModal && isAdmin && ( 
           <AdminTaskFormModal
             taskData={newTaskData}
             onFormChange={handleTaskFormChange}
@@ -2232,7 +2179,7 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
             editingTask={editingTask}
           />
         )}
-        {showAuthModal && ( // Modale d'authentification
+        {showAuthModal && ( 
           <AuthModal onClose={() => setShowAuthModal(false)} />
         )}
 
@@ -2252,7 +2199,6 @@ function AppContent() { // Renommé pour être enveloppé par UserProvider
   );
 }
 
-// Composant racine qui enveloppe AppContent avec UserProvider
 function App() {
   return (
     <UserProvider>
