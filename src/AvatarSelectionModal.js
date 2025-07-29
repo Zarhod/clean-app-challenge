@@ -1,58 +1,59 @@
 // src/AvatarSelectionModal.js
 import React, { useState } from 'react';
-import ListAndInfoModal from './ListAndInfoModal'; 
-
-const avatars = ['😀', '😂', '😎', '🤩', '🥳', '🤓', '🤖', '👻', '👽', '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦉', '🦋', '🐢', '🐍', '🐉', '🐳', '🐬', '🐠', '🐙', '🦀', '🦞', '🦐', '🦑', '🐡', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🦒', '🦘', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🐐', '🦌', '🐕', '🐩', '🐈', '🐓', '🦃', '🕊️', '🦅', '🦆', '🦢', '🦩', '🦜', '🐦', '🐧', '🦉', '🦚', '🦃', '🐓', '🐔', '🐣', '🐤', '🐥', '👶', '👦', '👧', '🧑', '👨', '👩', '👴', '👵', '🧓', '👨‍⚕️', '👩‍⚕️', '👨‍🎓', '👩‍🎓', '👨‍🏫', '👩‍🏫', '👨‍⚖️', '👩‍⚖️', '👨‍🌾', '👩‍🌾', '👨‍🍳', '👩‍🍳', '👨‍🔧', '👩‍🔧', '👨‍🏭', '👩‍🏭', '👨‍💼', '👩‍💼', '👨‍🔬', '👩‍🔬', '👨‍💻', '👩‍💻', '👨‍🎤', '👩‍🎤', '👨‍🎨', '👩‍🎨', '👨‍✈️', '👩‍✈️', '👨‍🚀', '👩‍🚀', '👨‍🚒', '👩‍🚒', '👮', '🕵️', '💂', '👷', '🤴', '👸', '👳', '👲', '🧕', '🤵', '👰', '🤰', '🤱', '👼', '🎅', '🤶', '🦸', '🦹', '🧙', '🧚', '🧛', '🧜', '🧝', '🧟', '🧞', '👨‍🦯', '👩‍🦯', '👨‍🦼', '👩‍🦼', '👨‍🦽', '👩‍🦽', '🗣️', '👤', '👥', '🫂'];
 
 const AvatarSelectionModal = ({ currentAvatar, onClose, onSave }) => {
   const [selectedAvatar, setSelectedAvatar] = useState(currentAvatar);
+
+  // Liste d'emojis pour les avatars (curated)
+  const avatarOptions = [
+    '😀', '😁', '😂', '😇', '😈', '😉', '😊', '😍', '😎', '🤓', '🤔', '🤫', '😶', '😐', '🙄', '😴', '🥳', '🤩',
+    '🤖', '👾', '👽', '👻', '🎃', '😺', '🐶', '🐱', '🦁', '🐯', '🐼', '🐸', '🐙', '🐠', '🦋', '🐝', '🐞', '🕷️',
+    '🌳', '🌲', '🌴', '🌵', '🌱', '🌿', '🌸', '🌼', '🌻', '🌎', '🌈', '☀️', '⭐', '✨', '⚡️', '🔥', '💥', '💧',
+    '🍎', '🍊', '🍌', '🍉', '🍓', '🍍', '🍕', '🍔', '🍟', '🍩', '🍪', '🎂', '☕️', '🍺', '🏆', '🥇', '🥈', '🥉',
+    '⚽️', '🏀', '🎮', '🎲', '🧩', '📚', '🎨', '🎵', '✈️', '🚀', '🚗', '🚲', '🏠', '💡', '⏰', '🎁', '🎈', '🎉',
+    '❤️', '🧡', '💛', '💚', '💙', '💜', '🤎', '🖤', '🤍', '💯', '✅', '👍', '💪', '🧠', '👀', '👣', '👂', '👃',
+    '🧑‍💻', '🧑‍🍳', '🧑‍🔧', '🧑‍🔬', '🧑‍🚀', '🧑‍🚒', '🧑‍🎤', '🧑‍🎨', '🧑‍🎓', '🧑‍🏫', '🧑‍⚖️', '🧑‍🌾', '🧑‍🏭', '🧑‍💼', '🧑‍👮', '🧑‍🕵️',
+    '👨', '👩', '🧑', '👴', '👵', '👶', '👧', '👦', '🧑‍🤝‍🧑', '🫂', '🗣️', '👤'
+  ];
 
   const handleSave = () => {
     onSave(selectedAvatar);
   };
 
   return (
-    <ListAndInfoModal title="Sélectionner un Avatar" onClose={onClose} sizeClass="max-w-xs sm:max-w-md">
-      <div className="text-center mb-4">
-        <p className="text-lg text-gray-700 mb-2">Votre avatar actuel:</p>
-        <span className="text-5xl">{currentAvatar}</span>
-      </div>
-
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Choisissez un nouvel avatar:</label>
-        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 max-h-60 overflow-y-auto p-2 border rounded-md bg-gray-50 custom-scrollbar">
-          {avatars.map((avatar, index) => (
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
+      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-lg text-center animate-fade-in-scale border border-primary/20 mx-auto">
+        <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">Sélectionner un Avatar</h3>
+        <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 sm:gap-3 max-h-80 overflow-y-auto custom-scrollbar mb-6 p-2 border rounded-lg bg-neutralBg">
+          {avatarOptions.map((avatar, index) => (
             <div
               key={index}
-              className={`flex items-center justify-center text-3xl p-1.5 rounded-full cursor-pointer transition-all duration-200
-                          ${selectedAvatar === avatar ? 'bg-primary text-white scale-110 shadow-lg' : 'hover:bg-gray-200'}`}
+              className={`cursor-pointer p-2 rounded-lg transition duration-200 ease-in-out transform hover:scale-110 
+                          ${selectedAvatar === avatar ? 'bg-primary text-white shadow-lg' : 'bg-white hover:bg-gray-100'}`}
               onClick={() => setSelectedAvatar(avatar)}
             >
-              {avatar}
+              <span className="text-2xl sm:text-3xl block text-center">{avatar}</span>
             </div>
           ))}
         </div>
-        <p className="text-center text-gray-500 text-xs mt-2">Nouvel avatar sélectionné: <span className="text-xl align-middle">{selectedAvatar}</span></p>
+        <div className="flex flex-col items-center gap-3 sm:gap-4 mt-4 sm:flex-row sm:justify-end">
+          <button
+            onClick={handleSave}
+            className="w-full sm:w-auto bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                       transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
+          >
+            Enregistrer l'Avatar
+          </button>
+          <button
+            onClick={onClose}
+            className="w-full sm:w-auto bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                       transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
+          >
+            Annuler
+          </button>
+        </div>
       </div>
-
-      <div className="flex flex-col items-center gap-3 sm:gap-4 mt-4 sm:flex-row sm:justify-end"> {/* Centré sur mobile, aligné à droite sur desktop */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full sm:w-auto bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
-        >
-          Annuler
-        </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          className="w-full sm:w-auto bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50"
-          disabled={selectedAvatar === currentAvatar}
-        >
-          Enregistrer
-        </button>
-      </div>
-    </ListAndInfoModal>
+    </div>
   );
 };
 

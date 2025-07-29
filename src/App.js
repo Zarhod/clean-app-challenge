@@ -4,6 +4,7 @@
 // Les boutons des modales sont centrés sur mobile.
 // Gestion améliorée des erreurs de permission pour éviter les toasts sur la page de connexion.
 // Correction de l'erreur "TypeError: null is not iterable" dans calculateWeeklyRecap.
+// Améliorations de l'affichage du profil utilisateur, des modales et suppression des logs.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -70,9 +71,6 @@ const calculateLevelAndXP = (currentXP) => {
 
 
 function AppContent() { 
-  // La variable appId n'est plus utilisée pour construire les chemins de collection à la racine.
-  // Elle est supprimée pour éviter l'avertissement 'no-unused-vars'.
-
   // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
   const { currentUser, isAdmin, loadingUser } = useUser(); 
@@ -180,6 +178,14 @@ function AppContent() {
     }
   }, [currentUser]);
 
+  // Synchronise selectedParticipantProfile si c'est le profil de l'utilisateur actuel
+  useEffect(() => {
+    if (currentUser && selectedParticipantProfile && selectedParticipantProfile.id === currentUser.uid) {
+      setSelectedParticipantProfile({ ...currentUser });
+    }
+  }, [currentUser, selectedParticipantProfile]);
+
+
   // Fonction pour calculer le récapitulatif de la semaine précédente
   const calculateWeeklyRecap = useCallback((userId, displayName, allRealisations, allHistoricalPodiums) => {
     const today = new Date();
@@ -207,7 +213,6 @@ function AppContent() {
       }
     });
 
-    // Correction ici: S'assurer que allHistoricalPodiums est un tableau avant de le filtrer
     const lastWeekPodiums = (allHistoricalPodiums || []).filter(podium => {
       const podiumDate = new Date(podium.Date_Podium);
       return podiumDate >= startOfLastWeek && podiumDate <= endOfLastWeek;
@@ -235,22 +240,16 @@ function AppContent() {
   // Fonctions de récupération de données utilisant onSnapshot (CHEMINS MIS À JOUR)
   const setupTasksListener = useCallback(() => {
     const tasksCollectionPath = 'tasks'; 
-    console.log(`[setupTasksListener] Chemin de la collection de tâches: ${tasksCollectionPath}`);
 
     const q = query(collection(db, tasksCollectionPath));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const rawData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      console.log("[setupTasksListener] Données brutes des tâches récupérées:", rawData);
 
       const cleanedRawData = rawData.filter(tache => {
         const isValid = tache && tache.ID_Tache;
-        if (!isValid) {
-          console.warn("[setupTasksListener] Tâche invalide filtrée (manque ID_Tache):", tache);
-        }
         return isValid;
       });
       setAllRawTaches(cleanedRawData); 
-      console.log("[setupTasksListener] Données brutes nettoyées:", cleanedRawData);
 
       const tachesMap = new Map(cleanedRawData.map(t => [String(t.ID_Tache), t]));
       const processedAndFilteredTaches = cleanedRawData
@@ -274,20 +273,15 @@ function AppContent() {
 
       const finalFilteredTaches = processedAndFilteredTaches.filter(tache => {
         const isTopLevel = tache.Parent_Task_ID === null || tache.Parent_Task_ID === undefined || String(tache.Parent_Task_ID).trim() === '';
-        if (!isTopLevel) {
-          console.log(`[setupTasksListener] Tâche filtrée (sous-tâche): ${tache.Nom_Tache} (Parent_Task_ID: '${tache.Parent_Task_ID}')`);
-        }
         return isTopLevel;
       });
 
       setTaches(finalFilteredTaches);
-      console.log("[setupTasksListener] Tâches affichées (filtrage Parent_Task_ID activé):", finalFilteredTaches);
       initialLoadStatus.current.tasks = true;
     }, (error) => {
       if (auth.currentUser) { 
         toast.error(`Erreur lors de la récupération des tâches: ${error.message}`); 
       }
-      console.error("[setupTasksListener] Erreur Firestore:", error);
     });
     return unsubscribe;
   }, []); 
@@ -303,7 +297,6 @@ function AppContent() {
       if (auth.currentUser) { 
         toast.error(`Erreur lors de la récupération des réalisations: ${error.message}`);
       }
-      console.error("[setupRealisationsListener] Erreur Firestore:", error);
     });
     return unsubscribe;
   }, []);
@@ -379,13 +372,11 @@ function AppContent() {
         if (auth.currentUser) {
           toast.error(`Erreur lors de la récupération des réalisations pour le classement: ${error.message}`);
         }
-        console.error("[setupClassementListener] Erreur Firestore (réalisations):", error);
       });
     }, (error) => {
       if (auth.currentUser) {
         toast.error(`Erreur lors de la récupération des utilisateurs pour le classement: ${error.message}`);
       }
-      console.error("[setupClassementListener] Erreur Firestore (utilisateurs):", error);
     });
     return usersUnsubscribe; 
   }, []); 
@@ -400,7 +391,6 @@ function AppContent() {
       if (auth.currentUser) {
         toast.error(`Erreur lors de la récupération des objectifs: ${error.message}`);
       }
-      console.error("[setupObjectivesListener] Erreur Firestore:", error);
     });
     return unsubscribe;
   }, []);
@@ -416,7 +406,6 @@ function AppContent() {
         setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); 
         toast.error(`Erreur lors de la récupération des messages de félicitation: ${error.message}`);
       }
-      console.error("[setupCongratulatoryMessagesListener] Erreur Firestore:", error);
     });
     return unsubscribe;
   }, []);
@@ -431,7 +420,6 @@ function AppContent() {
       if (auth.currentUser) {
         toast.error(`Erreur lors de la récupération des podiums historiques: ${error.message}`);
       }
-      console.error("[setupHistoricalPodiumsListener] Erreur Firestore:", error);
     });
     return unsubscribe;
   }, []);
@@ -446,7 +434,6 @@ function AppContent() {
       if (auth.currentUser) {
         toast.error(`Erreur lors de la récupération des rapports: ${error.message}`);
       }
-      console.error("[setupReportsListener] Erreur Firestore:", error);
     });
     return unsubscribe;
   }, []);
@@ -464,7 +451,6 @@ function AppContent() {
       } else {
         timeoutId = setTimeout(() => {
           setLoading(false);
-          console.warn("Certaines données n'ont pas été chargées initialement après un délai.");
         }, 5000); 
       }
     };
@@ -855,7 +841,6 @@ function AppContent() {
         setActiveMainView('home');
       } catch (error) {
         toast.error('Erreur lors de la déconnexion.');
-        console.error("Erreur déconnexion:", error);
       }
     } else {
       setShowAuthModal(true);
@@ -1096,7 +1081,7 @@ function AppContent() {
         });
         toast.info(`${reportedTaskDetails.participant} a perdu ${DEDUCTION_POINTS} points.`);
       } else {
-        console.warn(`Utilisateur signalé (${reportedTaskDetails.reportedUserId}) non trouvé dans la collection 'users'.`);
+        // console.warn(`Utilisateur signalé (${reportedTaskDetails.reportedUserId}) non trouvé dans la collection 'users'.`);
       }
     } catch (err) {
       toast.error(`Une erreur est survenue lors du signalement: ${err.message}`);
@@ -1799,7 +1784,7 @@ function AppContent() {
             disabled={true} 
             autoFocus
           />
-          <div className="flex flex-col items-center gap-3 sm:gap-4 mt-4 sm:flex-row sm:justify-end"> {/* Centré sur mobile, aligné à droite sur desktop */}
+          <div className="flex flex-col items-center gap-3 sm:gap-4 mt-4 sm:flex-row sm:justify-end"> 
             <button 
               onClick={() => recordTask(selectedTask.ID_Tache)} 
               disabled={loading || !currentUser} 
@@ -1906,7 +1891,7 @@ function AppContent() {
             autoFocus
           />
 
-          <div className="flex flex-col items-center gap-3 sm:gap-4 mt-4 sm:flex-row sm:justify-end"> {/* Centré sur mobile, aligné à droite sur desktop */}
+          <div className="flex flex-col items-center gap-3 sm:gap-4 mt-4 sm:flex-row sm:justify-end"> 
             <button
               onClick={recordMultipleTasks}
               disabled={loading || selectedSubTasks.length === 0 || !currentUser}
@@ -1974,13 +1959,13 @@ function AppContent() {
             <div className="flex flex-col sm:flex-row justify-center gap-3 mt-4">
               <button
                 onClick={() => setShowAvatarSelectionModal(true)}
-                className="bg-accent hover:bg-yellow-600 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-sm flex-1"
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1 px-2 rounded-md transition duration-300 text-xs flex-1"
               >
                 Changer mon Avatar
               </button>
               <button
                 onClick={() => setShowPasswordChangeModal(true)}
-                className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-sm flex-1"
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1 px-2 rounded-md transition duration-300 text-xs flex-1"
               >
                 Changer mon Mot de Passe
               </button>
@@ -2401,7 +2386,7 @@ function AppContent() {
         onClose={() => setSelectedDocumentDetails(null)}
         sizeClass="max-w-full sm:max-w-md md:max-w-lg"
       >
-        <pre className="bg-gray-100 p-4 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-words">
+        <pre className="bg-gray-100 p-4 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-words w-full">
           {JSON.stringify(selectedDocumentDetails, null, 2)}
         </pre>
       </ListAndInfoModal>
@@ -2877,13 +2862,10 @@ function AppContent() {
             onClose={() => setShowAvatarSelectionModal(false)}
             onSave={async (newAvatar) => {
               try {
-                console.log("Attempting to update avatar for user ID:", currentUser.uid, "with new avatar:", newAvatar);
                 await updateDoc(doc(db, "users", currentUser.uid), { avatar: newAvatar });
                 toast.success("Avatar mis à jour !");
-                console.log("Avatar update successful in Firestore.");
               } catch (error) {
                 toast.error("Erreur lors de la mise à jour de l'avatar.");
-                console.error("Erreur avatar:", error); 
               } finally {
                 setShowAvatarSelectionModal(false);
               }

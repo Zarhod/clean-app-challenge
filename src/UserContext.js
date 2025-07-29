@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore'; // 'getDoc' supprimé car non utilisé directement
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 const UserContext = createContext();
 
@@ -80,17 +80,12 @@ export const UserProvider = ({ children }) => {
         if (initialAuthToken) {
           // Tente de se connecter avec le token personnalisé
           await signInWithCustomToken(auth, initialAuthToken);
-          console.log("Connecté avec le token personnalisé fourni par l'environnement.");
         } else {
-          // Si aucun token initial n'est fourni, NE PAS se connecter anonymement.
-          // L'utilisateur devra se connecter manuellement via la modale d'authentification.
-          console.log("Aucun token d'authentification initial fourni. L'utilisateur devra se connecter manuellement.");
+          // Si aucun token initial n'est fourni, l'utilisateur devra se connecter manuellement.
           setLoadingUser(false); // Assure que l'état de chargement est terminé
         }
       } catch (error) {
         // Si la connexion avec le token personnalisé échoue, cela signifie que l'utilisateur n'est pas connecté.
-        // On ne fait rien d'autre ici pour ne pas forcer une connexion anonyme.
-        console.error("Erreur lors de l'authentification initiale (token personnalisé):", error);
         setLoadingUser(false); // Assure que l'état de chargement est terminé même en cas d'erreur
       }
     };
