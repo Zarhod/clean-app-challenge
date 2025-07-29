@@ -34,7 +34,7 @@ const LOGO_FILENAME = 'logo.png';
 function AppContent() { 
   // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
-  const { currentUser, isAdmin, loadingUser } = useUser(); 
+  const { currentUser, isAdmin, loadingUser } = useUser(); // Utilisation du hook de contexte
 
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
@@ -43,8 +43,7 @@ function AppContent() {
   const [historicalPodiums, setHistoricalPodiums] = useState([]); 
   const [objectives, setObjectives] = useState([]); 
   const [congratulatoryMessages, setCongratulatoryMessages] = useState([]); 
-  const [loading, setLoading] = useState(true);
-  // REMOVED: const [error, setError] = useState(null); // <<< Cette ligne est supprimée
+  const [loading, setLoading] = useState(true); // État de chargement des données (après auth)
 
   const [selectedTask, setSelectedTask] = useState(null); 
   const [participantName, setParticipantName] = useState(''); 
@@ -136,12 +135,11 @@ function AppContent() {
       
       setTaches(processedAndFilteredTaches);
     } catch (err) {
-      // REMOVED: setError(`Erreur lors de la récupération des tâches: ${err.message}`);
       toast.error(`Erreur lors de la récupération des tâches: ${err.message}`); 
     } finally {
-      // setLoading(false); // Managed by the main useEffect
+      // Le setLoading(false) global est géré par le useEffect principal
     }
-  }, [setAllRawTaches, setTaches]); // Removed setError from deps
+  }, [setAllRawTaches, setTaches]); 
 
   const fetchClassement = useCallback(async () => {
     try {
@@ -210,10 +208,9 @@ function AppContent() {
       setTotalGlobalCumulativePoints(globalCumulative);
 
     } catch (err) {
-      // REMOVED: setError(`Erreur lors de la récupération du classement: ${err.message}`);
       toast.error(`Erreur lors de la récupération du classement: ${err.message}`); 
     }
-  }, [setClassement, setTotalGlobalCumulativePoints]); // Removed setError from deps
+  }, [setClassement, setTotalGlobalCumulativePoints]); 
 
   const fetchRealisations = useCallback(async () => {
     try {
@@ -223,10 +220,9 @@ function AppContent() {
       setRealisations(data);
     }
     catch (err) {
-      // REMOVED: setError(`Erreur lors de la récupération des réalisations: ${err.message}`);
       toast.error(`Erreur lors de la récupération des réalisations: ${err.message}`);
     }
-  }, [setRealisations]); // Removed setError from deps
+  }, [setRealisations]); 
 
   const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
     setLoading(true);
@@ -250,12 +246,11 @@ function AppContent() {
       setParticipantWeeklyTasks(weeklyTasks);
 
     } catch (err) {
-      // REMOVED: setError(`Erreur lors de la récupération des tâches de ${participantName}: ${err.message}`);
       toast.error(`Erreur lors du chargement du profil: ${err.message}`);
     } finally {
       setLoading(false);
     }
-  }, [setParticipantWeeklyTasks, setLoading]); // Removed setError from deps
+  }, [setParticipantWeeklyTasks, setLoading]); 
 
   const fetchSubTasks = useCallback(async (parentTaskId) => {
     setLoading(true); 
@@ -281,13 +276,12 @@ function AppContent() {
 
       setSubTasks(sousTaches); 
     } catch (err) {
-      // REMOVED: setError(`Erreur lors de la récupération des sous-tâches: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
       setSubTasks([]); 
     } finally {
       setLoading(false);
     }
-  }, [setSubTasks, setLoading]); // Removed setError from deps
+  }, [setSubTasks, setLoading]); 
 
   const fetchObjectives = useCallback(async () => {
     try {
@@ -296,10 +290,9 @@ function AppContent() {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setObjectives(data);
     } catch (err) {
-      // REMOVED: setError(`Erreur lors de la récupération des objectifs: ${err.message}`);
       toast.error(`Erreur: ${err.message}`);
     }
-  }, [setObjectives]); // Removed setError from deps
+  }, [setObjectives]); 
 
   const fetchCongratulatoryMessages = useCallback(async () => {
     try {
@@ -308,10 +301,9 @@ function AppContent() {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setCongratulatoryMessages(data);
     } catch (err) {
-      // REMOVED: setError(`Erreur lors de la récupération des messages de félicitations: ${err.message}`);
       setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); // Fallback
     }
-  }, [setCongratulatoryMessages]); // Removed setError from deps
+  }, [setCongratulatoryMessages]); 
 
   const fetchHistoricalPodiums = useCallback(async () => {
     try {
@@ -320,10 +312,9 @@ function AppContent() {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setHistoricalPodiums(data);
     } catch (err) {
-      // REMOVED: setError(`Erreur lors de la récupération de l'historique des podiums: ${err.message}`);
-      toast.error(`Erreur lors de la récupération de l'historique des podiums: ${err.message}`);
+      toast.error(`Erreur: ${err.message}`);
     }
-  }, [setHistoricalPodiums]); // Removed setError from deps
+  }, [setHistoricalPodiums]); 
 
   const fetchReports = useCallback(async () => {
     try {
@@ -332,10 +323,9 @@ function AppContent() {
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setReports(data);
     } catch (err) {
-      // REMOVED: setError(`Erreur lors de la récupération des signalements: ${err.message}`);
-      toast.error(`Erreur lors de la récupération des signalements: ${err.message}`);
+      toast.error(`Erreur: ${err.message}`);
     }
-  }, [setReports]); // Removed setError from deps
+  }, [setReports]); 
 
 
   const recordTask = async (idTacheToRecord, isSubTask = false) => {
@@ -396,7 +386,6 @@ function AppContent() {
       fetchObjectives(); 
       fetchReports(); 
     } catch (err) {
-      // REMOVED: setError(`Erreur lors de l'enregistrement de la tâche: ${err.message}`);
       toast.error(`Une erreur est survenue: ${err.message}`); 
     } finally {
       setLoading(false);
@@ -466,7 +455,6 @@ function AppContent() {
       fetchObjectives(); 
       fetchReports(); 
     } catch (err) {
-      // REMOVED: setError(`Erreur lors de l'enregistrement des sous-tâches: ${err.message}`);
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
@@ -511,7 +499,6 @@ function AppContent() {
       fetchHistoricalPodiums(); 
       fetchReports(); 
     } catch (err) {
-      // REMOVED: setError(`Erreur lors de la réinitialisation des points: ${err.message}`);
       toast.error(`Une erreur est survenue lors de la réinitialisation: ${err.message}`);
     } finally {
       setLoading(false);
@@ -535,19 +522,60 @@ function AppContent() {
   };
 
   useEffect(() => {
-    if (!loadingUser) { 
-      // On peut toujours tenter de charger les données, les règles Firestore géreront les permissions
-      // Les erreurs seront affichées via toast, mais ne bloqueront plus l'interface
-      fetchTaches();
-      fetchClassement();
-      fetchRealisations(); 
-      fetchObjectives(); 
-      fetchCongratulatoryMessages(); 
-      fetchHistoricalPodiums(); 
-      fetchReports(); 
-      setLoading(false); 
-    }
-  }, [currentUser, loadingUser, fetchTaches, fetchClassement, fetchRealisations, fetchObjectives, fetchCongratulatoryMessages, fetchHistoricalPodiums, fetchReports]);
+    const loadData = async () => {
+      if (!loadingUser) { // Une fois que l'état d'authentification Firebase est déterminé
+        if (currentUser) { // Si l'utilisateur est connecté, charger les données
+          setLoading(true); // Activer l'indicateur de chargement pour les données
+          try {
+            await Promise.all([ // Charger toutes les données simultanément
+              fetchTaches(),
+              fetchClassement(),
+              fetchRealisations(),
+              fetchObjectives(),
+              fetchCongratulatoryMessages(),
+              fetchHistoricalPodiums(),
+              fetchReports()
+            ]);
+          } catch (error) {
+            console.error("Erreur lors du chargement des données initiales pour l'utilisateur authentifié:", error);
+            toast.error("Erreur lors du chargement des données initiales. Veuillez réessayer.");
+          } finally {
+            setLoading(false); // Fin du chargement des données
+          }
+        } else { // Si aucun utilisateur n'est connecté, vider les états et préparer l'interface pour la connexion
+          setTaches([]);
+          setAllRawTaches([]);
+          setRealisations([]);
+          setClassement([]);
+          setHistoricalPodiums([]);
+          setObjectives([]);
+          setCongratulatoryMessages([]);
+          setReports([]);
+          setLoading(false); // L'interface est prête pour l'utilisateur non authentifié
+        }
+      }
+    };
+    loadData();
+  }, [
+    currentUser,
+    loadingUser,
+    fetchTaches,
+    fetchClassement,
+    fetchRealisations,
+    fetchObjectives,
+    fetchCongratulatoryMessages,
+    fetchHistoricalPodiums,
+    fetchReports,
+    setTaches,
+    setAllRawTaches,
+    setRealisations,
+    setClassement,
+    setHistoricalPodiums,
+    setObjectives,
+    setCongratulatoryMessages,
+    setReports,
+    setLoading
+  ]);
 
 
   const handleTaskFormChange = (e) => {
@@ -792,7 +820,6 @@ function AppContent() {
       fetchObjectives();
       fetchReports(); 
     } catch (err) {
-      // REMOVED: setError(`Erreur lors du signalement de la tâche: ${err.message}`);
       toast.error(`Une erreur est survenue lors du signalement: ${err.message}`);
     } finally {
       setLoading(false);
@@ -2011,8 +2038,65 @@ function AppContent() {
     );
   };
 
+  // --- Rendu conditionnel de l'application ---
 
-  if (loadingUser || loading) { 
+  // 1. Afficher un spinner pendant le chargement de l'état d'authentification de l'utilisateur
+  if (loadingUser) { 
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4"> 
+        <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast mb-4 sm:mb-6"></div> 
+        <p className="text-xl sm:text-2xl font-semibold text-lightText">Chargement de l'utilisateur...</p> 
+      </div>
+    );
+  }
+
+  // 2. Si aucun utilisateur n'est connecté, afficher une vue simplifiée avec le bouton de connexion
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background-light to-background-dark font-sans p-4 sm:p-6 flex flex-col items-center justify-center text-center">
+        <header className="relative flex flex-col items-center justify-center py-4 sm:py-6 px-4 mb-6 sm:mb-8 text-center">
+          <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-20 sm:h-28 md:h-36 w-auto drop-shadow-xl" />
+          <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1>
+          <AdminLoginButton 
+            currentUser={currentUser} 
+            isAdmin={isAdmin} 
+            onAuthAction={handleAuthAction} 
+            onOpenAdminPanel={() => {}} // Pas de panneau admin pour les non-authentifiés
+          />
+        </header>
+        <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center border border-primary/20">
+          <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-4">Bienvenue !</h2>
+          <p className="text-lg text-text mb-6">
+            Veuillez vous connecter ou créer un compte pour accéder à toutes les fonctionnalités de l'application.
+          </p>
+          <button
+            onClick={() => setShowAuthModal(true)}
+            className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-6 rounded-full shadow-lg 
+                       transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
+          >
+            Se connecter / S'inscrire
+          </button>
+        </div>
+        {showAuthModal && ( 
+          <AuthModal onClose={() => setShowAuthModal(false)} />
+        )}
+        <ToastContainer 
+          position="top-right"
+          autoClose={5000}
+          hideProgressBar={false}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+        />
+      </div>
+    );
+  }
+
+  // 3. Si l'utilisateur est connecté mais que les données sont encore en cours de chargement
+  if (loading) { 
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4"> 
         <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast mb-4 sm:mb-6"></div> 
@@ -2021,8 +2105,7 @@ function AppContent() {
     );
   }
 
-  // REMOVED: if (error) return <div className="text-center p-8 text-xl text-error">Erreur: {error}</div>; // <<< Cette ligne est supprimée
-
+  // 4. Si l'utilisateur est connecté et que les données sont chargées, afficher l'application complète
   return (
     <div className="min-h-screen bg-gradient-to-br from-background-light to-background-dark font-sans p-4 sm:p-6"> 
       <div className="max-w-4xl mx-auto">
@@ -2174,6 +2257,7 @@ function AppContent() {
             editingTask={editingTask}
           />
         )}
+        {/* AuthModal est rendu ici pour les utilisateurs connectés aussi, mais il est caché par défaut sauf si showAuthModal est vrai */}
         {showAuthModal && ( 
           <AuthModal onClose={() => setShowAuthModal(false)} />
         )}
