@@ -3,6 +3,7 @@
 // Tous les chemins Firestore sont maintenant à la racine de la base de données.
 // Les boutons des modales sont centrés sur mobile.
 // Gestion améliorée des erreurs de permission pour éviter les toasts sur la page de connexion.
+// Correction de l'erreur "TypeError: null is not iterable" dans calculateWeeklyRecap.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -106,7 +107,7 @@ function AppContent() {
   
   const [showAdminTaskFormModal, setShowAdminTaskFormModal] = useState(false); 
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false); 
-  const [taskToDelete, setTaskToDelete] = null; // Initialisé à null
+  const [taskToDelete, setTaskToDelete] = useState(null); 
   const [newTaskData, setNewTaskData] = useState({ 
     ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
     Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
@@ -120,7 +121,7 @@ function AppContent() {
   });
   const [editingObjective, setEditingObjective] = useState(null); 
   const [showDeleteObjectiveConfirmModal, setShowDeleteObjectiveConfirmModal] = useState(false); 
-  const [objectiveToDelete, setObjectiveToDelete] = null; // Initialisé à null
+  const [objectiveToDelete, setObjectiveToDelete] = useState(null); 
 
   const [showHighlightsModal, setShowHighlightsModal] = useState(false);
   const [showObjectivesModal, setShowObjectivesModal] = useState(false);
@@ -206,7 +207,8 @@ function AppContent() {
       }
     });
 
-    const lastWeekPodiums = allHistoricalPodiums.filter(podium => {
+    // Correction ici: S'assurer que allHistoricalPodiums est un tableau avant de le filtrer
+    const lastWeekPodiums = (allHistoricalPodiums || []).filter(podium => {
       const podiumDate = new Date(podium.Date_Podium);
       return podiumDate >= startOfLastWeek && podiumDate <= endOfLastWeek;
     });
@@ -282,7 +284,6 @@ function AppContent() {
       console.log("[setupTasksListener] Tâches affichées (filtrage Parent_Task_ID activé):", finalFilteredTaches);
       initialLoadStatus.current.tasks = true;
     }, (error) => {
-      // MODIFICATION ICI: Seulement afficher le toast si un utilisateur est connecté
       if (auth.currentUser) { 
         toast.error(`Erreur lors de la récupération des tâches: ${error.message}`); 
       }
@@ -299,7 +300,6 @@ function AppContent() {
       setRealisations(data);
       initialLoadStatus.current.realizations = true;
     }, (error) => {
-      // MODIFICATION ICI: Seulement afficher le toast si un utilisateur est connecté
       if (auth.currentUser) { 
         toast.error(`Erreur lors de la récupération des réalisations: ${error.message}`);
       }
@@ -309,7 +309,6 @@ function AppContent() {
   }, []);
 
   const setupClassementListener = useCallback(() => {
-    // MODIFICATION ICI: Ajout de la vérification auth.currentUser dans les gestionnaires d'erreurs
     const usersUnsubscribe = onSnapshot(collection(db, "users"), (usersSnapshot) => {
       const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       onSnapshot(collection(db, 'realizations'), (realisationsSnapshot) => { 
@@ -377,14 +376,12 @@ function AppContent() {
         setTotalGlobalCumulativePoints(globalCumulative);
         initialLoadStatus.current.classement = true;
       }, (error) => {
-        // MODIFICATION ICI pour le toast des réalisations
         if (auth.currentUser) {
           toast.error(`Erreur lors de la récupération des réalisations pour le classement: ${error.message}`);
         }
         console.error("[setupClassementListener] Erreur Firestore (réalisations):", error);
       });
     }, (error) => {
-      // MODIFICATION ICI pour le toast des utilisateurs
       if (auth.currentUser) {
         toast.error(`Erreur lors de la récupération des utilisateurs pour le classement: ${error.message}`);
       }
@@ -400,7 +397,6 @@ function AppContent() {
       setObjectives(data);
       initialLoadStatus.current.objectives = true;
     }, (error) => {
-      // MODIFICATION ICI: Seulement afficher le toast si un utilisateur est connecté
       if (auth.currentUser) {
         toast.error(`Erreur lors de la récupération des objectifs: ${error.message}`);
       }
@@ -416,7 +412,6 @@ function AppContent() {
       setCongratulatoryMessages(data);
       initialLoadStatus.current.congratulatoryMessages = true;
     }, (error) => {
-      // MODIFICATION ICI: Seulement afficher le toast si un utilisateur est connecté
       if (auth.currentUser) {
         setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); 
         toast.error(`Erreur lors de la récupération des messages de félicitation: ${error.message}`);
@@ -433,7 +428,6 @@ function AppContent() {
       setHistoricalPodiums(data);
       initialLoadStatus.current.historicalPodiums = true;
     }, (error) => {
-      // MODIFICATION ICI: Seulement afficher le toast si un utilisateur est connecté
       if (auth.currentUser) {
         toast.error(`Erreur lors de la récupération des podiums historiques: ${error.message}`);
       }
@@ -449,7 +443,6 @@ function AppContent() {
       setReports(data);
       initialLoadStatus.current.reports = true;
     }, (error) => {
-      // MODIFICATION ICI: Seulement afficher le toast si un utilisateur est connecté
       if (auth.currentUser) {
         toast.error(`Erreur lors de la récupération des rapports: ${error.message}`);
       }
