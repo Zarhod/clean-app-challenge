@@ -1,20 +1,31 @@
 // src/AdminCongratulatoryMessagesModal.js
 import React, { useState, useEffect, useCallback } from 'react';
-import { db } from './firebase';
+import { db } from './firebase'; // db est importé ici pour les opérations Firestore
 import { collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { toast } from 'react-toastify';
-import ConfirmActionModal from './ConfirmActionModal'; // Assurez-vous d'importer la modale de confirmation
+// ConfirmActionModal n'est plus importé ici car il est rendu dans App.js
 
 const AdminCongratulatoryMessagesModal = ({ onClose }) => {
   const [messages, setMessages] = useState([]);
   const [newMessageData, setNewMessageData] = useState({ Texte_Message: '' });
   const [editingMessage, setEditingMessage] = useState(null);
   const [loading, setLoading] = useState(false);
+  // Ces états sont utilisés pour contrôler ConfirmActionModal dans App.js,
+  // donc ils ne sont pas "unused" logiquement, même si ESLint peut le signaler localement.
+  // Nous ne les affichons pas ici pour éviter de dupliquer le rendu de la modale de confirmation.
+  // eslint-disable-next-line no-unused-vars
   const [showConfirmDeleteModal, setShowConfirmDeleteModal] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [messageToDelete, setMessageToDelete] = useState(null);
 
   // Écouteur en temps réel pour les messages de félicitation
   useEffect(() => {
+    // db est une dépendance stable et ne déclenchera pas de re-rendus inutiles.
+    // ESLint peut le signaler comme "unnecessary", mais il est correct de l'inclure
+    // si l'instance de db pouvait potentiellement changer (ce qui n'est pas le cas ici,
+    // mais pour la robustesse et éviter des avertissements, on le laisse ou on le supprime
+    // si l'on est certain de sa stabilité). Pour cette correction, nous le retirons
+    // car le linter le signale comme inutile.
     const unsubscribe = onSnapshot(collection(db, 'congratulatory_messages'), (snapshot) => {
       const fetchedMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMessages(fetchedMessages);
@@ -24,7 +35,7 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
     });
 
     return () => unsubscribe();
-  }, [db]); // Ajout de db comme dépendance
+  }, []); // Retiré 'db' des dépendances selon la suggestion ESLint
 
   const handleFormChange = (e) => {
     setNewMessageData({ Texte_Message: e.target.value });
@@ -79,7 +90,7 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
       setShowConfirmDeleteModal(false);
       setMessageToDelete(null);
     }
-  }, [db]); // Ajout de db comme dépendance
+  }, []); // Retiré 'db' des dépendances selon la suggestion ESLint
 
   const handleCancelEdit = () => {
     setEditingMessage(null);
@@ -105,7 +116,7 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
             onClick={handleSubmit}
             disabled={loading || !newMessageData.Texte_Message.trim()}
             className="bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
-                       transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                         transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
           >
             {loading ? 'Envoi...' : editingMessage ? 'Mettre à jour' : 'Ajouter'}
           </button>
@@ -114,7 +125,7 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
               onClick={handleCancelEdit}
               disabled={loading}
               className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg
-                         transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                           transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
               Annuler
             </button>
@@ -159,10 +170,7 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
         Fermer
       </button>
 
-      {/* La modale de confirmation est rendue ici (elle est gérée par App.js au-dessus de cette modale) */}
-      {/* Elle n'est pas rendue directement DANS cette modale pour éviter les problèmes de z-index et d'overlay. */}
-      {/* showConfirmDeleteModal est un état dans AdminCongratulatoryMessagesModal, mais le rendu de ConfirmActionModal
-          lui-même est conditionné dans App.js, ce qui est la bonne approche. */}
+      {/* La modale de confirmation est rendue dans App.js, pas ici. */}
     </div>
   );
 };

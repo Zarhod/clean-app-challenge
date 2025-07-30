@@ -10,6 +10,8 @@
 // Correction des dépendances manquantes dans useCallback pour résoudre les erreurs de compilation CI.
 // Amélioration du graphique de statistiques des tâches.
 // Correction des problèmes de boutons de profil et d'affichage d'avatar.
+// Correction des erreurs no-undef dans UserContext.js.
+// Correction des avertissements ESLint 'exhaustive-deps' et 'no-unused-vars'.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -37,7 +39,8 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
 // Importations Firebase
-import { db, auth } from './firebase'; 
+// db et auth sont maintenant importés depuis UserContext, mais on les garde pour les types ou si d'autres fonctions les appellent directement
+// Pour les opérations Firestore, utilisez db et auth du useUser() hook.
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, writeBatch, onSnapshot } from 'firebase/firestore'; 
 import { signOut } from 'firebase/auth';
 
@@ -79,7 +82,7 @@ const calculateLevelAndXP = (currentXP) => {
 function AppContent() { 
   // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
-  const { currentUser, isAdmin, loadingUser, setCurrentUser } = useUser(); // Récupère setCurrentUser du contexte
+  const { currentUser, isAdmin, loadingUser, db, auth, setCurrentUser } = useUser(); // Récupère db et auth du contexte
 
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
@@ -187,6 +190,7 @@ function AppContent() {
   // Synchronise selectedParticipantProfile si c'est le profil de l'utilisateur actuel
   useEffect(() => {
     if (currentUser && selectedParticipantProfile && selectedParticipantProfile.id === currentUser.uid) {
+      // Met à jour selectedParticipantProfile avec les dernières données de currentUser
       setSelectedParticipantProfile({ ...currentUser });
     }
   }, [currentUser, selectedParticipantProfile]);
@@ -290,7 +294,7 @@ function AppContent() {
       }
     });
     return unsubscribe;
-  }, [auth]); // Ajout de auth comme dépendance
+  }, [db, auth]); 
 
   const setupRealisationsListener = useCallback(() => {
     const q = query(collection(db, 'realizations')); 
@@ -305,7 +309,7 @@ function AppContent() {
       }
     });
     return unsubscribe;
-  }, [auth]); // Ajout de auth comme dépendance
+  }, [db, auth]); 
 
   const setupClassementListener = useCallback(() => {
     const usersUnsubscribe = onSnapshot(collection(db, "users"), (usersSnapshot) => {
@@ -385,7 +389,7 @@ function AppContent() {
       }
     });
     return usersUnsubscribe; 
-  }, [auth]); // Ajout de auth comme dépendance
+  }, [db, auth]); 
 
   const setupObjectivesListener = useCallback(() => {
     const q = query(collection(db, 'objectives')); 
@@ -399,7 +403,7 @@ function AppContent() {
       }
     });
     return unsubscribe;
-  }, [auth]); // Ajout de auth comme dépendance
+  }, [db, auth]); 
 
   const setupCongratulatoryMessagesListener = useCallback(() => {
     const q = query(collection(db, 'congratulatory_messages')); 
@@ -414,7 +418,7 @@ function AppContent() {
       }
     });
     return unsubscribe;
-  }, [auth]); // Ajout de auth comme dépendance
+  }, [db, auth]); 
 
   const setupHistoricalPodiumsListener = useCallback(() => {
     const q = query(collection(db, 'historical_podiums')); 
@@ -428,7 +432,7 @@ function AppContent() {
       }
     });
     return unsubscribe;
-  }, [auth]); // Ajout de auth comme dépendance
+  }, [db, auth]); 
 
   const setupReportsListener = useCallback(() => {
     const q = query(collection(db, 'reports')); 
@@ -442,7 +446,7 @@ function AppContent() {
       }
     });
     return unsubscribe;
-  }, [auth]); // Ajout de auth comme dépendance
+  }, [db, auth]); 
 
   // Effet principal pour gérer les écouteurs en temps réel et l'état de chargement global
   useEffect(() => {
@@ -462,13 +466,16 @@ function AppContent() {
     };
 
     if (!loadingUser && currentUser) {
-      unsubscribes.push(setupTasksListener());
-      unsubscribes.push(setupRealisationsListener());
-      unsubscribes.push(setupClassementListener());
-      unsubscribes.push(setupObjectivesListener());
-      unsubscribes.push(setupCongratulatoryMessagesListener());
-      unsubscribes.push(setupHistoricalPodiumsListener());
-      unsubscribes.push(setupReportsListener());
+      // S'assurer que db et auth sont disponibles avant de setup les listeners
+      if (db && auth) {
+        unsubscribes.push(setupTasksListener());
+        unsubscribes.push(setupRealisationsListener());
+        unsubscribes.push(setupClassementListener());
+        unsubscribes.push(setupObjectivesListener());
+        unsubscribes.push(setupCongratulatoryMessagesListener());
+        unsubscribes.push(setupHistoricalPodiumsListener());
+        unsubscribes.push(setupReportsListener());
+      }
 
       setTimeout(checkInitialLoad, 500); 
 
@@ -493,7 +500,7 @@ function AppContent() {
       Object.keys(currentInitialLoadStatusRef).forEach(key => currentInitialLoadStatusRef[key] = false);
     };
   }, [
-    currentUser, loadingUser, db, auth, // Ajout de db et auth comme dépendances pour s'assurer que les listeners sont recréés si ces objets changent
+    currentUser, loadingUser, // db et auth ne sont plus des dépendances directes ici.
     setupTasksListener, setupRealisationsListener, setupClassementListener,
     setupObjectivesListener, setupCongratulatoryMessagesListener, setupHistoricalPodiumsListener,
     setupReportsListener
@@ -502,7 +509,7 @@ function AppContent() {
   // Deuxième useEffect: Calcul et affichage du récapitulatif hebdomadaire
   useEffect(() => {
     const handleRecapLogic = async () => {
-      if (currentUser && realisations.length > 0 && historicalPodiums.length > 0) { 
+      if (currentUser && realisations.length > 0 && historicalPodiums.length > 0 && db) { 
         const today = new Date();
         const currentDayOfWeek = today.getDay(); 
         const currentMonday = new Date(today);
@@ -537,7 +544,7 @@ function AppContent() {
     realisations, 
     historicalPodiums, 
     calculateWeeklyRecap,
-    db // Ajout de db comme dépendance
+    db // Maintenu car il est utilisé dans le corps de l'effet pour les opérations Firestore
   ]);
 
 
@@ -567,7 +574,7 @@ function AppContent() {
     } finally {
       setLoading(false);
     }
-  }, [setParticipantWeeklyTasks, setLoading, db]); // Ajout de db comme dépendance
+  }, [setParticipantWeeklyTasks, setLoading, db]); 
 
   const fetchSubTasks = useCallback(async (parentTaskId) => {
     setLoading(true); 
@@ -598,7 +605,7 @@ function AppContent() {
     } finally {
       setLoading(false);
     }
-  }, [setSubTasks, setLoading, db]); // Ajout de db comme dépendance
+  }, [setSubTasks, setLoading, db]); 
 
   const fetchGlobalCollectionDocs = useCallback(async (collectionName) => {
     setLoadingGlobalCollectionDocs(true);
@@ -614,7 +621,7 @@ function AppContent() {
     } finally {
       setLoadingGlobalCollectionDocs(false);
     }
-  }, [db]); // Ajout de db comme dépendance
+  }, [db]); 
 
   const recordTask = async (idTacheToRecord, isSubTask = false) => {
     if (!currentUser) {
@@ -961,7 +968,7 @@ function AppContent() {
       setShowDeleteConfirmModal(false); 
       setTaskToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete, db]); // Ajout de db comme dépendance
+  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete, db]);
 
   const handleObjectiveFormChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -1049,7 +1056,7 @@ function AppContent() {
       setShowDeleteObjectiveConfirmModal(false); 
       setObjectiveToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete, db]); // Ajout de db comme dépendance
+  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete, db]);
 
   const handleReportClick = (taskRealisation) => {
     if (!currentUser) {
@@ -1163,7 +1170,7 @@ function AppContent() {
     } else {
       toast.error("Profil utilisateur introuvable.");
     }
-  }, [fetchParticipantWeeklyTasks, db]); // Ajout de db comme dépendance
+  }, [fetchParticipantWeeklyTasks, db]);
 
   const isSubTaskAvailable = useCallback((subTask) => {
     const frequence = subTask.Frequence ? String(subTask.Frequence).toLowerCase() : 'hebdomadaire';
@@ -2281,7 +2288,7 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal]); // showAdminObjectivesListModal est déjà dans les dépendances de useCallback si utilisé à l'intérieur de la fonction
+  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal]); 
 
   const renderAdminTasksListModal = useCallback(() => {
     if (!showAdminTasksListModal) return null;
@@ -2348,7 +2355,7 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal]); // showAdminTasksListModal est déjà dans les dépendances de useCallback si utilisé à l'intérieur de la fonction
+  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal]); 
 
   const renderGlobalDataViewModal = useCallback(() => {
     if (!showGlobalDataViewModal) return null;
