@@ -64,7 +64,7 @@ export const UserProvider = ({ children }) => {
               displayName: user.displayName || user.email.split('@')[0],
               email: user.email,
               isAdmin: false,
-              avatar: '�',
+              avatar: '👤',
               weeklyPoints: 0,
               totalCumulativePoints: 0,
               previousWeeklyPoints: 0,
@@ -132,4 +132,3 @@ export const UserProvider = ({ children }) => {
     </UserContext.Provider>
   );
 };
-�
