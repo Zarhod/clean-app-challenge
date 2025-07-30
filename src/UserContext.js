@@ -11,22 +11,45 @@ const UserContext = createContext();
 let firebaseAppInstance = null;
 let firestoreDbInstance = null;
 let firebaseAuthInstance = null;
+let firebaseInitializationError = null; // Variable pour stocker l'erreur d'initialisation
 
 try {
-  const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+  let firebaseConfig = {};
+  const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
   
-  // Procède à l'initialisation uniquement si la configuration est valide
-  // Le code s'attend à ce que __firebase_config soit fournie par l'environnement.
-  if (!getApps().length) { // Vérifie si aucune application Firebase n'a été initialisée
-    firebaseAppInstance = initializeApp(firebaseConfig);
-  } else {
-    firebaseAppInstance = getApp(); // Utilise l'application déjà initialisée
+  try {
+    // Tente de parser la configuration fournie par l'environnement (Cloudflare Pages)
+    firebaseConfig = JSON.parse(rawConfig);
+    console.log("Configuration Firebase lue depuis __firebase_config.");
+  } catch (parseError) {
+    firebaseInitializationError = new Error("Erreur de parsing de __firebase_config. Assurez-vous que c'est un JSON valide.");
+    console.error(firebaseInitializationError.message, parseError);
   }
-  firestoreDbInstance = getFirestore(firebaseAppInstance);
-  firebaseAuthInstance = getAuth(firebaseAppInstance);
+
+  // Si une erreur de parsing n'est pas survenue, vérifie la validité de la configuration
+  if (!firebaseInitializationError) {
+    if (!firebaseConfig.projectId || !firebaseConfig.apiKey || !firebaseConfig.authDomain) {
+      firebaseInitializationError = new Error(
+        "CRITIQUE : La configuration Firebase fournie par l'environnement est incomplète. " +
+        "La variable globale '__firebase_config' doit contenir un objet JSON valide avec au moins 'projectId', 'apiKey' et 'authDomain'."
+      );
+      console.error(firebaseInitializationError.message);
+    } else {
+      // Procède à l'initialisation uniquement si la configuration est valide
+      if (!getApps().length) { // Vérifie si aucune application Firebase n'a été initialisée
+        firebaseAppInstance = initializeApp(firebaseConfig);
+      } else {
+        firebaseAppInstance = getApp(); // Utilise l'application déjà initialisée
+      }
+      firestoreDbInstance = getFirestore(firebaseAppInstance);
+      firebaseAuthInstance = getAuth(firebaseAppInstance);
+      console.log("Firebase initialisé avec succès.");
+    }
+  }
 
 } catch (error) {
-  console.error("Erreur critique lors de l'initialisation de l'application Firebase :", error);
+  firebaseInitializationError = new Error(`Erreur critique lors de l'initialisation de l'application Firebase : ${error.message}`);
+  console.error(firebaseInitializationError.message, error);
   // S'assure que les instances sont nulles si une erreur se produit pendant cette étape critique
   firebaseAppInstance = null;
   firestoreDbInstance = null;
@@ -37,7 +60,7 @@ export const useUser = () => useContext(UserContext);
 
 export const UserProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(true); // Default to true for admin access
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
   
   // Utilise directement les instances au niveau du module. Elles sont garanties d'être les mêmes
@@ -46,9 +69,16 @@ export const UserProvider = ({ children }) => {
   const auth = firebaseAuthInstance;
 
   useEffect(() => {
+    // Si Firebase n'a pas pu être initialisé au niveau du module, gère cela ici
+    if (firebaseInitializationError) {
+      console.error("Impossible de procéder à l'authentification :", firebaseInitializationError.message);
+      setLoadingUser(false);
+      return;
+    }
+
     // Si les instances Firebase ne sont pas disponibles (en raison d'une erreur de configuration), arrête le chargement et retourne
     if (!auth || !db) {
-      console.error("Firebase instances are not available. Impossible de procéder à l'authentification.");
+      console.error("Firebase instances sont nulles. Impossible de procéder à l'authentification.");
       setLoadingUser(false);
       return;
     }
