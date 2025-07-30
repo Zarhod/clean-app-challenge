@@ -1,8 +1,8 @@
 // src/UserContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore'; // Importez setDoc ici
-import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { initializeApp, getApps, getApp } from 'firebase/app'; // Importez getApps et getApp
 
 const UserContext = createContext();
 
@@ -14,12 +14,19 @@ export const UserProvider = ({ children }) => {
   const [auth, setAuth] = useState(null);
 
   useEffect(() => {
-    // Initialisation de Firebase
-    // Accéder aux variables globales via window.
-    const firebaseConfig = typeof window.__firebase_config !== 'undefined' ? JSON.parse(window.__firebase_config) : {};
-    const app = initializeApp(firebaseConfig);
-    const firestoreDb = getFirestore(app);
-    const firebaseAuth = getAuth(app);
+    let firebaseApp;
+    // Vérifier si une application Firebase par défaut existe déjà
+    if (!getApps().length) {
+      // Si aucune application n'existe, l'initialiser
+      const firebaseConfig = typeof window.__firebase_config !== 'undefined' ? JSON.parse(window.__firebase_config) : {};
+      firebaseApp = initializeApp(firebaseConfig);
+    } else {
+      // Si une application existe déjà, la récupérer
+      firebaseApp = getApp();
+    }
+
+    const firestoreDb = getFirestore(firebaseApp);
+    const firebaseAuth = getAuth(firebaseApp);
 
     setDb(firestoreDb);
     setAuth(firebaseAuth);
@@ -54,7 +61,7 @@ export const UserProvider = ({ children }) => {
           setCurrentUser({
             uid: user.uid,
             email: user.email,
-            displayName: user.displayName || userData.displayName || user.email,
+            displayName: userData.displayName || user.email, // Utiliser userData.displayName si disponible
             avatar: userData.avatar || '👤',
             isAdmin: userData.isAdmin || false,
             weeklyPoints: userData.weeklyPoints || 0,
@@ -79,7 +86,6 @@ export const UserProvider = ({ children }) => {
     });
 
     // Tentative de connexion avec le token personnalisé si disponible
-    // Accéder à la variable globale via window.
     const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
 
     const signInWithToken = async () => {
