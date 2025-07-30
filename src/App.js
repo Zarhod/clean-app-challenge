@@ -25,7 +25,7 @@ import ListAndInfoModal from './ListAndInfoModal';
 import RankingCard from './RankingCard'; 
 import OverallRankingModal from './OverallRankingModal'; 
 import ReportTaskModal from './ReportTaskModal'; 
-import AuthModal from './Auth'; 
+import AuthModal from './AuthModal'; // Assurez-vous que le chemin est correct
 import AdminUserManagementModal from './AdminUserManagementModal'; 
 import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; 
 import WeeklyRecapModal from './WeeklyRecapModal'; 
@@ -500,7 +500,7 @@ function AppContent() {
       Object.keys(currentInitialLoadStatusRef).forEach(key => currentInitialLoadStatusRef[key] = false);
     };
   }, [
-    currentUser, loadingUser, db, auth, // Ajout de db et auth ici pour satisfaire ESLint
+    currentUser, loadingUser, db, auth, 
     setupTasksListener, setupRealisationsListener, setupClassementListener,
     setupObjectivesListener, setupCongratulatoryMessagesListener, setupHistoricalPodiumsListener,
     setupReportsListener
@@ -2288,7 +2288,7 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal, showAdminObjectivesListModal]); // Ajout de showAdminObjectivesListModal
+  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal, showAdminObjectivesListModal]); 
 
   const renderAdminTasksListModal = useCallback(() => {
     if (!showAdminTasksListModal) return null;
@@ -2355,7 +2355,7 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal, showAdminTasksListModal]); // Ajout de showAdminTasksListModal
+  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal, showAdminTasksListModal]); 
 
   const renderGlobalDataViewModal = useCallback(() => {
     if (!showGlobalDataViewModal) return null;
@@ -2654,7 +2654,7 @@ function AppContent() {
             Veuillez vous connecter ou créer un compte pour accéder à toutes les fonctionnalités de l'application.
           </p>
           <button
-            onClick={() => setShowAuthModal(true)}
+            onClick={() => setShowAuthModal(true)} // <-- Ce bouton doit bien mettre l'état à true
             className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-6 rounded-full shadow-lg 
                        transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
           >
@@ -2672,6 +2672,9 @@ function AppContent() {
           draggable
           pauseOnHover
         />
+        {showAuthModal && ( // <-- La modale doit être rendue si showAuthModal est true
+          <AuthModal onClose={() => setShowAuthModal(false)} />
+        )}
       </div>
     );
   }
