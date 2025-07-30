@@ -1,6 +1,6 @@
 // src/UserContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 import { initializeApp, getApps, getApp } from 'firebase/app'; // Importez getApps et getApp
 
@@ -31,6 +31,7 @@ export const UserProvider = ({ children }) => {
     setDb(firestoreDb);
     setAuth(firebaseAuth);
 
+    // Écouteur pour les changements d'état d'authentification
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
       if (user) {
         try {
@@ -42,6 +43,8 @@ export const UserProvider = ({ children }) => {
             userData = userDocSnap.data();
           } else {
             // Si le document utilisateur n'existe pas, le créer
+            // Assurez-vous que l'utilisateur est bien authentifié (non anonyme) avant de créer un document
+            // Dans ce contexte, si on arrive ici, c'est que signInWithCustomToken a réussi.
             await setDoc(userDocRef, {
               displayName: user.displayName || user.email,
               email: user.email,
@@ -79,39 +82,34 @@ export const UserProvider = ({ children }) => {
           setIsAdmin(false);
         }
       } else {
+        // Si aucun utilisateur n'est connecté (après déconnexion ou si le token n'a pas fonctionné)
         setCurrentUser(null);
         setIsAdmin(false);
       }
-      setLoadingUser(false);
+      setLoadingUser(false); // L'état de chargement est toujours défini à la fin
     });
 
     // Tentative de connexion avec le token personnalisé si disponible
     const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
 
-    const signInWithToken = async () => {
+    const attemptCustomTokenSignIn = async () => {
       if (initialAuthToken && firebaseAuth) {
         try {
           await signInWithCustomToken(firebaseAuth, initialAuthToken);
+          // onAuthStateChanged gérera la mise à jour de l'état currentUser et isAdmin
         } catch (error) {
-          console.error("Erreur de connexion avec le token personnalisé:", error);
-          // Fallback vers l'authentification anonyme si le token échoue
-          try {
-            await signInAnonymously(firebaseAuth);
-          } catch (anonError) {
-            console.error("Erreur de connexion anonyme:", anonError);
-          }
+          console.error("Échec de la connexion avec le token personnalisé:", error);
+          // Si le token échoue, ne pas tenter de connexion anonyme.
+          // onAuthStateChanged sera appelé avec user=null, ce qui affichera la modale d'authentification.
         }
-      } else if (firebaseAuth && !firebaseAuth.currentUser) {
-        // Si aucun token n'est disponible et pas déjà connecté, se connecter anonymement
-        try {
-          await signInAnonymously(firebaseAuth);
-        } catch (anonError) {
-          console.error("Erreur de connexion anonyme:", anonError);
-        }
+      } else {
+        // Si aucun token initial n'est fourni, ne rien faire.
+        // onAuthStateChanged sera appelé avec user=null, ce qui affichera la modale d'authentification.
+        setLoadingUser(false); // S'assurer que loadingUser est false pour permettre l'affichage de l'UI de connexion
       }
     };
 
-    signInWithToken();
+    attemptCustomTokenSignIn();
 
     return () => unsubscribe(); // Nettoyage de l'écouteur d'authentification
   }, []); // Dépendances vides pour n'exécuter qu'une fois à l'initialisation
