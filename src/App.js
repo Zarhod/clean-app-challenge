@@ -25,7 +25,7 @@ import ListAndInfoModal from './ListAndInfoModal';
 import RankingCard from './RankingCard'; 
 import OverallRankingModal from './OverallRankingModal'; 
 import ReportTaskModal from './ReportTaskModal'; 
-import AuthModal from './AuthModal'; // Assurez-vous que le chemin est correct
+import AuthModal from './AuthModal'; 
 import AdminUserManagementModal from './AdminUserManagementModal'; 
 import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; 
 import WeeklyRecapModal from './WeeklyRecapModal'; 
@@ -33,14 +33,13 @@ import TaskHistoryModal from './TaskHistoryModal';
 import AvatarSelectionModal from './AvatarSelectionModal'; 
 import PasswordChangeModal from './PasswordChangeModal'; 
 import ChatFloatingButton from './ChatFloatingButton'; 
+import ProfileEditOptionsModal from './ProfileEditOptionsModal'; // Nouvelle importation
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
 // Importations Firebase
-// db et auth sont maintenant importés depuis UserContext, mais on les garde pour les types ou si d'autres fonctions les appellent directement
-// Pour les opérations Firestore, utilisez db et auth du useUser() hook.
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, writeBatch, onSnapshot } from 'firebase/firestore'; 
 import { signOut } from 'firebase/auth';
 
@@ -147,6 +146,7 @@ function AppContent() {
   const logoClickTimerRef = useRef(null); 
 
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showProfileEditOptionsModal, setShowProfileEditOptionsModal] = useState(false); // Nouveau state
 
   const [showGlobalDataViewModal, setShowGlobalDataViewModal] = useState(false);
   const [selectedGlobalCollection, setSelectedGlobalCollection] = useState(null);
@@ -1160,6 +1160,15 @@ function AppContent() {
 
 
   const handleParticipantClick = useCallback(async (participant) => {
+    // Si le participant cliqué est l'utilisateur actuellement connecté
+    if (currentUser && String(participant.Nom_Participant || '').trim() === String(currentUser.displayName || currentUser.email).trim()) {
+      setSelectedParticipantProfile(currentUser); // Utilise directement currentUser qui est déjà à jour
+      setActiveMainView('participantProfile');
+      await fetchParticipantWeeklyTasks(currentUser.displayName || currentUser.email);
+      return;
+    }
+
+    // Sinon, chercher le profil d'un autre participant
     const usersQuery = query(collection(db, "users"), where("displayName", "==", participant.Nom_Participant));
     const usersSnapshot = await getDocs(usersQuery);
     if (!usersSnapshot.empty) {
@@ -1170,7 +1179,7 @@ function AppContent() {
     } else {
       toast.error("Profil utilisateur introuvable.");
     }
-  }, [fetchParticipantWeeklyTasks, db]);
+  }, [fetchParticipantWeeklyTasks, db, currentUser]); // Ajout de currentUser aux dépendances
 
   const isSubTaskAvailable = useCallback((subTask) => {
     const frequence = subTask.Frequence ? String(subTask.Frequence).toLowerCase() : 'hebdomadaire';
@@ -1809,7 +1818,7 @@ function AppContent() {
     if (!showThankYouPopup) return null; 
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4"> 
+      <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4"> 
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto"> 
           <h3 className="text-3xl sm:text-4xl font-bold text-success mb-6 sm:mb-8">🎉 Bravo ! 🎉</h3> 
           <p className="text-lg sm:text-xl text-text mb-6 sm:mb-8">
@@ -1833,7 +1842,7 @@ function AppContent() {
   const renderTaskDialog = () => {
     if (!selectedTask || selectedTask.isGroupTask) return null; 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4"> 
+      <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4"> 
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto"> 
           <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">Confirmer la Tâche</h3> 
           <p className="text-base sm:text-lg mb-4">Tâche: <strong className="text-text">{selectedTask.Nom_Tache}</strong> (<span className="font-semibold text-primary">{selectedTask.Calculated_Points} points</span>)</p>
@@ -1898,7 +1907,7 @@ function AppContent() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4"> 
+      <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4"> 
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto"> 
           <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">
             Terminer: {selectedTask.Nom_Tache}
@@ -2022,18 +2031,12 @@ function AppContent() {
             Points Cumulatifs: <span className="font-bold">{participantCumulativePoints}</span>
           </p>
           {currentUser && selectedParticipantProfile.id === currentUser.uid && (
-            <div className="flex flex-col sm:flex-row justify-center gap-3 mt-4">
+            <div className="flex justify-center mt-4">
               <button
-                onClick={() => setShowAvatarSelectionModal(true)}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1 px-2 rounded-md transition duration-300 text-xs flex-1"
+                onClick={() => setShowProfileEditOptionsModal(true)} // Ouvre la nouvelle modale
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1 px-3 rounded-md transition duration-300 text-sm flex items-center gap-1"
               >
-                Changer mon Avatar
-              </button>
-              <button
-                onClick={() => setShowPasswordChangeModal(true)}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1 px-2 rounded-md transition duration-300 text-xs flex-1"
-              >
-                Changer mon Mot de Passe
+                ✏️ Modifier le Profil
               </button>
             </div>
           )}
@@ -2654,7 +2657,7 @@ function AppContent() {
             Veuillez vous connecter ou créer un compte pour accéder à toutes les fonctionnalités de l'application.
           </p>
           <button
-            onClick={() => setShowAuthModal(true)} // <-- Ce bouton doit bien mettre l'état à true
+            onClick={() => setShowAuthModal(true)} 
             className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-6 rounded-full shadow-lg 
                        transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
           >
@@ -2672,7 +2675,7 @@ function AppContent() {
           draggable
           pauseOnHover
         />
-        {showAuthModal && ( // <-- La modale doit être rendue si showAuthModal est true
+        {showAuthModal && ( 
           <AuthModal onClose={() => setShowAuthModal(false)} />
         )}
       </div>
@@ -2921,6 +2924,14 @@ function AppContent() {
               setShowTaskHistoryModal(false);
               setTaskHistoryTaskId(null);
             }}
+          />
+        )}
+
+        {showProfileEditOptionsModal && currentUser && ( // Nouvelle modale pour les options de profil
+          <ProfileEditOptionsModal
+            onClose={() => setShowProfileEditOptionsModal(false)}
+            onOpenAvatar={() => { setShowAvatarSelectionModal(true); setShowProfileEditOptionsModal(false); }}
+            onOpenPassword={() => { setShowPasswordChangeModal(true); setShowProfileEditOptionsModal(false); }}
           />
         )}
 
