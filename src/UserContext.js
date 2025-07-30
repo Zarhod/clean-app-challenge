@@ -1,7 +1,7 @@
 // src/UserContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore'; // Importez setDoc ici
 import { initializeApp } from 'firebase/app';
 
 const UserContext = createContext();
@@ -15,7 +15,8 @@ export const UserProvider = ({ children }) => {
 
   useEffect(() => {
     // Initialisation de Firebase
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+    // Accéder aux variables globales via window.
+    const firebaseConfig = typeof window.__firebase_config !== 'undefined' ? JSON.parse(window.__firebase_config) : {};
     const app = initializeApp(firebaseConfig);
     const firestoreDb = getFirestore(app);
     const firebaseAuth = getAuth(app);
@@ -78,10 +79,13 @@ export const UserProvider = ({ children }) => {
     });
 
     // Tentative de connexion avec le token personnalisé si disponible
+    // Accéder à la variable globale via window.
+    const initialAuthToken = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
+
     const signInWithToken = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && firebaseAuth) {
+      if (initialAuthToken && firebaseAuth) {
         try {
-          await signInWithCustomToken(firebaseAuth, __initial_auth_token);
+          await signInWithCustomToken(firebaseAuth, initialAuthToken);
         } catch (error) {
           console.error("Erreur de connexion avec le token personnalisé:", error);
           // Fallback vers l'authentification anonyme si le token échoue
