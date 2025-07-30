@@ -42,7 +42,7 @@ const ChatModal = ({ currentUser, onClose }) => {
       await addDoc(collection(db, 'chat_messages'), {
         userId: currentUser.uid,
         userName: currentUser.displayName || currentUser.email,
-        userAvatar: currentUser.avatar || '👤',
+        userAvatar: currentUser.avatar || '👤', // Conserve l'avatar dans la BDD au cas où vous voudriez l'afficher plus tard
         text: newMessage,
         timestamp: serverTimestamp() // Utilise le timestamp du serveur
       });
@@ -54,6 +54,7 @@ const ChatModal = ({ currentUser, onClose }) => {
   };
 
   return (
+    // z-index: 50 pour la modale principale du chat
     <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
       <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md md:max-w-lg lg:max-w-xl text-center animate-fade-in-scale border border-primary/20 mx-auto flex flex-col h-[80vh]">
         <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-4">Chat Communautaire 💬</h3>
@@ -67,15 +68,13 @@ const ChatModal = ({ currentUser, onClose }) => {
                 key={msg.id}
                 className={`flex items-start mb-3 ${msg.userId === currentUser.uid ? 'justify-end' : 'justify-start'}`}
               >
-                {msg.userId !== currentUser.uid && (
-                  <span className="text-2xl mr-2 flex-shrink-0">{msg.userAvatar || '👤'}</span>
-                )}
+                {/* Avatar supprimé ici pour une interface plus épurée */}
                 <div
                   className={`p-3 rounded-lg max-w-[75%] ${
                     msg.userId === currentUser.uid
-                      ? 'bg-primary text-white rounded-br-none'
-                      : 'bg-white text-text rounded-bl-none border border-gray-200'
-                  }`}
+                      ? 'bg-primary text-white rounded-tr-none' // Bulle de l'utilisateur actuel
+                      : 'bg-white text-text rounded-tl-none border border-gray-200' // Bulle des autres utilisateurs
+                  } shadow-md`}
                 >
                   <p className="font-semibold text-sm mb-1">
                     {msg.userId === currentUser.uid ? 'Vous' : msg.userName}
@@ -87,9 +86,6 @@ const ChatModal = ({ currentUser, onClose }) => {
                     </span>
                   )}
                 </div>
-                {msg.userId === currentUser.uid && (
-                  <span className="text-2xl ml-2 flex-shrink-0">{msg.userAvatar || '👤'}</span>
-                )}
               </div>
             ))
           )}

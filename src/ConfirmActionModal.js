@@ -12,7 +12,8 @@ const ConfirmActionModal = ({
   confirmButtonClass = 'bg-primary hover:bg-secondary', // Default Tailwind classes
 }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4"> {/* z-index élevé */}
+    // z-index: 1000 pour être toujours au-dessus
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4">
       <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto">
         <h3 className="text-2xl sm:text-3xl font-bold text-error mb-6">{title}</h3>
         <p className="text-base sm:text-lg mb-8 text-text">{message}</p>

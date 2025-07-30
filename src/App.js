@@ -7,6 +7,7 @@
 // Améliorations de l'affichage du profil utilisateur, des modales et suppression des logs.
 // Intégration d'une fonctionnalité de chat simple avec bouton flottant.
 // Correction des problèmes de z-index et d'affichage des modales.
+// Correction des dépendances manquantes dans useCallback pour résoudre les erreurs de compilation CI.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -939,7 +940,7 @@ function AppContent() {
       setShowDeleteConfirmModal(false); 
       setTaskToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete]); // Supprimé setShowAdminTasksListModal du tableau de dépendances
+  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete]);
 
   const handleObjectiveFormChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -1027,7 +1028,7 @@ function AppContent() {
       setShowDeleteObjectiveConfirmModal(false); 
       setObjectiveToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete]); // Supprimé setShowAdminObjectivesListModal du tableau de dépendances
+  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete]);
 
   const handleReportClick = (taskRealisation) => {
     if (!currentUser) {
@@ -2071,7 +2072,7 @@ function AppContent() {
   };
 
   const renderDeleteConfirmModal = () => {
-    if (!showDeleteConfirmModal || !taskToDelete) return null;
+    if (!showDeleteConfirmModal || taskToDelete === null) return null; // Vérifie explicitement null
 
     return (
       <ConfirmActionModal
@@ -2088,7 +2089,7 @@ function AppContent() {
   };
 
   const renderDeleteObjectiveConfirmModal = () => {
-    if (!showDeleteObjectiveConfirmModal || !objectiveToDelete) return null;
+    if (!showDeleteObjectiveConfirmModal || objectiveToDelete === null) return null; // Vérifie explicitement null
 
     return (
       <ConfirmActionModal
@@ -2229,7 +2230,7 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal]);
+  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal, showAdminObjectivesListModal]);
 
   const renderAdminTasksListModal = useCallback(() => {
     if (!showAdminTasksListModal) return null;
@@ -2296,7 +2297,7 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal]);
+  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal, showAdminTasksListModal]);
 
   const renderGlobalDataViewModal = useCallback(() => {
     if (!showGlobalDataViewModal) return null;
