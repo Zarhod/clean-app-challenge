@@ -7,39 +7,62 @@ import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestor
 
 const UserContext = createContext();
 
-// Initialize Firebase app once at the module level
+// Initialise l'application Firebase une seule fois au niveau du module
 let firebaseApp;
 let firestoreDbInstance;
 let firebaseAuthInstance;
 
 try {
+  let firebaseConfig;
   const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
-  const firebaseConfig = JSON.parse(rawConfig);
-
-  // --- Validation de la configuration Firebase ---
-  if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
-    console.error(
-      "Critical Firebase configuration error: 'projectId' or 'apiKey' is missing in __firebase_config. " +
-      "Please ensure your environment provides a complete Firebase configuration. " +
-      "Firebase services will not function correctly without it."
-    );
-    // Set instances to null if config is invalid to prevent further errors
-    firebaseApp = null;
-    firestoreDbInstance = null;
-    firebaseAuthInstance = null;
-  } else {
-    // Proceed with initialization only if config is valid
-    if (!getApps().length) { // Check if no Firebase app has been initialized yet
-      firebaseApp = initializeApp(firebaseConfig);
-    } else {
-      firebaseApp = getApp(); // Use the already initialized app
+  
+  try {
+    firebaseConfig = JSON.parse(rawConfig);
+    // Si la configuration parsée est vide ou manque des clés critiques, on force l'utilisation du fallback
+    if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
+      throw new Error("La configuration Firebase parsée est incomplète ou vide.");
     }
-    firestoreDbInstance = getFirestore(firebaseApp);
-    firebaseAuthInstance = getAuth(firebaseApp);
+  } catch (parseError) {
+    console.warn("Impossible de parser __firebase_config ou elle est incomplète. Utilisation de la configuration de secours codée en dur. Erreur:", parseError);
+    // --- CONFIGURATION FIREBASE OBLIGATOIRE ---
+    // VOUS DEVEZ REMPLACER CES VALEURS PAR LES INFORMATIONS RÉELLES DE VOTRE PROJET FIREBASE.
+    // Vous trouverez ces informations dans la console Firebase > Paramètres du projet > Vos applications.
+    firebaseConfig = {
+      apiKey: "AIzaSyDs0UtfVH2UIhAi5gDFF7asrNmVwQF03sw",
+      authDomain: "clean-app-challenge.firebaseapp.com",
+      projectId: "clean-app-challenge",
+      storageBucket: "clean-app-challenge.firebasestorage.app",
+      messagingSenderId: "689290653968",
+      appId: "1:689290653968:web:c55ebf0cc8efcef35b7595"
+    };
+    // --- FIN DE LA CONFIGURATION FIREBASE OBLIGATOIRE ---
+
+    if (firebaseConfig.projectId === "VOTRE_FIREBASE_PROJECT_ID" || firebaseConfig.apiKey === "VOTRE_FIREBASE_API_KEY") {
+      console.error(
+        "ERREUR CRITIQUE : La configuration Firebase utilise toujours les placeholders. " +
+        "Veuillez remplacer 'VOTRE_FIREBASE_PROJECT_ID', 'VOTRE_FIREBASE_API_KEY', etc., par les détails réels de votre projet Firebase. " +
+        "L'application ne fonctionnera pas correctement sans cela."
+      );
+      // Empêche l'initialisation si les placeholders sont encore présents
+      firebaseApp = null;
+      firestoreDbInstance = null;
+      firebaseAuthInstance = null;
+      return; // Sort du bloc try
+    }
   }
+
+  // Procède à l'initialisation uniquement si la configuration est valide et ne contient pas de placeholders
+  if (!getApps().length) { // Vérifie si aucune application Firebase n'a été initialisée
+    firebaseApp = initializeApp(firebaseConfig);
+  } else {
+    firebaseApp = getApp(); // Utilise l'application déjà initialisée
+  }
+  firestoreDbInstance = getFirestore(firebaseApp);
+  firebaseAuthInstance = getAuth(firebaseApp);
+
 } catch (error) {
-  console.error("Critical Firebase initialization error during parsing or app creation:", error);
-  // Ensure instances are null if any error occurs during this critical step
+  console.error("Erreur critique lors de l'initialisation de l'application Firebase :", error);
+  // S'assure que les instances sont nulles si une erreur se produit pendant cette étape critique
   firebaseApp = null;
   firestoreDbInstance = null;
   firebaseAuthInstance = null;
@@ -52,20 +75,20 @@ export const UserProvider = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
   
-  // Directly use the module-level instances. These are guaranteed to be the same
-  // across renders and won't cause re-initialization issues.
+  // Utilise directement les instances au niveau du module. Elles sont garanties d'être les mêmes
+  // entre les rendus et ne causeront pas de problèmes de réinitialisation.
   const db = firestoreDbInstance;
   const auth = firebaseAuthInstance;
 
   useEffect(() => {
-    // If Firebase initialization failed at module level, handle it gracefully
+    // Si l'initialisation de Firebase a échoué au niveau du module, gère cela gracieusement
     if (!auth || !db) {
-      console.error("Firebase instances are not available. Cannot proceed with authentication.");
-      setLoadingUser(false); // Stop loading, but indicate an error state
+      console.error("Les instances Firebase ne sont pas disponibles. Impossible de procéder à l'authentification.");
+      setLoadingUser(false); // Arrête le chargement, mais indique un état d'erreur
       return;
     }
 
-    // This effect handles initial authentication and sets up the auth state listener.
+    // Cet effet gère l'authentification initiale et configure l'écouteur d'état d'authentification.
     const setupAuthAndUser = async () => {
       try {
         const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -76,7 +99,7 @@ export const UserProvider = ({ children }) => {
           await signInAnonymously(auth);
         }
 
-        // Set up the onAuthStateChanged listener
+        // Configure l'écouteur onAuthStateChanged
         const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
           if (user) {
             const userDocRef = doc(db, 'users', user.uid);
@@ -100,7 +123,7 @@ export const UserProvider = ({ children }) => {
               });
               setIsAdmin(userData.isAdmin || false);
             } else {
-              // Create a new user document if it doesn't exist (e.g., first login, or migration)
+              // Crée un nouveau document utilisateur s'il n'existe pas (par exemple, première connexion ou migration)
               const newUserData = {
                 displayName: user.displayName || user.email.split('@')[0],
                 email: user.email,
@@ -119,23 +142,23 @@ export const UserProvider = ({ children }) => {
               setIsAdmin(false);
             }
           } else {
-            // No user is signed in
+            // Aucun utilisateur n'est connecté
             setCurrentUser(null);
             setIsAdmin(false);
           }
-          setLoadingUser(false); // Authentication state has been determined
+          setLoadingUser(false); // L'état d'authentification a été déterminé
         });
 
-        return unsubscribeAuth; // Return the unsubscribe function for cleanup
+        return unsubscribeAuth; // Retourne la fonction de désabonnement pour le nettoyage
       } catch (error) {
-        console.error("Firebase authentication setup error:", error);
-        setLoadingUser(false); // Stop loading on error
+        console.error("Erreur de configuration de l'authentification Firebase :", error);
+        setLoadingUser(false); // Arrête le chargement en cas d'erreur
       }
     };
 
-    const cleanup = setupAuthAndUser(); // Call the async setup function
+    const cleanup = setupAuthAndUser(); // Appelle la fonction de configuration asynchrone
     return () => {
-      // Ensure the unsubscribe function is called when the component unmounts
+      // S'assure que la fonction de désabonnement est appelée lorsque le composant est démonté
       if (typeof cleanup.then === 'function') {
         cleanup.then(unsubscribe => {
           if (unsubscribe) unsubscribe();
@@ -144,9 +167,9 @@ export const UserProvider = ({ children }) => {
         cleanup();
       }
     };
-  }, [auth, db]); // Dependencies are the module-level auth and db instances
+  }, [auth, db]); // Les dépendances sont les instances auth et db au niveau du module
 
-  // Listener for real-time updates to the current user's document
+  // Écouteur pour les mises à jour en temps réel du document utilisateur actuel
   useEffect(() => {
     if (db && currentUser?.uid) {
       const userDocRef = doc(db, 'users', currentUser.uid);
@@ -159,16 +182,16 @@ export const UserProvider = ({ children }) => {
           }));
           setIsAdmin(updatedUserData.isAdmin || false);
         } else {
-          // If the user document no longer exists (e.g., deleted by admin)
+          // Si le document utilisateur n'existe plus (par exemple, supprimé par l'administrateur)
           setCurrentUser(null);
           setIsAdmin(false);
         }
       }, (error) => {
-        console.error("Error listening to user document:", error);
+        console.error("Erreur lors de l'écoute du document utilisateur :", error);
       });
       return () => unsubscribe();
     }
-  }, [db, currentUser?.uid]); // Depends on db and currentUser.uid
+  }, [db, currentUser?.uid]); // Dépend de db et currentUser.uid
 
   const value = {
     currentUser,
