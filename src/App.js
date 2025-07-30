@@ -5,7 +5,7 @@
 // Gestion améliorée des erreurs de permission pour éviter les toasts sur la page de connexion.
 // Correction de l'erreur "TypeError: null is not iterable" dans calculateWeeklyRecap.
 // Améliorations de l'affichage du profil utilisateur, des modales et suppression des logs.
-// Intégration d'une fonctionnalité de chat simple.
+// Intégration d'une fonctionnalité de chat simple avec bouton flottant.
 // Correction des problèmes de z-index et d'affichage des modales.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -27,7 +27,7 @@ import WeeklyRecapModal from './WeeklyRecapModal';
 import TaskHistoryModal from './TaskHistoryModal'; 
 import AvatarSelectionModal from './AvatarSelectionModal'; 
 import PasswordChangeModal from './PasswordChangeModal'; 
-import ChatModal from './ChatModal'; 
+import ChatFloatingButton from './ChatFloatingButton'; // Nouvelle importation pour le bouton flottant
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -156,7 +156,7 @@ function AppContent() {
 
   const [showAvatarSelectionModal, setShowAvatarSelectionModal] = useState(false); 
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false); 
-  const [showChatModal, setShowChatModal] = useState(false); 
+  // showChatModal n'est plus géré ici, mais par ChatFloatingButton
 
   // États pour la pagination des réalisations
   const [realizationsPerPage] = useState(10);
@@ -923,7 +923,7 @@ function AppContent() {
     }
     if (!skipConfirmation) {
       setTaskToDelete(taskId);
-      setShowAdminTasksListModal(false); // Ferme la modale de liste avant d'ouvrir la confirmation
+      // Ne ferme pas la modale de liste ici, elle reste ouverte en arrière-plan
       setShowDeleteConfirmModal(true);
       return;
     }
@@ -939,7 +939,7 @@ function AppContent() {
       setShowDeleteConfirmModal(false); 
       setTaskToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete, setShowAdminTasksListModal]);
+  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete]); // Supprimé setShowAdminTasksListModal du tableau de dépendances
 
   const handleObjectiveFormChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -1011,7 +1011,7 @@ function AppContent() {
     }
     if (!skipConfirmation) {
       setObjectiveToDelete(objectiveId);
-      setShowAdminObjectivesListModal(false); // Ferme la modale de liste avant d'ouvrir la confirmation
+      // Ne ferme pas la modale de liste ici
       setShowDeleteObjectiveConfirmModal(true);
       return;
     }
@@ -1027,7 +1027,7 @@ function AppContent() {
       setShowDeleteObjectiveConfirmModal(false); 
       setObjectiveToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete, setShowAdminObjectivesListModal]);
+  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete]); // Supprimé setShowAdminObjectivesListModal du tableau de dépendances
 
   const handleReportClick = (taskRealisation) => {
     if (!currentUser) {
@@ -1042,6 +1042,7 @@ function AppContent() {
       realizationId: taskRealisation.id, 
       reportedUserId: taskRealisation.userId 
     });
+    // Ne ferme pas la modale parente ici
     setShowReportModal(true);
   };
 
@@ -2171,7 +2172,7 @@ function AppContent() {
       <ListAndInfoModal title="Gestion des Objectifs" onClose={() => setShowAdminObjectivesListModal(false)} sizeClass="max-w-full sm:max-w-md md:max-w-lg">
         <button
           onClick={() => {
-            setShowAdminObjectivesListModal(false); 
+            setShowAdminObjectivesListModal(false); // Ferme la liste avant d'ouvrir le formulaire
             setEditingObjective(null);
             setNewObjectiveData({ 
               ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '',
@@ -2205,7 +2206,7 @@ function AppContent() {
                   <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
                     <button
                       onClick={() => {
-                        setShowAdminObjectivesListModal(false); 
+                        setShowAdminObjectivesListModal(false); // Ferme la liste avant d'ouvrir le formulaire
                         setEditingObjective(obj);
                         setNewObjectiveData(obj);
                         setShowAdminObjectiveFormModal(true); 
@@ -2228,7 +2229,7 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal, showAdminObjectivesListModal]);
+  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal]);
 
   const renderAdminTasksListModal = useCallback(() => {
     if (!showAdminTasksListModal) return null;
@@ -2237,7 +2238,7 @@ function AppContent() {
       <ListAndInfoModal title="Gestion des Tâches" onClose={() => setShowAdminTasksListModal(false)} sizeClass="max-w-full sm:max-w-md md:max-w-lg">
         <button
           onClick={() => { 
-            setShowAdminTasksListModal(false); 
+            setShowAdminTasksListModal(false); // Ferme la liste avant d'ouvrir le formulaire
             setEditingTask(null); 
             setNewTaskData({ 
               ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
@@ -2272,7 +2273,7 @@ function AppContent() {
                   <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
                     <button
                       onClick={() => { 
-                        setShowAdminTasksListModal(false); 
+                        setShowAdminTasksListModal(false); // Ferme la liste avant d'ouvrir le formulaire
                         setEditingTask(task); 
                         setNewTaskData(task); 
                         setShowAdminTaskFormModal(true); 
@@ -2295,7 +2296,7 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal, showAdminTasksListModal]);
+  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal]);
 
   const renderGlobalDataViewModal = useCallback(() => {
     if (!showGlobalDataViewModal) return null;
@@ -2680,15 +2681,7 @@ function AppContent() {
                 Mon Profil
               </button>
             )}
-            {currentUser && ( 
-              <button
-                onClick={() => setShowChatModal(true)}
-                className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
-                  ${showChatModal ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
-              >
-                💬 Chat
-              </button>
-            )}
+            {/* Le bouton de chat est maintenant dans ChatFloatingButton */}
             {isAdmin && (
               <button
                 onClick={() => setActiveMainView('adminPanel')}
@@ -2892,13 +2885,9 @@ function AppContent() {
             currentUser={currentUser}
           />
         )}
-
-        {showChatModal && currentUser && ( 
-          <ChatModal
-            currentUser={currentUser}
-            onClose={() => setShowChatModal(false)}
-          />
-        )}
+        
+        {/* Le bouton flottant du chat est rendu ici */}
+        <ChatFloatingButton currentUser={currentUser} />
 
       </div>
       <ToastContainer 
