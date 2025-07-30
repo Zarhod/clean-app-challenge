@@ -1,51 +1,34 @@
 /* global __firebase_config, __initial_auth_token */
 // src/UserContext.js
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'; // Removed useCallback as it's not needed for module-level init
 import { initializeApp, getApps, getApp } from 'firebase/app'; 
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 const UserContext = createContext();
 
-// Initialise l'application Firebase une seule fois au niveau du module
-let firebaseAppInstance = null;
-let firestoreDbInstance = null;
-let firebaseAuthInstance = null;
+// Initialize Firebase app once at the module level
+let firebaseApp;
+let firestoreDbInstance;
+let firebaseAuthInstance;
 
 try {
-  let firebaseConfig = {};
-  const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
-  
-  try {
-    firebaseConfig = JSON.parse(rawConfig);
-  } catch (parseError) {
-    console.error("Erreur de parsing de __firebase_config. Assurez-vous que c'est un JSON valide.", parseError);
-  }
+  const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+  let app;
 
-  // Validation des clés essentielles de la configuration Firebase
-  if (!firebaseConfig.projectId || !firebaseConfig.apiKey || !firebaseConfig.authDomain) {
-    console.error(
-      "CRITIQUE : La configuration Firebase fournie par l'environnement est incomplète ou manquante. " +
-      "Veuillez vous assurer que la variable globale '__firebase_config' est définie et contient un objet JSON valide avec au moins 'projectId', 'apiKey' et 'authDomain'. " +
-      "Les services Firebase ne fonctionneront pas correctement sans cela."
-    );
-    // Les instances restent nulles, ce qui sera géré par useEffect dans UserProvider
+  // Vérifie si une application Firebase existe déjà
+  if (!getApps().length) {
+    app = initializeApp(firebaseConfig);
   } else {
-    // Procède à l'initialisation uniquement si la configuration est valide
-    if (!getApps().length) { // Vérifie si aucune application Firebase n'a été initialisée
-      firebaseAppInstance = initializeApp(firebaseConfig);
-    } else {
-      firebaseAppInstance = getApp(); // Utilise l'application déjà initialisée
-    }
-    firestoreDbInstance = getFirestore(firebaseAppInstance);
-    firebaseAuthInstance = getAuth(firebaseAppInstance);
+    app = getApp(); // Utilise l'application déjà initialisée
   }
+  
+  firestoreDbInstance = getFirestore(app);
+  firebaseAuthInstance = getAuth(app);
 } catch (error) {
-  console.error("Erreur critique lors de l'initialisation de l'application Firebase :", error);
-  // S'assure que les instances sont nulles si une erreur se produit pendant cette étape critique
-  firebaseAppInstance = null;
-  firestoreDbInstance = null;
-  firebaseAuthInstance = null;
+  console.error("Critical Firebase initialization error:", error);
+  // In a real application, you might want to display a user-friendly error here
+  // or log to a monitoring service. For now, we just log to console.
 }
 
 export const useUser = () => useContext(UserContext);
@@ -55,19 +38,20 @@ export const UserProvider = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
   
-  // Utilise directement les instances au niveau du module. Elles sont garanties d'être les mêmes
-  // entre les rendus et ne causeront pas de problèmes de réinitialisation.
+  // Directly use the module-level instances. These are guaranteed to be the same
+  // across renders and won't cause re-initialization issues.
   const db = firestoreDbInstance;
   const auth = firebaseAuthInstance;
 
   useEffect(() => {
-    // Si les instances Firebase ne sont pas disponibles (en raison d'une erreur de configuration), arrête le chargement et retourne
+    // If Firebase initialization failed at module level, handle it gracefully
     if (!auth || !db) {
       console.error("Firebase instances are not available. Cannot proceed with authentication.");
-      setLoadingUser(false);
+      setLoadingUser(false); // Stop loading, but indicate an error state
       return;
     }
 
+    // This effect handles initial authentication and sets up the auth state listener.
     const setupAuthAndUser = async () => {
       try {
         const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -78,6 +62,7 @@ export const UserProvider = ({ children }) => {
           await signInAnonymously(auth);
         }
 
+        // Set up the onAuthStateChanged listener
         const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
           if (user) {
             const userDocRef = doc(db, 'users', user.uid);
@@ -101,6 +86,7 @@ export const UserProvider = ({ children }) => {
               });
               setIsAdmin(userData.isAdmin || false);
             } else {
+              // Create a new user document if it doesn't exist (e.g., first login, or migration)
               const newUserData = {
                 displayName: user.displayName || user.email.split('@')[0],
                 email: user.email,
@@ -119,21 +105,23 @@ export const UserProvider = ({ children }) => {
               setIsAdmin(false);
             }
           } else {
+            // No user is signed in
             setCurrentUser(null);
             setIsAdmin(false);
           }
-          setLoadingUser(false);
+          setLoadingUser(false); // Authentication state has been determined
         });
 
-        return unsubscribeAuth;
+        return unsubscribeAuth; // Return the unsubscribe function for cleanup
       } catch (error) {
-        console.error("Erreur de configuration de l'authentification Firebase :", error);
-        setLoadingUser(false);
+        console.error("Firebase authentication setup error:", error);
+        setLoadingUser(false); // Stop loading on error
       }
     };
 
-    const cleanup = setupAuthAndUser();
+    const cleanup = setupAuthAndUser(); // Call the async setup function
     return () => {
+      // Ensure the unsubscribe function is called when the component unmounts
       if (typeof cleanup.then === 'function') {
         cleanup.then(unsubscribe => {
           if (unsubscribe) unsubscribe();
@@ -142,8 +130,9 @@ export const UserProvider = ({ children }) => {
         cleanup();
       }
     };
-  }, [auth, db]);
+  }, [auth, db]); // Dependencies are the module-level auth and db instances
 
+  // Listener for real-time updates to the current user's document
   useEffect(() => {
     if (db && currentUser?.uid) {
       const userDocRef = doc(db, 'users', currentUser.uid);
@@ -156,15 +145,16 @@ export const UserProvider = ({ children }) => {
           }));
           setIsAdmin(updatedUserData.isAdmin || false);
         } else {
+          // If the user document no longer exists (e.g., deleted by admin)
           setCurrentUser(null);
           setIsAdmin(false);
         }
       }, (error) => {
-        console.error("Erreur lors de l'écoute du document utilisateur :", error);
+        console.error("Error listening to user document:", error);
       });
       return () => unsubscribe();
     }
-  }, [db, currentUser?.uid]);
+  }, [db, currentUser?.uid]); // Depends on db and currentUser.uid
 
   const value = {
     currentUser,
