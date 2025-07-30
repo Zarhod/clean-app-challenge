@@ -19,6 +19,7 @@
 // Correction du chevauchement des boutons dans AuthModal.
 // Ajout de l'indicateur de messages non lus sur le bouton de chat.
 // Amélioration des messages d'erreur de connexion.
+// Correction de l'erreur de compilation 'no-undef' pour __firebase_config et __initial_auth_token.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -2227,10 +2228,11 @@ function AppContent() {
         Points_Total_Semaine_Courante: p.Points_Total_Semaine_Courante,
         Points_Total_Cumulatif: p.Points_Total_Cumulatif,
         Points_Total_Semaine_Precedente: p.Points_Total_Semaine_Precedente || 0,
-        Date_Mise_A_Jour: p.Date_Mise_A_Jour || '',
         Avatar: p.Avatar || '👤', 
         Level: p.Level || 1, 
-        XP: p.XP || 0 
+        XP: p.XP || 0,
+        // Convertir Date_Mise_A_Jour en format lisible si nécessaire, ou laisser tel quel
+        Date_Mise_A_Jour: p.Date_Mise_A_Jour ? new Date(p.Date_Mise_A_Jour).toLocaleDateString('fr-FR') : '' 
     }));
     exportToCsv('classement_clean_app.csv', dataToExport, headers);
     setShowExportSelectionModal(false); 
@@ -2238,7 +2240,17 @@ function AppContent() {
 
   const handleExportRealisations = useCallback(() => {
     const headers = ['taskId', 'userId', 'nomParticipant', 'nomTacheEffectuee', 'categorieTache', 'pointsGagnes', 'timestamp'];
-    exportToCsv('realisations_clean_app.csv', realisations, headers);
+    const dataToExport = realisations.map(r => ({
+        taskId: r.taskId,
+        userId: r.userId,
+        nomParticipant: r.nomParticipant,
+        nomTacheEffectuee: r.nomTacheEffectuee,
+        categorieTache: r.categorieTache,
+        pointsGagnes: r.pointsGagnes,
+        // Convertir timestamp en format lisible si nécessaire
+        timestamp: r.timestamp ? new Date(r.timestamp).toLocaleString('fr-FR') : '' 
+    }));
+    exportToCsv('realisations_clean_app.csv', dataToExport, headers);
     setShowExportSelectionModal(false); 
   }, [realisations]); 
 

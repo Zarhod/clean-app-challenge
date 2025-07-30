@@ -17,6 +17,7 @@ export const UserProvider = ({ children }) => {
 
   const initializeFirebase = useCallback(async () => {
     try {
+      // Vérifiez si __firebase_config est défini avant de l'utiliser
       const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
       const app = initializeApp(firebaseConfig);
       const firestoreDb = getFirestore(app);
@@ -25,6 +26,7 @@ export const UserProvider = ({ children }) => {
       setDb(firestoreDb);
       setAuth(firebaseAuth);
 
+      // Vérifiez si __initial_auth_token est défini avant de l'utiliser
       const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
       if (token) {

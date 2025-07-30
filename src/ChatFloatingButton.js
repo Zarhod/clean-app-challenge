@@ -14,10 +14,10 @@ const ChatFloatingButton = ({ currentUser, db }) => {
     }
 
     // Récupère le timestamp de la dernière lecture de l'utilisateur
+    // Si lastReadTimestamp est null, tous les messages sont considérés comme non lus
     const lastReadTimestamp = currentUser.lastReadTimestamp;
 
     // Requête pour les messages non lus
-    // Si lastReadTimestamp est null, tous les messages sont considérés comme non lus
     const q = lastReadTimestamp
       ? query(collection(db, 'chat_messages'), where('timestamp', '>', lastReadTimestamp))
       : collection(db, 'chat_messages');

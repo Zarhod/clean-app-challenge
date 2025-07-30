@@ -141,7 +141,7 @@ const AuthModal = ({ onClose }) => {
           break;
       }
       setError(errorMessage);
-      toast.error(errorMessage);
+      // Removed toast.error(errorMessage) to avoid duplicate toasts from error state
     } finally {
       setLoading(false);
     }
