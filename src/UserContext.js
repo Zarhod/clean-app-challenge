@@ -1,4 +1,4 @@
-/* global __initial_auth_token */ // __firebase_config n'est plus utilisé directement ici, mais via process.env
+/* global __firebase_config, __initial_auth_token */
 // src/UserContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app'; 
@@ -13,24 +13,21 @@ let firestoreDbInstance = null;
 let firebaseAuthInstance = null;
 
 try {
-  // Récupère la configuration Firebase à partir des variables d'environnement
-  const firebaseConfig = {
-    apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-    authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.REACT_APP_FIREBASE_APP_ID,
-    measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID // Optionnel
-  };
+  let firebaseConfig = {};
+  const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+  
+  try {
+    firebaseConfig = JSON.parse(rawConfig);
+  } catch (parseError) {
+    console.error("Erreur de parsing de __firebase_config. Assurez-vous que c'est un JSON valide.", parseError);
+  }
 
   // Validation des clés essentielles de la configuration Firebase
   if (!firebaseConfig.projectId || !firebaseConfig.apiKey || !firebaseConfig.authDomain) {
     console.error(
-      "CRITICAL: Firebase configuration is incomplete or missing environment variables. " +
-      "Please ensure REACT_APP_FIREBASE_PROJECT_ID, REACT_APP_FIREBASE_API_KEY, and REACT_APP_FIREBASE_AUTH_DOMAIN " +
-      "are correctly set as environment variables on your deployment platform. " +
-      "Firebase services will not function correctly without them."
+      "CRITIQUE : La configuration Firebase fournie par l'environnement est incomplète ou manquante. " +
+      "Veuillez vous assurer que la variable globale '__firebase_config' est définie et contient un objet JSON valide avec au moins 'projectId', 'apiKey' et 'authDomain'. " +
+      "Les services Firebase ne fonctionneront pas correctement sans cela."
     );
     // Les instances restent nulles, ce qui sera géré par useEffect dans UserProvider
   } else {
