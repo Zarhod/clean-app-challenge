@@ -1,11 +1,11 @@
 // src/ChatModal.js
 import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from './UserContext';
-import { collection, query, orderBy, addDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, onSnapshot, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 
 const ChatModal = ({ onClose }) => {
-  const { currentUser, db } = useUser();
+  const { currentUser, db, setCurrentUser } = useUser();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -15,6 +15,24 @@ const ChatModal = ({ onClose }) => {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // Marque tous les messages comme lus lorsque le chat est ouvert
+  useEffect(() => {
+    if (currentUser && db) {
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      const now = new Date().toISOString();
+      // Met à jour le timestamp de dernière lecture de l'utilisateur
+      updateDoc(userDocRef, { lastReadTimestamp: now })
+        .then(() => {
+          // Met à jour le currentUser dans le contexte après la mise à jour Firestore
+          setCurrentUser(prevUser => ({ ...prevUser, lastReadTimestamp: now }));
+        })
+        .catch(error => {
+          console.error("Erreur lors de la mise à jour du timestamp de lecture:", error);
+          // toast.error("Erreur lors de la mise à jour du statut de lecture."); // Éviter de spammer les toasts
+        });
+    }
+  }, [currentUser, db, setCurrentUser]); // Dépendances pour s'assurer que l'effet se déclenche quand l'utilisateur ou la base de données sont prêts
 
   useEffect(() => {
     if (!db) return;
@@ -45,13 +63,15 @@ const ChatModal = ({ onClose }) => {
     e.preventDefault(); // Empêche le rechargement de la page
     if (newMessage.trim() === '' || !currentUser || !db) return; // Ne rien faire si le message est vide ou l'utilisateur n'est pas connecté
 
+    const messageToSend = newMessage.trim();
     setNewMessage(''); // Efface l'entrée immédiatement pour une meilleure expérience utilisateur
+
     try {
       await addDoc(collection(db, 'chat_messages'), {
         senderId: currentUser.uid,
         senderName: currentUser.displayName || currentUser.email,
         senderAvatar: currentUser.avatar || '👤',
-        messageText: newMessage.trim(),
+        messageText: messageToSend,
         timestamp: serverTimestamp(), // Utilise le timestamp du serveur pour la cohérence
       });
     } catch (error) {
@@ -82,13 +102,16 @@ const ChatModal = ({ onClose }) => {
                 const messageTime = msg.timestamp?.toDate ? msg.timestamp.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'Chargement...';
 
                 return (
-                  <div key={msg.id || index} className={`flex items-end gap-2 ${isMyMessage ? 'justify-end' : 'justify-start'}`}>
+                  <div 
+                    key={msg.id || index} 
+                    className={`flex items-end gap-2 ${isMyMessage ? 'justify-end' : 'justify-start'} animate-fade-in-up`}
+                  >
                     {/* Avatar de l'expéditeur (pour les messages des autres) */}
                     {!isMyMessage && (
                       <span className="text-3xl flex-shrink-0">{msg.senderAvatar || '👤'}</span>
                     )}
                     {/* Bulle de message */}
-                    <div className={`flex flex-col max-w-[75%] p-3 rounded-xl shadow-md animate-fade-in-up 
+                    <div className={`flex flex-col max-w-[75%] p-3 rounded-xl shadow-md 
                                      ${isMyMessage ? 'bg-primary text-white rounded-br-none' : 'bg-white text-text rounded-bl-none'}`}>
                       <span className={`text-xs font-semibold mb-1 ${isMyMessage ? 'text-white/80' : 'text-primary'}`}>
                         {msg.senderName}

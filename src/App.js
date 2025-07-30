@@ -15,6 +15,10 @@
 // Correction de la duplication de l'écran de bienvenue lors de l'ouverture de la modale de connexion.
 // Correction du podium affichant des utilisateurs à 0 point.
 // Amélioration majeure de l'interface utilisateur du chat.
+// Correction de l'affichage du bouton de modification de profil.
+// Correction du chevauchement des boutons dans AuthModal.
+// Ajout de l'indicateur de messages non lus sur le bouton de chat.
+// Amélioration des messages d'erreur de connexion.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -1172,7 +1176,8 @@ function AppContent() {
   const handleParticipantClick = useCallback(async (participant) => {
     // Si le participant cliqué est l'utilisateur actuellement connecté
     if (currentUser && String(participant.Nom_Participant || '').trim() === String(currentUser.displayName || currentUser.email).trim()) {
-      setSelectedParticipantProfile(currentUser); // Utilise directement currentUser qui est déjà à jour
+      // Utilisez l'objet currentUser du contexte qui est toujours à jour
+      setSelectedParticipantProfile({ ...currentUser }); 
       setActiveMainView('participantProfile');
       await fetchParticipantWeeklyTasks(currentUser.displayName || currentUser.email);
       return;
@@ -2977,7 +2982,7 @@ function AppContent() {
         )}
         
         {/* Le bouton flottant du chat est rendu ici */}
-        <ChatFloatingButton currentUser={currentUser} />
+        <ChatFloatingButton currentUser={currentUser} db={db} />
 
       </div>
       <ToastContainer 

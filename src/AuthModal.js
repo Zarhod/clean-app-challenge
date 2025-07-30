@@ -51,7 +51,8 @@ const AuthModal = ({ onClose }) => {
             previousWeeklyPoints: userData.previousWeeklyPoints || 0,
             xp: userData.xp || 0,
             level: userData.level || 1,
-            dateJoined: userData.dateJoined || new Date().toISOString()
+            dateJoined: userData.dateJoined || new Date().toISOString(),
+            lastReadTimestamp: userData.lastReadTimestamp || null // Assurez-vous que ceci est inclus
           });
           toast.success(`Bienvenue, ${userData.displayName || user.email} !`);
           onClose();
@@ -67,7 +68,8 @@ const AuthModal = ({ onClose }) => {
             previousWeeklyPoints: 0,
             xp: 0,
             level: 1,
-            dateJoined: new Date().toISOString()
+            dateJoined: new Date().toISOString(),
+            lastReadTimestamp: new Date().toISOString() // Initialise le timestamp de lecture
           };
           await setDoc(userDocRef, defaultUserData);
           setCurrentUser({ uid: user.uid, email: user.email, ...defaultUserData });
@@ -100,7 +102,8 @@ const AuthModal = ({ onClose }) => {
           previousWeeklyPoints: 0,
           xp: 0,
           level: 1,
-          dateJoined: new Date().toISOString()
+          dateJoined: new Date().toISOString(),
+          lastReadTimestamp: new Date().toISOString() // Initialise le timestamp de lecture
         };
         await setDoc(userDocRef, newUserData);
 
@@ -119,10 +122,10 @@ const AuthModal = ({ onClose }) => {
           errorMessage = 'Ce compte a été désactivé.';
           break;
         case 'auth/user-not-found':
-          errorMessage = 'Aucun utilisateur trouvé avec cette adresse e-mail.';
+          errorMessage = 'Adresse e-mail ou mot de passe incorrect.'; // Message plus générique pour la sécurité
           break;
         case 'auth/wrong-password':
-          errorMessage = 'Mot de passe incorrect.';
+          errorMessage = 'Adresse e-mail ou mot de passe incorrect.'; // Message plus générique pour la sécurité
           break;
         case 'auth/email-already-in-use':
           errorMessage = 'Cette adresse e-mail est déjà utilisée.';
@@ -134,7 +137,7 @@ const AuthModal = ({ onClose }) => {
           errorMessage = 'Erreur réseau. Veuillez vérifier votre connexion.';
           break;
         default:
-          errorMessage = err.message; // Affiche le message d'erreur Firebase par défaut
+          errorMessage = "Une erreur inattendue est survenue. Veuillez réessayer.";
           break;
       }
       setError(errorMessage);
@@ -202,21 +205,23 @@ const AuthModal = ({ onClose }) => {
             {loading ? 'Chargement...' : (isLogin ? 'Se connecter' : "S'inscrire")}
           </button>
         </form>
-        <button
-          onClick={() => setIsLogin(!isLogin)}
-          className="mt-4 text-primary hover:underline text-sm"
-          disabled={loading}
-        >
-          {isLogin ? "Pas de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
-        </button>
-        <button
-          onClick={onClose}
-          className="mt-4 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg
-                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
-          disabled={loading}
-        >
-          Fermer
-        </button>
+        <div className="flex flex-col gap-3 mt-4"> {/* Utilisation de flex-col et gap pour l'espacement */}
+            <button
+            onClick={() => setIsLogin(!isLogin)}
+            className="text-primary hover:underline text-sm"
+            disabled={loading}
+            >
+            {isLogin ? "Pas de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
+            </button>
+            <button
+            onClick={onClose}
+            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                        transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
+            disabled={loading}
+            >
+            Fermer
+            </button>
+        </div>
       </div>
     </div>
   );
