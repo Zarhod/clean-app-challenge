@@ -6,12 +6,12 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfi
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 const AuthModal = ({ onClose }) => {
-  const { auth, db, setCurrentUser } = useUser();
+  const { auth, db, setCurrentUser, loadingUser } = useUser(); // Ajout de loadingUser
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // État de chargement local pour les actions d'authentification
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -27,6 +27,14 @@ const AuthModal = ({ onClose }) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    // Vérifie que Firebase Auth et Firestore sont disponibles
+    // loadingUser doit être false, et auth/db doivent être des objets non nuls
+    if (loadingUser || !auth || !db) {
+      setError("Le service d'authentification n'est pas encore prêt. Veuillez patienter et réessayer.");
+      setLoading(false);
+      return;
+    }
 
     try {
       if (isLogin) {
@@ -52,7 +60,7 @@ const AuthModal = ({ onClose }) => {
             xp: userData.xp || 0,
             level: userData.level || 1,
             dateJoined: userData.dateJoined || new Date().toISOString(),
-            lastReadTimestamp: userData.lastReadTimestamp || null // Assurez-vous que ceci est inclus
+            lastReadTimestamp: userData.lastReadTimestamp || null
           });
           toast.success(`Bienvenue, ${userData.displayName || user.email} !`);
           onClose();
@@ -69,7 +77,7 @@ const AuthModal = ({ onClose }) => {
             xp: 0,
             level: 1,
             dateJoined: new Date().toISOString(),
-            lastReadTimestamp: new Date().toISOString() // Initialise le timestamp de lecture
+            lastReadTimestamp: new Date().toISOString()
           };
           await setDoc(userDocRef, defaultUserData);
           setCurrentUser({ uid: user.uid, email: user.email, ...defaultUserData });
@@ -95,15 +103,15 @@ const AuthModal = ({ onClose }) => {
         const newUserData = {
           displayName: displayName.trim(),
           email: email.trim(),
-          isAdmin: false, // Les nouveaux utilisateurs ne sont pas administrateurs par défaut
-          avatar: '👤', // Avatar par défaut
+          isAdmin: false,
+          avatar: '👤',
           weeklyPoints: 0,
           totalCumulativePoints: 0,
           previousWeeklyPoints: 0,
           xp: 0,
           level: 1,
           dateJoined: new Date().toISOString(),
-          lastReadTimestamp: new Date().toISOString() // Initialise le timestamp de lecture
+          lastReadTimestamp: new Date().toISOString()
         };
         await setDoc(userDocRef, newUserData);
 
@@ -122,10 +130,10 @@ const AuthModal = ({ onClose }) => {
           errorMessage = 'Ce compte a été désactivé.';
           break;
         case 'auth/user-not-found':
-          errorMessage = 'Adresse e-mail ou mot de passe incorrect.'; // Message plus générique pour la sécurité
+          errorMessage = 'Adresse e-mail ou mot de passe incorrect.';
           break;
         case 'auth/wrong-password':
-          errorMessage = 'Adresse e-mail ou mot de passe incorrect.'; // Message plus générique pour la sécurité
+          errorMessage = 'Adresse e-mail ou mot de passe incorrect.';
           break;
         case 'auth/email-already-in-use':
           errorMessage = 'Cette adresse e-mail est déjà utilisée.';
@@ -141,11 +149,14 @@ const AuthModal = ({ onClose }) => {
           break;
       }
       setError(errorMessage);
-      // Removed toast.error(errorMessage) to avoid duplicate toasts from error state
     } finally {
       setLoading(false);
     }
   };
+
+  // Désactive le formulaire si le chargement global de l'utilisateur est en cours
+  // ou si les instances Firebase ne sont pas encore disponibles.
+  const isDisabled = loading || loadingUser || !auth || !db; 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4">
@@ -165,7 +176,7 @@ const AuthModal = ({ onClose }) => {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 required={!isLogin}
-                disabled={loading}
+                disabled={isDisabled}
               />
             </div>
           )}
@@ -179,7 +190,7 @@ const AuthModal = ({ onClose }) => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              disabled={loading}
+              disabled={isDisabled}
             />
           </div>
           <div>
@@ -192,7 +203,7 @@ const AuthModal = ({ onClose }) => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              disabled={loading}
+              disabled={isDisabled}
             />
           </div>
           {error && <p className="text-error text-sm mt-2">{error}</p>}
@@ -200,16 +211,16 @@ const AuthModal = ({ onClose }) => {
             type="submit"
             className="w-full bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg
                        transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
-            disabled={loading}
+            disabled={isDisabled}
           >
             {loading ? 'Chargement...' : (isLogin ? 'Se connecter' : "S'inscrire")}
           </button>
         </form>
-        <div className="flex flex-col gap-3 mt-4"> {/* Utilisation de flex-col et gap pour l'espacement */}
+        <div className="flex flex-col gap-3 mt-4">
             <button
             onClick={() => setIsLogin(!isLogin)}
             className="text-primary hover:underline text-sm"
-            disabled={loading}
+            disabled={isDisabled}
             >
             {isLogin ? "Pas de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
             </button>
@@ -217,7 +228,7 @@ const AuthModal = ({ onClose }) => {
             onClick={onClose}
             className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg
                         transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
-            disabled={loading}
+            disabled={isDisabled}
             >
             Fermer
             </button>
