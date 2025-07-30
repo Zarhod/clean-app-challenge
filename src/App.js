@@ -13,6 +13,8 @@
 // Correction des erreurs no-undef dans UserContext.js.
 // Correction des avertissements ESLint 'exhaustive-deps' et 'no-unused-vars'.
 // Correction de la duplication de l'écran de bienvenue lors de l'ouverture de la modale de connexion.
+// Correction du podium affichant des utilisateurs à 0 point.
+// Amélioration majeure de l'interface utilisateur du chat.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -794,14 +796,22 @@ function AppContent() {
     }
     setLoading(true);
     try {
-      const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
-      const top3 = sortedClassement.slice(0, 3);
+      const sortedClassementForPodium = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
+      // Filtrer pour n'inclure que les participants avec des points > 0 pour le podium
+      const top3 = sortedClassementForPodium.filter(p => parseFloat(p.Points_Total_Semaine_Courante) > 0).slice(0, 3);
       const datePodium = new Date().toISOString().split('T')[0]; 
 
-      await addDoc(collection(db, 'historical_podiums'), { 
-        Date_Podium: datePodium,
-        top3: top3.map(p => ({ name: p.Nom_Participant, points: p.Points_Total_Semaine_Courante }))
-      });
+      // Enregistrer le podium uniquement s'il y a des participants avec des points
+      if (top3.length > 0) {
+        await addDoc(collection(db, 'historical_podiums'), { 
+          Date_Podium: datePodium,
+          top3: top3.map(p => ({ name: p.Nom_Participant, points: p.Points_Total_Semaine_Courante }))
+        });
+        toast.success('Points hebdomadaires réinitialisés et podium enregistré.');
+      } else {
+        toast.info('Aucun participant n\'a marqué de points cette semaine, le podium n\'a pas été enregistré.');
+      }
+
 
       const usersQuery = query(collection(db, "users"));
       const usersSnapshot = await getDocs(usersQuery);
@@ -817,7 +827,6 @@ function AppContent() {
       });
       await batch.commit(); 
 
-      toast.success('Points hebdomadaires réinitialisés et podium enregistré.');
     } catch (err) {
       toast.error(`Une erreur est survenue lors de la réinitialisation des points hebdomadaires: ${err.message}`);
     } finally {
