@@ -1,34 +1,35 @@
 /* global __firebase_config, __initial_auth_token */
 // src/UserContext.js
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'; // Removed useCallback as it's not needed for module-level init
+import React, { createContext, useContext, useState, useEffect } from 'react'; // 'useCallback' a été retiré car non utilisé
 import { initializeApp, getApps, getApp } from 'firebase/app'; 
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 const UserContext = createContext();
 
-// Initialize Firebase app once at the module level
-let firebaseApp;
-let firestoreDbInstance;
-let firebaseAuthInstance;
+// Initialise l'application Firebase une seule fois au niveau du module
+let firebaseAppInstance = null; // Renommé pour une utilisation cohérente
+let firestoreDbInstance = null;
+let firebaseAuthInstance = null;
 
 try {
   const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-  let app;
-
+  
   // Vérifie si une application Firebase existe déjà
   if (!getApps().length) {
-    app = initializeApp(firebaseConfig);
+    firebaseAppInstance = initializeApp(firebaseConfig); // Assigne à firebaseAppInstance
   } else {
-    app = getApp(); // Utilise l'application déjà initialisée
+    firebaseAppInstance = getApp(); // Assigne à firebaseAppInstance
   }
   
-  firestoreDbInstance = getFirestore(app);
-  firebaseAuthInstance = getAuth(app);
+  firestoreDbInstance = getFirestore(firebaseAppInstance); // Utilise firebaseAppInstance
+  firebaseAuthInstance = getAuth(firebaseAppInstance); // Utilise firebaseAppInstance
 } catch (error) {
-  console.error("Critical Firebase initialization error:", error);
-  // In a real application, you might want to display a user-friendly error here
-  // or log to a monitoring service. For now, we just log to console.
+  console.error("Erreur critique lors de l'initialisation de Firebase :", error);
+  // S'assure que les instances sont nulles en cas d'erreur, pour éviter d'autres problèmes
+  firebaseAppInstance = null; 
+  firestoreDbInstance = null;
+  firebaseAuthInstance = null;
 }
 
 export const useUser = () => useContext(UserContext);
@@ -38,20 +39,20 @@ export const UserProvider = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
   
-  // Directly use the module-level instances. These are guaranteed to be the same
-  // across renders and won't cause re-initialization issues.
+  // Utilise directement les instances au niveau du module. Elles sont garanties d'être les mêmes
+  // entre les rendus et ne causeront pas de problèmes de réinitialisation.
   const db = firestoreDbInstance;
   const auth = firebaseAuthInstance;
 
   useEffect(() => {
-    // If Firebase initialization failed at module level, handle it gracefully
+    // Si les instances Firebase ne sont pas disponibles (en raison d'une erreur de configuration), arrête le chargement et retourne
     if (!auth || !db) {
-      console.error("Firebase instances are not available. Cannot proceed with authentication.");
-      setLoadingUser(false); // Stop loading, but indicate an error state
+      console.error("Les instances Firebase ne sont pas disponibles. Impossible de procéder à l'authentification.");
+      setLoadingUser(false);
       return;
     }
 
-    // This effect handles initial authentication and sets up the auth state listener.
+    // Cet effet gère l'authentification initiale et configure l'écouteur d'état d'authentification.
     const setupAuthAndUser = async () => {
       try {
         const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -62,7 +63,7 @@ export const UserProvider = ({ children }) => {
           await signInAnonymously(auth);
         }
 
-        // Set up the onAuthStateChanged listener
+        // Configure l'écouteur onAuthStateChanged
         const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
           if (user) {
             const userDocRef = doc(db, 'users', user.uid);
@@ -86,7 +87,7 @@ export const UserProvider = ({ children }) => {
               });
               setIsAdmin(userData.isAdmin || false);
             } else {
-              // Create a new user document if it doesn't exist (e.g., first login, or migration)
+              // Crée un nouveau document utilisateur s'il n'existe pas (par exemple, première connexion ou migration)
               const newUserData = {
                 displayName: user.displayName || user.email.split('@')[0],
                 email: user.email,
@@ -105,23 +106,23 @@ export const UserProvider = ({ children }) => {
               setIsAdmin(false);
             }
           } else {
-            // No user is signed in
+            // Aucun utilisateur n'est connecté
             setCurrentUser(null);
             setIsAdmin(false);
           }
-          setLoadingUser(false); // Authentication state has been determined
+          setLoadingUser(false); // L'état d'authentification a été déterminé
         });
 
-        return unsubscribeAuth; // Return the unsubscribe function for cleanup
+        return unsubscribeAuth; // Retourne la fonction de désabonnement pour le nettoyage
       } catch (error) {
-        console.error("Firebase authentication setup error:", error);
-        setLoadingUser(false); // Stop loading on error
+        console.error("Erreur de configuration de l'authentification Firebase :", error);
+        setLoadingUser(false); // Arrête le chargement en cas d'erreur
       }
     };
 
-    const cleanup = setupAuthAndUser(); // Call the async setup function
+    const cleanup = setupAuthAndUser(); // Appelle la fonction de configuration asynchrone
     return () => {
-      // Ensure the unsubscribe function is called when the component unmounts
+      // S'assure que la fonction de désabonnement est appelée lorsque le composant est démonté
       if (typeof cleanup.then === 'function') {
         cleanup.then(unsubscribe => {
           if (unsubscribe) unsubscribe();
@@ -130,9 +131,9 @@ export const UserProvider = ({ children }) => {
         cleanup();
       }
     };
-  }, [auth, db]); // Dependencies are the module-level auth and db instances
+  }, [auth, db]); // Les dépendances sont les instances auth et db au niveau du module
 
-  // Listener for real-time updates to the current user's document
+  // Écouteur pour les mises à jour en temps réel du document utilisateur actuel
   useEffect(() => {
     if (db && currentUser?.uid) {
       const userDocRef = doc(db, 'users', currentUser.uid);
@@ -145,16 +146,16 @@ export const UserProvider = ({ children }) => {
           }));
           setIsAdmin(updatedUserData.isAdmin || false);
         } else {
-          // If the user document no longer exists (e.g., deleted by admin)
+          // Si le document utilisateur n'existe plus (par exemple, supprimé par l'administrateur)
           setCurrentUser(null);
           setIsAdmin(false);
         }
       }, (error) => {
-        console.error("Error listening to user document:", error);
+        console.error("Erreur lors de l'écoute du document utilisateur :", error);
       });
       return () => unsubscribe();
     }
-  }, [db, currentUser?.uid]); // Depends on db and currentUser.uid
+  }, [db, currentUser?.uid]); // Dépend de db et currentUser.uid
 
   const value = {
     currentUser,
