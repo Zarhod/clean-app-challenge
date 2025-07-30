@@ -1,4 +1,4 @@
-/* global __firebase_config, __initial_auth_token */
+/* global __initial_auth_token */ // __firebase_config n'est plus utilisé directement ici, mais via process.env
 // src/UserContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app'; 
@@ -8,62 +8,45 @@ import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestor
 const UserContext = createContext();
 
 // Initialise l'application Firebase une seule fois au niveau du module
-let firebaseApp;
-let firestoreDbInstance;
-let firebaseAuthInstance;
+let firebaseAppInstance = null;
+let firestoreDbInstance = null;
+let firebaseAuthInstance = null;
 
 try {
-  let firebaseConfig;
-  const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
-  
-  try {
-    firebaseConfig = JSON.parse(rawConfig);
-    // Si la configuration parsée est vide ou manque des clés critiques, on force l'utilisation du fallback
-    if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
-      throw new Error("La configuration Firebase parsée est incomplète ou vide.");
-    }
-  } catch (parseError) {
-    console.warn("Impossible de parser __firebase_config ou elle est incomplète. Utilisation de la configuration de secours codée en dur. Erreur:", parseError);
-    // --- CONFIGURATION FIREBASE OBLIGATOIRE ---
-    // VOUS DEVEZ REMPLACER CES VALEURS PAR LES INFORMATIONS RÉELLES DE VOTRE PROJET FIREBASE.
-    // Vous trouverez ces informations dans la console Firebase > Paramètres du projet > Vos applications.
-    firebaseConfig = {
-      apiKey: "AIzaSyDs0UtfVH2UIhAi5gDFF7asrNmVwQF03sw",
-      authDomain: "clean-app-challenge.firebaseapp.com",
-      projectId: "clean-app-challenge",
-      storageBucket: "clean-app-challenge.firebasestorage.app",
-      messagingSenderId: "689290653968",
-      appId: "1:689290653968:web:c55ebf0cc8efcef35b7595"
-    };
-    // --- FIN DE LA CONFIGURATION FIREBASE OBLIGATOIRE ---
+  // Récupère la configuration Firebase à partir des variables d'environnement
+  const firebaseConfig = {
+    apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+    authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.REACT_APP_FIREBASE_APP_ID,
+    measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID // Optionnel
+  };
 
-    if (firebaseConfig.projectId === "VOTRE_FIREBASE_PROJECT_ID" || firebaseConfig.apiKey === "VOTRE_FIREBASE_API_KEY") {
-      console.error(
-        "ERREUR CRITIQUE : La configuration Firebase utilise toujours les placeholders. " +
-        "Veuillez remplacer 'VOTRE_FIREBASE_PROJECT_ID', 'VOTRE_FIREBASE_API_KEY', etc., par les détails réels de votre projet Firebase. " +
-        "L'application ne fonctionnera pas correctement sans cela."
-      );
-      // Empêche l'initialisation si les placeholders sont encore présents
-      firebaseApp = null;
-      firestoreDbInstance = null;
-      firebaseAuthInstance = null;
-      return; // Sort du bloc try
-    }
-  }
-
-  // Procède à l'initialisation uniquement si la configuration est valide et ne contient pas de placeholders
-  if (!getApps().length) { // Vérifie si aucune application Firebase n'a été initialisée
-    firebaseApp = initializeApp(firebaseConfig);
+  // Validation des clés essentielles de la configuration Firebase
+  if (!firebaseConfig.projectId || !firebaseConfig.apiKey || !firebaseConfig.authDomain) {
+    console.error(
+      "CRITICAL: Firebase configuration is incomplete or missing environment variables. " +
+      "Please ensure REACT_APP_FIREBASE_PROJECT_ID, REACT_APP_FIREBASE_API_KEY, and REACT_APP_FIREBASE_AUTH_DOMAIN " +
+      "are correctly set as environment variables on your deployment platform. " +
+      "Firebase services will not function correctly without them."
+    );
+    // Les instances restent nulles, ce qui sera géré par useEffect dans UserProvider
   } else {
-    firebaseApp = getApp(); // Utilise l'application déjà initialisée
+    // Procède à l'initialisation uniquement si la configuration est valide
+    if (!getApps().length) { // Vérifie si aucune application Firebase n'a été initialisée
+      firebaseAppInstance = initializeApp(firebaseConfig);
+    } else {
+      firebaseAppInstance = getApp(); // Utilise l'application déjà initialisée
+    }
+    firestoreDbInstance = getFirestore(firebaseAppInstance);
+    firebaseAuthInstance = getAuth(firebaseAppInstance);
   }
-  firestoreDbInstance = getFirestore(firebaseApp);
-  firebaseAuthInstance = getAuth(firebaseApp);
-
 } catch (error) {
   console.error("Erreur critique lors de l'initialisation de l'application Firebase :", error);
   // S'assure que les instances sont nulles si une erreur se produit pendant cette étape critique
-  firebaseApp = null;
+  firebaseAppInstance = null;
   firestoreDbInstance = null;
   firebaseAuthInstance = null;
 }
@@ -81,14 +64,13 @@ export const UserProvider = ({ children }) => {
   const auth = firebaseAuthInstance;
 
   useEffect(() => {
-    // Si l'initialisation de Firebase a échoué au niveau du module, gère cela gracieusement
+    // Si les instances Firebase ne sont pas disponibles (en raison d'une erreur de configuration), arrête le chargement et retourne
     if (!auth || !db) {
-      console.error("Les instances Firebase ne sont pas disponibles. Impossible de procéder à l'authentification.");
-      setLoadingUser(false); // Arrête le chargement, mais indique un état d'erreur
+      console.error("Firebase instances are not available. Cannot proceed with authentication.");
+      setLoadingUser(false);
       return;
     }
 
-    // Cet effet gère l'authentification initiale et configure l'écouteur d'état d'authentification.
     const setupAuthAndUser = async () => {
       try {
         const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -99,7 +81,6 @@ export const UserProvider = ({ children }) => {
           await signInAnonymously(auth);
         }
 
-        // Configure l'écouteur onAuthStateChanged
         const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
           if (user) {
             const userDocRef = doc(db, 'users', user.uid);
@@ -123,7 +104,6 @@ export const UserProvider = ({ children }) => {
               });
               setIsAdmin(userData.isAdmin || false);
             } else {
-              // Crée un nouveau document utilisateur s'il n'existe pas (par exemple, première connexion ou migration)
               const newUserData = {
                 displayName: user.displayName || user.email.split('@')[0],
                 email: user.email,
@@ -142,23 +122,21 @@ export const UserProvider = ({ children }) => {
               setIsAdmin(false);
             }
           } else {
-            // Aucun utilisateur n'est connecté
             setCurrentUser(null);
             setIsAdmin(false);
           }
-          setLoadingUser(false); // L'état d'authentification a été déterminé
+          setLoadingUser(false);
         });
 
-        return unsubscribeAuth; // Retourne la fonction de désabonnement pour le nettoyage
+        return unsubscribeAuth;
       } catch (error) {
         console.error("Erreur de configuration de l'authentification Firebase :", error);
-        setLoadingUser(false); // Arrête le chargement en cas d'erreur
+        setLoadingUser(false);
       }
     };
 
-    const cleanup = setupAuthAndUser(); // Appelle la fonction de configuration asynchrone
+    const cleanup = setupAuthAndUser();
     return () => {
-      // S'assure que la fonction de désabonnement est appelée lorsque le composant est démonté
       if (typeof cleanup.then === 'function') {
         cleanup.then(unsubscribe => {
           if (unsubscribe) unsubscribe();
@@ -167,9 +145,8 @@ export const UserProvider = ({ children }) => {
         cleanup();
       }
     };
-  }, [auth, db]); // Les dépendances sont les instances auth et db au niveau du module
+  }, [auth, db]);
 
-  // Écouteur pour les mises à jour en temps réel du document utilisateur actuel
   useEffect(() => {
     if (db && currentUser?.uid) {
       const userDocRef = doc(db, 'users', currentUser.uid);
@@ -182,7 +159,6 @@ export const UserProvider = ({ children }) => {
           }));
           setIsAdmin(updatedUserData.isAdmin || false);
         } else {
-          // Si le document utilisateur n'existe plus (par exemple, supprimé par l'administrateur)
           setCurrentUser(null);
           setIsAdmin(false);
         }
@@ -191,7 +167,7 @@ export const UserProvider = ({ children }) => {
       });
       return () => unsubscribe();
     }
-  }, [db, currentUser?.uid]); // Dépend de db et currentUser.uid
+  }, [db, currentUser?.uid]);
 
   const value = {
     currentUser,
