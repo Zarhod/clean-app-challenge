@@ -1,50 +1,45 @@
-/* global __firebase_config, __initial_auth_token */
+/* global __initial_auth_token */
 // src/UserContext.js
+// Ce fichier est le SEUL responsable de l'initialisation de l'application Firebase
+// et de la gestion de l'état d'authentification de l'utilisateur.
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { initializeApp, getApps, getApp } from 'firebase/app'; 
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
+// Importe la configuration Firebase depuis le fichier firebase.js
+// Ce fichier (./firebase) ne fait que fournir l'objet de configuration.
+import { firebaseConfig } from './firebase';
+
 const UserContext = createContext();
 
-// Initialise l'application Firebase une seule fois au niveau du module
+// Variables pour stocker les instances Firebase
+// Elles seront initialisées une seule fois au niveau du module.
 let firebaseAppInstance = null;
 let firestoreDbInstance = null;
 let firebaseAuthInstance = null;
 let firebaseInitializationError = null; // Variable pour stocker l'erreur d'initialisation
 
 try {
-  let firebaseConfig = {};
-  const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
-  
-  try {
-    // Tente de parser la configuration fournie par l'environnement (Cloudflare Pages)
-    firebaseConfig = JSON.parse(rawConfig);
-    console.log("Configuration Firebase lue depuis __firebase_config.");
-  } catch (parseError) {
-    firebaseInitializationError = new Error("Erreur de parsing de __firebase_config. Assurez-vous que c'est un JSON valide.");
-    console.error(firebaseInitializationError.message, parseError);
-  }
-
-  // Si une erreur de parsing n'est pas survenue, vérifie la validité de la configuration
-  if (!firebaseInitializationError) {
-    if (!firebaseConfig.projectId || !firebaseConfig.apiKey || !firebaseConfig.authDomain) {
-      firebaseInitializationError = new Error(
-        "CRITIQUE : La configuration Firebase fournie par l'environnement est incomplète. " +
-        "La variable globale '__firebase_config' doit contenir un objet JSON valide avec au moins 'projectId', 'apiKey' et 'authDomain'."
-      );
-      console.error(firebaseInitializationError.message);
+  // Vérifie si la configuration Firebase est valide avant d'initialiser
+  if (!firebaseConfig.projectId || !firebaseConfig.apiKey || !firebaseConfig.authDomain) {
+    firebaseInitializationError = new Error(
+      "CRITIQUE : La configuration Firebase est incomplète. " +
+      "Veuillez vous assurer que les secrets Cloudflare Pages (REACT_APP_FIREBASE_...) sont correctement définis " +
+      "pour construire la variable globale '__firebase_config' ou que les placeholders dans firebase.js sont remplis."
+    );
+    console.error(firebaseInitializationError.message);
+  } else {
+    // Procède à l'initialisation UNIQUEMENT si la configuration est valide
+    if (!getApps().length) { // Vérifie si aucune application Firebase n'a été initialisée
+      firebaseAppInstance = initializeApp(firebaseConfig);
     } else {
-      // Procède à l'initialisation uniquement si la configuration est valide
-      if (!getApps().length) { // Vérifie si aucune application Firebase n'a été initialisée
-        firebaseAppInstance = initializeApp(firebaseConfig);
-      } else {
-        firebaseAppInstance = getApp(); // Utilise l'application déjà initialisée
-      }
-      firestoreDbInstance = getFirestore(firebaseAppInstance);
-      firebaseAuthInstance = getAuth(firebaseAppInstance);
-      console.log("Firebase initialisé avec succès.");
+      firebaseAppInstance = getApp(); // Utilise l'application déjà initialisée
     }
+    firestoreDbInstance = getFirestore(firebaseAppInstance);
+    firebaseAuthInstance = getAuth(firebaseAppInstance);
+    console.log("Firebase initialisé avec succès via UserContext.");
   }
 
 } catch (error) {
@@ -62,7 +57,7 @@ export const UserProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
-  
+
   // Utilise directement les instances au niveau du module. Elles sont garanties d'être les mêmes
   // entre les rendus et ne causeront pas de problèmes de réinitialisation.
   const db = firestoreDbInstance;
