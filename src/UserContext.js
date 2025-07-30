@@ -1,104 +1,116 @@
-/* global __initial_auth_token */
 // src/UserContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth, db } from './firebase';
-import { onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { initializeApp } from 'firebase/app';
 
 const UserContext = createContext();
-
-export const useUser = () => useContext(UserContext);
 
 export const UserProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
+  const [db, setDb] = useState(null);
+  const [auth, setAuth] = useState(null);
 
   useEffect(() => {
-    // Écouteur pour les changements d'état d'authentification Firebase
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+    // Initialisation de Firebase
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+    const app = initializeApp(firebaseConfig);
+    const firestoreDb = getFirestore(app);
+    const firebaseAuth = getAuth(app);
+
+    setDb(firestoreDb);
+    setAuth(firebaseAuth);
+
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
       if (user) {
-        // Si un utilisateur est connecté, on met à jour le currentUser
-        setCurrentUser(user);
-        const userDocRef = doc(db, "users", user.uid);
-        
-        // Écouteur en temps réel pour le document utilisateur dans Firestore
-        const unsubscribeUserDoc = onSnapshot(userDocRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const userData = docSnap.data();
-            // Fusionne les données Firebase Auth avec les données Firestore
-            setCurrentUser({ ...user, ...userData });
-            setIsAdmin(userData.isAdmin || false);
+        try {
+          const userDocRef = doc(firestoreDb, "users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+
+          let userData = {};
+          if (userDocSnap.exists()) {
+            userData = userDocSnap.data();
           } else {
-            // Si le document utilisateur n'existe pas (nouvel utilisateur ou suppression manuelle),
-            // on le crée avec des valeurs par défaut.
-            setDoc(userDocRef, {
+            // Si le document utilisateur n'existe pas, le créer
+            await setDoc(userDocRef, {
               displayName: user.displayName || user.email,
               email: user.email,
+              avatar: '👤', // Avatar par défaut
               isAdmin: false,
-              dateJoined: new Date().toISOString(),
               weeklyPoints: 0,
               totalCumulativePoints: 0,
               previousWeeklyPoints: 0,
               xp: 0,
               level: 1,
-              avatar: '👤'
-            }, { merge: true }).then(() => {
-              setCurrentUser({ 
-                ...user, 
-                displayName: user.displayName || user.email, 
-                isAdmin: false, 
-                dateJoined: new Date().toISOString(), 
-                weeklyPoints: 0, 
-                totalCumulativePoints: 0, 
-                previousWeeklyPoints: 0, 
-                xp: 0, 
-                level: 1, 
-                avatar: '👤' 
-              });
-              setIsAdmin(false);
-            }).catch(e => console.error("Erreur lors de la création du document utilisateur:", e));
+              dateJoined: new Date().toISOString(),
+            });
+            userData = (await getDoc(userDocRef)).data(); // Relire les données après création
           }
-        }, (error) => {
-          console.error("Erreur lors de l'écoute du document utilisateur:", error);
-        });
-        return () => unsubscribeUserDoc(); // Nettoyage de l'écouteur du document utilisateur
+          
+          // Mettre à jour currentUser avec toutes les données du profil
+          setCurrentUser({
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || userData.displayName || user.email,
+            avatar: userData.avatar || '👤',
+            isAdmin: userData.isAdmin || false,
+            weeklyPoints: userData.weeklyPoints || 0,
+            totalCumulativePoints: userData.totalCumulativePoints || 0,
+            previousWeeklyPoints: userData.previousWeeklyPoints || 0,
+            xp: userData.xp || 0,
+            level: userData.level || 1,
+            dateJoined: userData.dateJoined || new Date().toISOString(),
+            // Ajoutez d'autres champs si nécessaire
+          });
+          setIsAdmin(userData.isAdmin || false);
+        } catch (error) {
+          console.error("Erreur lors de la récupération/création du document utilisateur:", error);
+          setCurrentUser(null);
+          setIsAdmin(false);
+        }
       } else {
-        // Si aucun utilisateur n'est connecté
         setCurrentUser(null);
         setIsAdmin(false);
       }
-      setLoadingUser(false); // L'état de chargement de l'utilisateur est terminé
+      setLoadingUser(false);
     });
 
-    // Logique d'authentification initiale (sans connexion anonyme)
-    const signInInitialUser = async () => {
-      try {
-        // Vérifie si un token d'authentification initial est fourni par l'environnement Canvas
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
-        if (initialAuthToken) {
-          // Tente de se connecter avec le token personnalisé
-          await signInWithCustomToken(auth, initialAuthToken);
-        } else {
-          // Si aucun token initial n'est fourni, l'utilisateur devra se connecter manuellement.
-          setLoadingUser(false); // Assure que l'état de chargement est terminé
+    // Tentative de connexion avec le token personnalisé si disponible
+    const signInWithToken = async () => {
+      if (typeof __initial_auth_token !== 'undefined' && firebaseAuth) {
+        try {
+          await signInWithCustomToken(firebaseAuth, __initial_auth_token);
+        } catch (error) {
+          console.error("Erreur de connexion avec le token personnalisé:", error);
+          // Fallback vers l'authentification anonyme si le token échoue
+          try {
+            await signInAnonymously(firebaseAuth);
+          } catch (anonError) {
+            console.error("Erreur de connexion anonyme:", anonError);
+          }
         }
-      } catch (error) {
-        // Si la connexion avec le token personnalisé échoue, cela signifie que l'utilisateur n'est pas connecté.
-        setLoadingUser(false); // Assure que l'état de chargement est terminé même en cas d'erreur
+      } else if (firebaseAuth && !firebaseAuth.currentUser) {
+        // Si aucun token n'est disponible et pas déjà connecté, se connecter anonymement
+        try {
+          await signInAnonymously(firebaseAuth);
+        } catch (anonError) {
+          console.error("Erreur de connexion anonyme:", anonError);
+        }
       }
     };
 
-    signInInitialUser(); // Appelle la fonction d'authentification initiale
+    signInWithToken();
 
-    // Fonction de nettoyage pour l'écouteur d'authentification Firebase
-    return () => unsubscribeAuth();
-  }, []); // Le tableau de dépendances vide assure que cet effet ne s'exécute qu'une seule fois au montage
+    return () => unsubscribe(); // Nettoyage de l'écouteur d'authentification
+  }, []); // Dépendances vides pour n'exécuter qu'une fois à l'initialisation
 
   return (
-    <UserContext.Provider value={{ currentUser, isAdmin, loadingUser }}>
+    <UserContext.Provider value={{ currentUser, isAdmin, loadingUser, db, auth, setCurrentUser }}>
       {children}
     </UserContext.Provider>
   );
 };
+
+export const useUser = () => useContext(UserContext);

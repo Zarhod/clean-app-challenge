@@ -8,6 +8,8 @@
 // Intégration d'une fonctionnalité de chat simple avec bouton flottant.
 // Correction des problèmes de z-index et d'affichage des modales.
 // Correction des dépendances manquantes dans useCallback pour résoudre les erreurs de compilation CI.
+// Amélioration du graphique de statistiques des tâches.
+// Correction des problèmes de boutons de profil et d'affichage d'avatar.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -28,7 +30,7 @@ import WeeklyRecapModal from './WeeklyRecapModal';
 import TaskHistoryModal from './TaskHistoryModal'; 
 import AvatarSelectionModal from './AvatarSelectionModal'; 
 import PasswordChangeModal from './PasswordChangeModal'; 
-import ChatFloatingButton from './ChatFloatingButton'; // Nouvelle importation pour le bouton flottant
+import ChatFloatingButton from './ChatFloatingButton'; 
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -77,7 +79,7 @@ const calculateLevelAndXP = (currentXP) => {
 function AppContent() { 
   // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
-  const { currentUser, isAdmin, loadingUser } = useUser(); 
+  const { currentUser, isAdmin, loadingUser, setCurrentUser } = useUser(); // Récupère setCurrentUser du contexte
 
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
@@ -157,7 +159,6 @@ function AppContent() {
 
   const [showAvatarSelectionModal, setShowAvatarSelectionModal] = useState(false); 
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false); 
-  // showChatModal n'est plus géré ici, mais par ChatFloatingButton
 
   // États pour la pagination des réalisations
   const [realizationsPerPage] = useState(10);
@@ -289,7 +290,7 @@ function AppContent() {
       }
     });
     return unsubscribe;
-  }, []); 
+  }, [auth]); // Ajout de auth comme dépendance
 
   const setupRealisationsListener = useCallback(() => {
     const q = query(collection(db, 'realizations')); 
@@ -304,7 +305,7 @@ function AppContent() {
       }
     });
     return unsubscribe;
-  }, []);
+  }, [auth]); // Ajout de auth comme dépendance
 
   const setupClassementListener = useCallback(() => {
     const usersUnsubscribe = onSnapshot(collection(db, "users"), (usersSnapshot) => {
@@ -384,7 +385,7 @@ function AppContent() {
       }
     });
     return usersUnsubscribe; 
-  }, []); 
+  }, [auth]); // Ajout de auth comme dépendance
 
   const setupObjectivesListener = useCallback(() => {
     const q = query(collection(db, 'objectives')); 
@@ -398,7 +399,7 @@ function AppContent() {
       }
     });
     return unsubscribe;
-  }, []);
+  }, [auth]); // Ajout de auth comme dépendance
 
   const setupCongratulatoryMessagesListener = useCallback(() => {
     const q = query(collection(db, 'congratulatory_messages')); 
@@ -413,7 +414,7 @@ function AppContent() {
       }
     });
     return unsubscribe;
-  }, []);
+  }, [auth]); // Ajout de auth comme dépendance
 
   const setupHistoricalPodiumsListener = useCallback(() => {
     const q = query(collection(db, 'historical_podiums')); 
@@ -427,7 +428,7 @@ function AppContent() {
       }
     });
     return unsubscribe;
-  }, []);
+  }, [auth]); // Ajout de auth comme dépendance
 
   const setupReportsListener = useCallback(() => {
     const q = query(collection(db, 'reports')); 
@@ -441,7 +442,7 @@ function AppContent() {
       }
     });
     return unsubscribe;
-  }, []);
+  }, [auth]); // Ajout de auth comme dépendance
 
   // Effet principal pour gérer les écouteurs en temps réel et l'état de chargement global
   useEffect(() => {
@@ -492,7 +493,7 @@ function AppContent() {
       Object.keys(currentInitialLoadStatusRef).forEach(key => currentInitialLoadStatusRef[key] = false);
     };
   }, [
-    currentUser, loadingUser, 
+    currentUser, loadingUser, db, auth, // Ajout de db et auth comme dépendances pour s'assurer que les listeners sont recréés si ces objets changent
     setupTasksListener, setupRealisationsListener, setupClassementListener,
     setupObjectivesListener, setupCongratulatoryMessagesListener, setupHistoricalPodiumsListener,
     setupReportsListener
@@ -535,7 +536,8 @@ function AppContent() {
     currentUser,
     realisations, 
     historicalPodiums, 
-    calculateWeeklyRecap 
+    calculateWeeklyRecap,
+    db // Ajout de db comme dépendance
   ]);
 
 
@@ -565,7 +567,7 @@ function AppContent() {
     } finally {
       setLoading(false);
     }
-  }, [setParticipantWeeklyTasks, setLoading]); 
+  }, [setParticipantWeeklyTasks, setLoading, db]); // Ajout de db comme dépendance
 
   const fetchSubTasks = useCallback(async (parentTaskId) => {
     setLoading(true); 
@@ -596,7 +598,7 @@ function AppContent() {
     } finally {
       setLoading(false);
     }
-  }, [setSubTasks, setLoading]); 
+  }, [setSubTasks, setLoading, db]); // Ajout de db comme dépendance
 
   const fetchGlobalCollectionDocs = useCallback(async (collectionName) => {
     setLoadingGlobalCollectionDocs(true);
@@ -612,7 +614,7 @@ function AppContent() {
     } finally {
       setLoadingGlobalCollectionDocs(false);
     }
-  }, []); 
+  }, [db]); // Ajout de db comme dépendance
 
   const recordTask = async (idTacheToRecord, isSubTask = false) => {
     if (!currentUser) {
@@ -656,6 +658,16 @@ function AppContent() {
           xp: newXP, 
           level: newLevel 
         });
+
+        // Mettre à jour le currentUser dans le contexte pour refléter les changements
+        setCurrentUser(prevUser => ({
+          ...prevUser,
+          totalCumulativePoints: newTotalCumulativePoints,
+          weeklyPoints: newWeeklyPoints,
+          xp: newXP,
+          level: newLevel
+        }));
+
       }
 
       if (String(taskToRecord.Frequence || '').toLowerCase() === 'ponctuel') {
@@ -738,6 +750,15 @@ function AppContent() {
           xp: newXP, 
           level: newLevel 
         });
+
+        // Mettre à jour le currentUser dans le contexte pour refléter les changements
+        setCurrentUser(prevUser => ({
+          ...prevUser,
+          totalCumulativePoints: newTotalCumulativePoints,
+          weeklyPoints: newWeeklyPoints,
+          xp: newXP,
+          level: newLevel
+        }));
       }
       await batch.commit(); 
 
@@ -940,7 +961,7 @@ function AppContent() {
       setShowDeleteConfirmModal(false); 
       setTaskToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete]);
+  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete, db]); // Ajout de db comme dépendance
 
   const handleObjectiveFormChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -1028,7 +1049,7 @@ function AppContent() {
       setShowDeleteObjectiveConfirmModal(false); 
       setObjectiveToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete]);
+  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete, db]); // Ajout de db comme dépendance
 
   const handleReportClick = (taskRealisation) => {
     if (!currentUser) {
@@ -1056,16 +1077,34 @@ function AppContent() {
 
     setLoading(true);
     try {
+      // Vérifier si un rapport existe déjà pour cette réalisation spécifique pour éviter les doublons
+      const existingReportsQuery = query(
+        collection(db, 'reports'),
+        where('realizationId', '==', reportedTaskDetails.realizationId)
+      );
+      const existingReportsSnap = await getDocs(existingReportsQuery);
+
+      if (!existingReportsSnap.empty) {
+        toast.info("Cette tâche a déjà été signalée.");
+        setShowReportModal(false);
+        setReportedTaskDetails(null);
+        setLoading(false);
+        return;
+      }
+
+      // Ajouter le rapport
       await addDoc(collection(db, 'reports'), { 
         reportedTaskId: reportedTaskDetails.id,
         reportedUserId: reportedTaskDetails.reportedUserId,
         reportedParticipantName: reportedTaskDetails.participant,
         reporterUserId: currentUser.uid,
         reporterName: currentUser.displayName || currentUser.email, 
+        realizationId: reportedTaskDetails.realizationId, // Ajout de l'ID de la réalisation pour un suivi précis
         timestamp: new Date().toISOString(),
         status: 'pending' 
       });
 
+      // Supprimer la réalisation (une seule suppression)
       await deleteDoc(doc(db, 'realizations', reportedTaskDetails.realizationId)); 
       toast.success(`Tâche signalée et réalisation supprimée.`);
 
@@ -1087,9 +1126,21 @@ function AppContent() {
           xp: newXP,
           level: newLevel
         });
+
+        // Mettre à jour le currentUser si c'est l'utilisateur qui a été signalé
+        if (currentUser.uid === reportedTaskDetails.reportedUserId) {
+          setCurrentUser(prevUser => ({
+            ...prevUser,
+            totalCumulativePoints: newTotalCumulativePoints,
+            weeklyPoints: newWeeklyPoints,
+            xp: newXP,
+            level: newLevel
+          }));
+        }
+
         toast.info(`${reportedTaskDetails.participant} a perdu ${DEDUCTION_POINTS} points.`);
       } else {
-        // console.warn(`Utilisateur signalé (${reportedTaskDetails.reportedUserId}) non trouvé dans la collection 'users'.`);
+        console.warn(`Utilisateur signalé (${reportedTaskDetails.reportedUserId}) non trouvé dans la collection 'users'.`);
       }
     } catch (err) {
       toast.error(`Une erreur est survenue lors du signalement: ${err.message}`);
@@ -1112,7 +1163,7 @@ function AppContent() {
     } else {
       toast.error("Profil utilisateur introuvable.");
     }
-  }, [fetchParticipantWeeklyTasks]);
+  }, [fetchParticipantWeeklyTasks, db]); // Ajout de db comme dépendance
 
   const isSubTaskAvailable = useCallback((subTask) => {
     const frequence = subTask.Frequence ? String(subTask.Frequence).toLowerCase() : 'hebdomadaire';
@@ -1932,8 +1983,8 @@ function AppContent() {
       : 0;
 
     const participantBadges = getParticipantBadges(selectedParticipantProfile);
-    const { level, xpNeededForNextLevel } = calculateLevelAndXP(selectedParticipantProfile.XP || 0);
-    const xpProgress = xpNeededForNextLevel > 0 ? ((selectedParticipantProfile.XP || 0) / xpNeededForNextLevel) * 100 : 0;
+    const { level, xpNeededForNextLevel } = calculateLevelAndXP(selectedParticipantProfile.xp || 0); // Utilise selectedParticipantProfile.xp
+    const xpProgress = xpNeededForNextLevel > 0 ? ((selectedParticipantProfile.xp || 0) / xpNeededForNextLevel) * 100 : 0;
 
 
     return (
@@ -1941,13 +1992,13 @@ function AppContent() {
         <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Profil de {selectedParticipantProfile.displayName || selectedParticipantProfile.email}</h2> 
         <div className="mb-6 p-4 bg-neutralBg rounded-xl shadow-inner"> 
           <div className="flex items-center justify-center mb-4">
-            <span className="text-6xl mr-4">{selectedParticipantProfile.Avatar || '👤'}</span>
+            <span className="text-6xl mr-4">{selectedParticipantProfile.avatar || '👤'}</span> {/* Utilise selectedParticipantProfile.avatar */}
             <div className="text-left">
               <p className="text-lg sm:text-xl font-semibold text-text">
                 Niveau: <span className="text-primary font-bold">{level}</span>
               </p>
               <p className="text-base sm:text-lg text-lightText">
-                XP: <span className="font-bold">{selectedParticipantProfile.XP || 0}</span> / {xpNeededForNextLevel}
+                XP: <span className="font-bold">{selectedParticipantProfile.xp || 0}</span> / {xpNeededForNextLevel}
               </p>
               <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
                 <div 
@@ -2230,7 +2281,7 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal, showAdminObjectivesListModal]);
+  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal]); // showAdminObjectivesListModal est déjà dans les dépendances de useCallback si utilisé à l'intérieur de la fonction
 
   const renderAdminTasksListModal = useCallback(() => {
     if (!showAdminTasksListModal) return null;
@@ -2297,7 +2348,7 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal, showAdminTasksListModal]);
+  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal]); // showAdminTasksListModal est déjà dans les dépendances de useCallback si utilisé à l'intérieur de la fonction
 
   const renderGlobalDataViewModal = useCallback(() => {
     if (!showGlobalDataViewModal) return null;
@@ -2870,9 +2921,12 @@ function AppContent() {
             onSave={async (newAvatar) => {
               try {
                 await updateDoc(doc(db, "users", currentUser.uid), { avatar: newAvatar });
+                // Mettre à jour le currentUser dans le contexte après la sauvegarde
+                setCurrentUser(prevUser => ({ ...prevUser, avatar: newAvatar }));
                 toast.success("Avatar mis à jour !");
               } catch (error) {
                 toast.error("Erreur lors de la mise à jour de l'avatar.");
+                console.error("Error updating avatar:", error);
               } finally {
                 setShowAvatarSelectionModal(false);
               }

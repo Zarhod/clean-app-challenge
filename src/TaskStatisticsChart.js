@@ -1,64 +1,61 @@
+// src/TaskStatisticsChart.js
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Label } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-/**
- * Composant pour afficher les statistiques des tâches sous forme de graphique.
- * Affiche le nombre de réalisations par catégorie de tâche.
- * @param {Object[]} realisations - Tableau de toutes les réalisations.
- * @param {Object[]} allRawTaches - Tableau de toutes les tâches brutes pour obtenir les catégories.
- */
-function TaskStatisticsChart({ realisations, allRawTaches }) {
-  // Calculer le nombre de réalisations par catégorie
-  const categoryCompletionCounts = {};
-  realisations.forEach(real => {
-    const category = real.Categorie_Tache || 'Non catégorisée';
-    categoryCompletionCounts[category] = (categoryCompletionCounts[category] || 0) + 1;
-  });
+const TaskStatisticsChart = ({ realisations, allRawTaches }) => {
+  // Calculer les points gagnés par catégorie
+  const pointsByCategory = realisations.reduce((acc, real) => {
+    const category = real.categorieTache || 'Non catégorisé';
+    const points = parseFloat(real.pointsGagnes) || 0;
+    acc[category] = (acc[category] || 0) + points;
+    return acc;
+  }, {});
 
   // Convertir en tableau pour Recharts
-  const chartData = Object.keys(categoryCompletionCounts).map(category => ({
-    name: category,
-    "Tâches Complétées": categoryCompletionCounts[category],
+  const chartData = Object.keys(pointsByCategory).map(category => ({
+    category: category,
+    points: pointsByCategory[category],
   }));
 
-  // Trier par nombre de tâches complétées (décroissant)
-  chartData.sort((a, b) => b["Tâches Complétées"] - a["Tâches Complétées"]);
+  // Trier par points décroissants
+  chartData.sort((a, b) => b.points - a.points);
+
+  if (chartData.length === 0) {
+    return (
+      <div className="text-center text-lightText py-4">
+        <p>Aucune donnée de réalisation pour afficher les statistiques.</p>
+        <p>Terminez des tâches pour voir votre progression !</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-neutralBg p-4 rounded-2xl mb-6 shadow-inner border border-primary/20">
-      <h3 className="text-xl font-bold text-primary mb-4 text-center">Statistiques des Tâches par Catégorie</h3>
-      {chartData.length > 0 ? (
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart
-            data={chartData}
-            margin={{
-              top: 20,
-              right: 30,
-              left: 20,
-              bottom: 20,
-            }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-            <XAxis dataKey="name" angle={-30} textAnchor="end" height={60} interval={0} stroke="#555">
-              <Label value="Catégorie de Tâche" position="bottom" offset={5} fill="#555" />
-            </XAxis>
-            <YAxis stroke="#555">
-              <Label value="Nombre de Tâches" angle={-90} position="insideLeft" offset={-10} fill="#555" style={{ textAnchor: 'middle' }} />
-            </YAxis>
-            <Tooltip 
-              cursor={{ fill: 'rgba(0,0,0,0.1)' }} 
-              contentStyle={{ backgroundColor: '#fff', border: '1px solid #ddd', borderRadius: '8px', padding: '10px' }}
-              labelStyle={{ fontWeight: 'bold', color: '#333' }}
-              itemStyle={{ color: '#666' }}
-            />
-            <Bar dataKey="Tâches Complétées" fill="#4CAF50" radius={[10, 10, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      ) : (
-        <p className="text-center text-lightText text-lg">Aucune donnée de tâche complétée pour les statistiques.</p>
-      )}
+    <div className="w-full h-80 sm:h-96 bg-white rounded-lg p-4 shadow-inner border border-gray-100">
+      <h4 className="text-lg font-bold text-primary mb-4 text-center">Points Gagnés par Catégorie</h4>
+      <ResponsiveContainer width="100%" height="80%">
+        <BarChart
+          data={chartData}
+          margin={{
+            top: 5,
+            right: 0,
+            left: 0,
+            bottom: 5,
+          }}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+          <XAxis dataKey="category" angle={-15} textAnchor="end" height={50} tick={{ fill: '#4a5568', fontSize: 12 }} />
+          <YAxis tick={{ fill: '#4a5568', fontSize: 12 }} />
+          <Tooltip
+            formatter={(value) => [`${value} points`, 'Total']}
+            contentStyle={{ backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '8px' }}
+            labelStyle={{ color: '#2d3748', fontWeight: 'bold' }}
+          />
+          <Legend wrapperStyle={{ paddingTop: '10px' }} />
+          <Bar dataKey="points" fill="#6a0dad" name="Points" radius={[10, 10, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
-}
+};
 
 export default TaskStatisticsChart;

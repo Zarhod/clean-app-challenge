@@ -17,13 +17,13 @@ const AvatarSelectionModal = ({ currentAvatar, onClose, onSave }) => {
   ];
 
   const handleSave = () => {
-    onSave(selectedAvatar);
+    onSave(selectedAvatar); // onSave est géré par App.js pour mettre à jour Firebase et le contexte
   };
 
   return (
     // z-index: 50 pour la modale principale
     <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
-      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-lg text-center animate-fade-in-scale border border-primary/20 mx-auto flex flex-col">
+      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-lg text-center animate-fade-in-scale border border-primary/20 mx-auto flex flex-col h-[80vh]">
         <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-4">Sélectionner un Avatar</h3>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-2 mb-4 bg-neutralBg rounded-lg border border-gray-200 grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">
