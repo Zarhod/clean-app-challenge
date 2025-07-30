@@ -23,5 +23,5 @@ const firebaseConfig = typeof __firebase_config !== 'undefined'
 
 // Exporter uniquement l'objet de configuration.
 // Les instances 'app', 'auth', 'db' ne sont PAS initialisées ici.
-// Elles seront initialisées et exportées par UserContext.js.
+// Elles seront initialisées et exportées par UserContext.js via le hook useUser().
 export { firebaseConfig };
