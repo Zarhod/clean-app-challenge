@@ -16,22 +16,30 @@ try {
   const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
   const firebaseConfig = JSON.parse(rawConfig);
 
-  // Ensure projectId exists, even if it's a placeholder for dev/missing config
-  if (!firebaseConfig.projectId) {
-    console.warn("Firebase config is missing 'projectId'. Using a placeholder. Firebase services may not function.");
-    firebaseConfig.projectId = "your-default-project-id"; // Placeholder to prevent crash
-  }
-
-  if (!getApps().length) { // Check if no Firebase app has been initialized yet
-    firebaseApp = initializeApp(firebaseConfig);
+  // --- Validation de la configuration Firebase ---
+  if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
+    console.error(
+      "Critical Firebase configuration error: 'projectId' or 'apiKey' is missing in __firebase_config. " +
+      "Please ensure your environment provides a complete Firebase configuration. " +
+      "Firebase services will not function correctly without it."
+    );
+    // Set instances to null if config is invalid to prevent further errors
+    firebaseApp = null;
+    firestoreDbInstance = null;
+    firebaseAuthInstance = null;
   } else {
-    firebaseApp = getApp(); // Use the already initialized app
+    // Proceed with initialization only if config is valid
+    if (!getApps().length) { // Check if no Firebase app has been initialized yet
+      firebaseApp = initializeApp(firebaseConfig);
+    } else {
+      firebaseApp = getApp(); // Use the already initialized app
+    }
+    firestoreDbInstance = getFirestore(firebaseApp);
+    firebaseAuthInstance = getAuth(firebaseApp);
   }
-  firestoreDbInstance = getFirestore(firebaseApp);
-  firebaseAuthInstance = getAuth(firebaseApp);
 } catch (error) {
-  console.error("Critical Firebase initialization error:", error);
-  // Set instances to null if initialization fails to prevent further errors
+  console.error("Critical Firebase initialization error during parsing or app creation:", error);
+  // Ensure instances are null if any error occurs during this critical step
   firebaseApp = null;
   firestoreDbInstance = null;
   firebaseAuthInstance = null;
