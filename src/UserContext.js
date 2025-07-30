@@ -1,6 +1,6 @@
 /* global __firebase_config, __initial_auth_token */
 // src/UserContext.js
-import React, { createContext, useContext, useState, useEffect } from 'react'; // Removed useCallback as it's not needed for module-level init
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app'; 
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
@@ -13,7 +13,15 @@ let firestoreDbInstance;
 let firebaseAuthInstance;
 
 try {
-  const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+  const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+  const firebaseConfig = JSON.parse(rawConfig);
+
+  // Ensure projectId exists, even if it's a placeholder for dev/missing config
+  if (!firebaseConfig.projectId) {
+    console.warn("Firebase config is missing 'projectId'. Using a placeholder. Firebase services may not function.");
+    firebaseConfig.projectId = "your-default-project-id"; // Placeholder to prevent crash
+  }
+
   if (!getApps().length) { // Check if no Firebase app has been initialized yet
     firebaseApp = initializeApp(firebaseConfig);
   } else {
@@ -23,8 +31,10 @@ try {
   firebaseAuthInstance = getAuth(firebaseApp);
 } catch (error) {
   console.error("Critical Firebase initialization error:", error);
-  // In a real application, you might want to display a user-friendly error here
-  // or log to a monitoring service. For now, we just log to console.
+  // Set instances to null if initialization fails to prevent further errors
+  firebaseApp = null;
+  firestoreDbInstance = null;
+  firebaseAuthInstance = null;
 }
 
 export const useUser = () => useContext(UserContext);
