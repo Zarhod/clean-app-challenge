@@ -12,6 +12,7 @@
 // Correction des problèmes de boutons de profil et d'affichage d'avatar.
 // Correction des erreurs no-undef dans UserContext.js.
 // Correction des avertissements ESLint 'exhaustive-deps' et 'no-unused-vars'.
+// Correction de la duplication de l'écran de bienvenue lors de l'ouverture de la modale de connexion.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -33,7 +34,7 @@ import TaskHistoryModal from './TaskHistoryModal';
 import AvatarSelectionModal from './AvatarSelectionModal'; 
 import PasswordChangeModal from './PasswordChangeModal'; 
 import ChatFloatingButton from './ChatFloatingButton'; 
-import ProfileEditOptionsModal from './ProfileEditOptionsModal'; // Nouvelle importation
+import ProfileEditOptionsModal from './ProfileEditOptionsModal'; 
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -146,7 +147,7 @@ function AppContent() {
   const logoClickTimerRef = useRef(null); 
 
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showProfileEditOptionsModal, setShowProfileEditOptionsModal] = useState(false); // Nouveau state
+  const [showProfileEditOptionsModal, setShowProfileEditOptionsModal] = useState(false); 
 
   const [showGlobalDataViewModal, setShowGlobalDataViewModal] = useState(false);
   const [selectedGlobalCollection, setSelectedGlobalCollection] = useState(null);
@@ -2033,7 +2034,7 @@ function AppContent() {
           {currentUser && selectedParticipantProfile.id === currentUser.uid && (
             <div className="flex justify-center mt-4">
               <button
-                onClick={() => setShowProfileEditOptionsModal(true)} // Ouvre la nouvelle modale
+                onClick={() => setShowProfileEditOptionsModal(true)} 
                 className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1 px-3 rounded-md transition duration-300 text-sm flex items-center gap-1"
               >
                 ✏️ Modifier le Profil
@@ -2644,6 +2645,7 @@ function AppContent() {
     );
   }
 
+  // Rendu de l'écran de bienvenue si l'utilisateur n'est pas connecté
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background-light to-background-dark font-sans p-4 sm:p-6">
@@ -2675,6 +2677,7 @@ function AppContent() {
           draggable
           pauseOnHover
         />
+        {/* La modale d'authentification est rendue ici, en dehors du bloc conditionnel de l'écran de bienvenue */}
         {showAuthModal && ( 
           <AuthModal onClose={() => setShowAuthModal(false)} />
         )}
@@ -2682,6 +2685,7 @@ function AppContent() {
     );
   }
 
+  // Rendu de l'application principale si l'utilisateur est connecté et les données chargées
   if (loading) { 
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4"> 
@@ -2888,6 +2892,7 @@ function AppContent() {
             editingTask={editingTask}
           />
         )}
+        {/* La modale d'authentification est rendue ici, en dehors du bloc conditionnel de l'écran de bienvenue */}
         {showAuthModal && ( 
           <AuthModal onClose={() => setShowAuthModal(false)} />
         )}
@@ -2927,7 +2932,7 @@ function AppContent() {
           />
         )}
 
-        {showProfileEditOptionsModal && currentUser && ( // Nouvelle modale pour les options de profil
+        {showProfileEditOptionsModal && currentUser && ( 
           <ProfileEditOptionsModal
             onClose={() => setShowProfileEditOptionsModal(false)}
             onOpenAvatar={() => { setShowAvatarSelectionModal(true); setShowProfileEditOptionsModal(false); }}
