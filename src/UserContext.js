@@ -1,3 +1,4 @@
+/* global __firebase_config, __initial_auth_token */
 // src/UserContext.js
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
@@ -54,7 +55,7 @@ export const UserProvider = ({ children }) => {
               xp: userData.xp || 0,
               level: userData.level || 1,
               dateJoined: userData.dateJoined || new Date().toISOString(),
-              lastReadTimestamp: userData.lastReadTimestamp || null // Assurez-vous que ceci est inclus
+              lastReadTimestamp: userData.lastReadTimestamp || null
             });
             setIsAdmin(userData.isAdmin || false);
           } else {
@@ -63,14 +64,14 @@ export const UserProvider = ({ children }) => {
               displayName: user.displayName || user.email.split('@')[0],
               email: user.email,
               isAdmin: false,
-              avatar: '👤',
+              avatar: '�',
               weeklyPoints: 0,
               totalCumulativePoints: 0,
               previousWeeklyPoints: 0,
               xp: 0,
               level: 1,
               dateJoined: new Date().toISOString(),
-              lastReadTimestamp: new Date().toISOString() // Initialise le timestamp de lecture
+              lastReadTimestamp: new Date().toISOString()
             };
             await setDoc(userDocRef, newUserData);
             setCurrentUser({ uid: user.uid, ...newUserData });
@@ -114,7 +115,7 @@ export const UserProvider = ({ children }) => {
       });
       return () => unsubscribe();
     }
-  }, [db, currentUser?.uid]); // Dépend de db et de l'UID de l'utilisateur
+  }, [db, currentUser?.uid]);
 
   const value = {
     currentUser,
@@ -122,7 +123,7 @@ export const UserProvider = ({ children }) => {
     loadingUser,
     db,
     auth,
-    setCurrentUser // Permet aux composants de mettre à jour currentUser dans le contexte
+    setCurrentUser
   };
 
   return (
@@ -131,3 +132,4 @@ export const UserProvider = ({ children }) => {
     </UserContext.Provider>
   );
 };
+�
