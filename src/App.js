@@ -500,7 +500,7 @@ function AppContent() {
       Object.keys(currentInitialLoadStatusRef).forEach(key => currentInitialLoadStatusRef[key] = false);
     };
   }, [
-    currentUser, loadingUser, // db et auth ne sont plus des dépendances directes ici.
+    currentUser, loadingUser, db, auth, // Ajout de db et auth ici pour satisfaire ESLint
     setupTasksListener, setupRealisationsListener, setupClassementListener,
     setupObjectivesListener, setupCongratulatoryMessagesListener, setupHistoricalPodiumsListener,
     setupReportsListener
@@ -544,7 +544,7 @@ function AppContent() {
     realisations, 
     historicalPodiums, 
     calculateWeeklyRecap,
-    db // Maintenu car il est utilisé dans le corps de l'effet pour les opérations Firestore
+    db 
   ]);
 
 
@@ -2288,7 +2288,7 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal]); 
+  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal, showAdminObjectivesListModal]); // Ajout de showAdminObjectivesListModal
 
   const renderAdminTasksListModal = useCallback(() => {
     if (!showAdminTasksListModal) return null;
@@ -2355,7 +2355,7 @@ function AppContent() {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal]); 
+  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal, showAdminTasksListModal]); // Ajout de showAdminTasksListModal
 
   const renderGlobalDataViewModal = useCallback(() => {
     if (!showGlobalDataViewModal) return null;
