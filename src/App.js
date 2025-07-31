@@ -433,21 +433,8 @@ function AppContent() {
     }
   };
 
-  // Fonction pour signaler une réalisation (admin seulement)
-  const handleReportRealization = async (realisation) => {
-    if (!isAdmin) {
-      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
-      return;
-    }
-    setReportedTaskDetails({
-      id: realisation.id,
-      name: realisation.nomTache,
-      participant: realisation.userName,
-      userId: realisation.userId,
-      points: parseFloat(realisation.pointsGagnes) || 0
-    });
-    setShowReportTaskModal(true);
-  };
+  // La fonction handleReportRealization a été supprimée car elle n'était pas utilisée.
+  // La logique de signalement est gérée directement par confirmReportRealization appelée depuis ReportTaskModal.
 
   const confirmReportRealization = async () => {
     if (!reportedTaskDetails || !db) {
@@ -939,9 +926,7 @@ function AppContent() {
               {/* Le bouton "Signaler une Réalisation (Admin)" ouvre la modale, l'admin devra saisir les détails ou une future UI les pré-remplira */}
               <button
                 onClick={() => {
-                  // Pour l'instant, ouvre la modale sans pré-remplir, car il n'y a pas de liste de réalisations ici.
-                  // Une future amélioration pourrait être d'afficher une liste des réalisations récentes pour sélection.
-                  setReportedTaskDetails(null); // S'assurer que les détails précédents sont effacés
+                  setReportedTaskDetails(null);
                   setShowReportTaskModal(true);
                 }}
                 className="bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
