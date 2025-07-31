@@ -3,8 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import { useUser } from './UserContext'; // Importe le contexte utilisateur pour accéder à Supabase
-import ImageCropperModal from './ImageCropperModal'; // Importe le nouveau composant de recadrage
-import { readFile } from './ImageCropperModal'; // Importe la fonction readFile du cropper
+import ImageCropperModal, { readFile, getCroppedImg } from './ImageCropperModal'; // Importe le nouveau composant de recadrage
 
 // Liste d'emojis pour la sélection d'avatar
 const emojis = [
@@ -13,425 +12,269 @@ const emojis = [
   '🍎', '🍊', '🍋', '🍉', '🍇', '🍓', '🍒', '🍑', '🍍', '🥭', '🥝', '🍅', '🍆', '🥑', '🥦', '🥕',
   '⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱', '🏓', '🏸', '🏒', '🏑', '🏏', '⛳', '🏹', '🎣',
   '🚀', '🛸', '🛰️', '🚁', '🚂', '🚄', '🚅', '🚆', '🚇', '🚈', '🚉', '🚌', '🚍', '🚎', '🚐', '🚑',
-  '🏠', '🏡', '🏘️', '🏢', '🏣', '🏥', '🏦', '🏦', '🏨', '🏪', '🏫', '🏬', '🏭', '🏯', '🏰', '💒', '🗼',
-  '💡', '⏰', '⏳', '⌚', '📱', '💻', '🖥️', '⌨️', '🖱️', '🖨️', '📷', '📸', '📹', '🎥', '🎙️', '🎧',
-  '📚', '📖', '📝', '✏️', '🖍️', '🖌️', '📏', '📐', '✂️', '📌', '📎', '🔗', '🔓', '🔒', '🔑', '🗝️',
-  '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖'
+  '🏠', '🏢', '🏫', '🏪', '🏭', '🏯', '🏰', '🗽', '🗼', '⛩️', '🗾', '🗻', '🌋', '🏞️', '🛣️', '🛤️',
 ];
 
 const AuthModal = ({ onClose }) => {
-  const { supabase, signUp: supabaseSignUp, signIn: supabaseSignIn } = useUser(); // Récupère les fonctions d'auth du contexte
-  const [isLogin, setIsLogin] = useState(true); // true pour connexion, false pour inscription
+  const { signIn, signUp, loadingUser, supabase } = useUser();
+  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [selectedAvatar, setSelectedAvatar] = useState('👤');
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-
-  // États pour la sélection d'avatar lors de l'inscription
-  const [registrationAvatarType, setRegistrationAvatarType] = useState('emoji'); // 'emoji' ou 'upload'
-  const [selectedRegistrationEmoji, setSelectedRegistrationEmoji] = useState('😀');
-  const [registrationAvatarFile, setRegistrationAvatarFile] = useState(null); // Le Blob de l'image (recadrée)
-  const [registrationAvatarPreviewUrl, setRegistrationAvatarPreviewUrl] = useState(null); // URL pour l'aperçu
-
-  // États pour le recadrage d'image
   const [showImageCropper, setShowImageCropper] = useState(false);
   const [imageToCropUrl, setImageToCropUrl] = useState(null);
 
-
-  // Effet pour réinitialiser les champs quand le type d'authentification change
   useEffect(() => {
-    setEmail('');
-    setPassword('');
-    setDisplayName(''); // Toujours réinitialiser le nom d'affichage lors du changement de mode
-    // Libère l'URL précédente si elle existe
-    if (registrationAvatarPreviewUrl) {
-      URL.revokeObjectURL(registrationAvatarPreviewUrl);
+    if (loadingUser) {
+      setLoading(true);
+    } else {
+      setLoading(false);
     }
-    setRegistrationAvatarPreviewUrl(null);
-    setRegistrationAvatarFile(null);
-    setSelectedRegistrationEmoji('😀'); // Réinitialise à l'emoji par défaut
-    setRegistrationAvatarType('emoji'); // Revient au type emoji par défaut
-    setImageToCropUrl(null);
-    setShowImageCropper(false);
-  }, [isLogin, registrationAvatarPreviewUrl]); // Ajout de registrationAvatarPreviewUrl
+  }, [loadingUser]);
 
-  // Nettoyage des Object URLs lors du démontage du composant ou si l'URL change
-  useEffect(() => {
-    return () => {
-      if (registrationAvatarPreviewUrl) {
-        URL.revokeObjectURL(registrationAvatarPreviewUrl);
-      }
-    };
-  }, [registrationAvatarPreviewUrl]); // Dépendance à registrationAvatarPreviewUrl pour le nettoyage spécifique
-
-
-  const handleRegistrationFileChange = async (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      if (selectedFile.size > 2 * 1024 * 1024) { // 2MB limit
-        toast.error("La taille de l'image ne doit pas dépasser 2 Mo.");
-        e.target.value = null; // Réinitialise l'input file
-        setRegistrationAvatarFile(null);
-        if (registrationAvatarPreviewUrl) URL.revokeObjectURL(registrationAvatarPreviewUrl);
-        setRegistrationAvatarPreviewUrl(null);
-        return;
-      }
+  const handleFileChange = async (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
       try {
-        const imageDataUrl = await readFile(selectedFile);
-        setImageToCropUrl(imageDataUrl); // Charge l'image dans le cropper
-        setShowImageCropper(true); // Ouvre la modale de recadrage
-        setSelectedRegistrationEmoji(null); // Désélectionne l'emoji pour que l'image prenne le dessus
-        setRegistrationAvatarType('upload'); // S'assure que le type est bien 'upload'
+        const fileDataUrl = await readFile(file);
+        setImageToCropUrl(fileDataUrl);
+        setShowImageCropper(true);
       } catch (error) {
         toast.error("Erreur lors de la lecture du fichier image.");
-        console.error("Error reading image file:", error);
-        setRegistrationAvatarFile(null);
-        if (registrationAvatarPreviewUrl) URL.revokeObjectURL(registrationAvatarPreviewUrl);
-        setRegistrationAvatarPreviewUrl(null);
+        console.error("Error reading file:", error);
       }
-    } else {
-      setRegistrationAvatarFile(null);
-      if (registrationAvatarPreviewUrl) URL.revokeObjectURL(registrationAvatarPreviewUrl);
-      setRegistrationAvatarPreviewUrl(null);
     }
   };
 
-  const handleCroppedImage = useCallback((croppedBlob) => {
-    setRegistrationAvatarFile(croppedBlob);
-    // Créer une URL pour l'aperçu à partir du Blob recadré
-    if (registrationAvatarPreviewUrl) {
-      URL.revokeObjectURL(registrationAvatarPreviewUrl); // Libère l'ancienne URL si elle existe
-    }
-    const previewUrl = URL.createObjectURL(croppedBlob);
-    setRegistrationAvatarPreviewUrl(previewUrl);
-    setSelectedRegistrationEmoji(null); // S'assurer que l'emoji est bien null quand il y a une image
-    setRegistrationAvatarType('upload'); // Garde le type 'upload' après le recadrage
-    setShowImageCropper(false); // Ferme le cropper
-    setImageToCropUrl(null); // Réinitialise l'URL de l'image à recadrer
-  }, [registrationAvatarPreviewUrl]); // Ajout de registrationAvatarPreviewUrl aux dépendances
-
-  const handleCancelCrop = useCallback(() => {
+  const handleCancelCrop = () => {
     setShowImageCropper(false);
     setImageToCropUrl(null);
-    // Si l'utilisateur annule le recadrage, on revient à l'état précédent de l'avatar
-    // Si une image était déjà sélectionnée (avant le recadrage), on la garde.
-    // Sinon, on revient à l'emoji par défaut.
-    if (!registrationAvatarFile) { // Si aucun fichier n'était en cours avant le recadrage
-      setSelectedRegistrationEmoji('😀'); // Revenir à l'emoji par défaut
-      setRegistrationAvatarType('emoji');
-    }
-    // Si registrationAvatarFile existait, registrationAvatarPreviewUrl devrait déjà être là
-    // et on ne le réinitialise pas ici pour le maintenir.
-  }, [registrationAvatarFile]);
+    setSelectedAvatar('👤'); // Réinitialiser l'avatar si l'utilisateur annule le recadrage
+  };
 
-
-  const handleAuthAction = async () => {
+  const handleCropComplete = useCallback(async (croppedImageFile) => {
     setLoading(true);
     try {
-      if (isLogin) {
-        // Tente de se connecter
-        const { error } = await supabaseSignIn(email, password);
-
-        if (error) {
-          // Gère les erreurs spécifiques de Supabase Auth
-          if (error.message.includes("Email not confirmed")) {
-            toast.error("Votre email n'est pas confirmé. Veuillez vérifier votre boîte de réception pour activer votre compte.");
-          } else if (error.message.includes("Invalid login credentials")) {
-            // Tente de vérifier si l'email existe dans la table 'users' pour un message plus précis
-            const { data: users, error: userCheckError } = await supabase
-              .from('users')
-              .select('id')
-              .eq('email', email);
-
-            if (userCheckError) {
-              // Erreur lors de la vérification de l'email, affiche un message générique
-              toast.error("Erreur lors de la vérification de l'email.");
-            } else if (users.length === 0) {
-              // L'email n'existe pas dans notre table 'users'
-              toast.info("Pas de compte. Veuillez vous inscrire.");
-            } else {
-              // L'email existe, mais les identifiants sont incorrects (mauvais mot de passe)
-              toast.error("Email ou mot de passe incorrect.");
-            }
-          } else {
-            // Pour toute autre erreur d'authentification non gérée spécifiquement
-            toast.error(`Erreur d'authentification: ${error.message}`);
-          }
-        } else {
-          toast.success("Connexion réussie !");
-          onClose(); // Ferme la modale après succès
-        }
-      } else {
-        // --- Processus d'inscription ---
-        // 1. Tente d'inscrire l'utilisateur
-        const { data, error: signUpError } = await supabaseSignUp(email, password, displayName, selectedRegistrationEmoji);
-
-        if (signUpError) {
-          if (signUpError.message.includes("User already registered")) {
-            toast.error("Cet email est déjà enregistré. Veuillez vous connecter.");
-            setIsLogin(true); // Bascule vers le mode connexion si l'utilisateur existe déjà
-          } else {
-            toast.error(`Erreur d'inscription: ${signUpError.message}`);
-          }
-          setLoading(false);
-          return; // Arrête le processus si l'inscription échoue
-        }
-
-        // Si l'inscription réussit, l'utilisateur est automatiquement connecté
-        // et nous pouvons maintenant gérer l'upload de l'avatar s'il y en a un.
-        let finalAvatarUrl = selectedRegistrationEmoji; // Par défaut, l'emoji sélectionné
-
-        // Si un fichier d'avatar a été sélectionné et recadré
-        if (registrationAvatarFile && data.user) { // Vérifie qu'il y a un fichier et un utilisateur
-          const fileExt = registrationAvatarFile.type.split('/').pop();
-          const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-          const filePath = `${fileName}`;
-
-          try {
-            const { error: uploadError } = await supabase.storage
-              .from('avatars')
-              .upload(filePath, registrationAvatarFile, {
-                cacheControl: '3600',
-                upsert: false,
-                contentType: registrationAvatarFile.type
-              });
-
-            if (uploadError) throw uploadError;
-
-            const { data: publicUrlData } = supabase.storage
-              .from('avatars')
-              .getPublicUrl(filePath);
-            
-            if (!publicUrlData || !publicUrlData.publicUrl) {
-                throw new Error("Impossible de récupérer l'URL publique de l'avatar.");
-            }
-            finalAvatarUrl = publicUrlData.publicUrl;
-
-            // Mettre à jour le profil de l'utilisateur avec l'URL de l'avatar
-            // Note: user_metadata est mis à jour ici, mais le UserContext.js
-            // se chargera de mettre à jour la table public.users
-            const { error: updateError } = await supabase.auth.updateUser({
-              data: {
-                avatar_url: finalAvatarUrl
-              }
-            });
-
-            if (updateError) {
-              console.error("Erreur lors de la mise à jour de l'avatar de l'utilisateur (user_metadata):", updateError.message);
-              toast.error("Inscription réussie, mais erreur lors de la mise à jour de l'avatar dans le profil.");
-            }
-
-          } catch (uploadOrUpdateError) {
-              console.error("Erreur lors de l'upload ou de la mise à jour de l'avatar (storage):", uploadOrUpdateError.message);
-              toast.error("Inscription réussie, mais erreur lors de l'upload de l'avatar. Vérifiez les politiques de sécurité du stockage Supabase.");
-              // Ne pas retourner ici, l'inscription a réussi même si l'avatar a échoué
-          }
-        }
-
-        toast.success("Inscription réussie ! Vous êtes maintenant connecté.");
-        onClose(); // Ferme la modale après succès
-
+      if (!croppedImageFile) {
+        throw new Error("Aucune image recadrée n'a été retournée.");
       }
+      
+      const userId = supabase.auth.currentUser?.id;
+      if (!userId) {
+        // Cette erreur est improbable si nous sommes dans le flow d'inscription, mais c'est une bonne pratique de la gérer.
+        throw new Error("ID d'utilisateur non disponible pour le téléchargement d'image.");
+      }
+
+      // Supabase Storage path: `avatars/user_id.png`
+      const filePath = `avatars/${userId}.png`;
+      const { data, error } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, croppedImageFile, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (error) {
+        throw error;
+      }
+      
+      const publicUrl = supabase.storage.from('avatars').getPublicUrl(filePath).data.publicUrl;
+
+      setSelectedAvatar(publicUrl);
+      toast.success("Image d'avatar recadrée et prête à être utilisée !");
     } catch (error) {
-      console.error("Erreur d'authentification générale:", error.message);
-      let errorMessage = "Une erreur inattendue est survenue.";
-      if (error.message.includes("Email rate limit exceeded")) {
-        errorMessage = "Trop de tentatives de connexion/inscription. Veuillez réessayer plus tard.";
-      } else if (error.message.includes("Password should be at least 6 characters")) {
-        errorMessage = "Le mot de passe doit contenir au moins 6 caractères.";
-      } else if (error.message.includes("Unable to validate email address: invalid format")) {
-        errorMessage = "Format d'email invalide.";
-      }
-      toast.error(errorMessage);
+      toast.error("Erreur lors du téléchargement de l'avatar.");
+      console.error("Error uploading avatar:", error);
+      setSelectedAvatar('👤');
     } finally {
+      setShowImageCropper(false);
+      setImageToCropUrl(null);
       setLoading(false);
     }
+  }, [supabase]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    if (isLogin) {
+      const { success, error } = await signIn(email, password);
+      if (!success) {
+        toast.error(`Erreur de connexion: ${error}`);
+      } else {
+        // Le toast de succès est géré dans UserContext.js
+        onClose(); 
+      }
+    } else {
+      if (!displayName || !email || !password) {
+        toast.error("Veuillez remplir tous les champs.");
+        setLoading(false);
+        return;
+      }
+
+      if (password.length < 6) {
+        toast.error("Le mot de passe doit contenir au moins 6 caractères.");
+        setLoading(false);
+        return;
+      }
+
+      // La fonction signUp de UserContext gère à la fois l'auth et l'insertion dans public.users
+      const { success, error } = await signUp(email, password, displayName);
+      if (!success) {
+        toast.error(`Erreur d'inscription: ${error}`);
+      } else {
+        // Le toast de succès est géré dans UserContext.js
+        onClose(); 
+      }
+    }
+    setLoading(false);
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4">
-      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-sm text-center animate-fade-in-scale border border-primary/20 mx-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
-        <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-6">
-          {isLogin ? 'Connexion' : 'Inscription'}
-        </h2>
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-lg w-full transform transition-all duration-300 ease-in-out scale-95 md:scale-100 opacity-0 animate-fade-in-up">
+        <h2 className="text-3xl font-bold text-center text-gray-900 mb-6">{isLogin ? 'Se connecter' : 'S\'inscrire'}</h2>
 
-        <div className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (
             <div>
-              <label htmlFor="displayName" className="block text-text text-left font-medium mb-2 text-sm">Nom d'affichage</label>
+              <label htmlFor="displayName" className="block text-sm font-medium text-gray-700">Nom d'affichage</label>
               <input
-                id="displayName"
                 type="text"
+                id="displayName"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Votre nom ou pseudo"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary focus:border-primary text-base"
+                placeholder="Votre nom"
+                disabled={loading}
                 required={!isLogin}
               />
             </div>
           )}
+
           <div>
-            <label htmlFor="email" className="block text-text text-left font-medium mb-2 text-sm">Email</label>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Adresse Email</label>
             <input
-              id="email"
               type="email"
+              id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary focus:border-primary text-base"
               placeholder="votre.email@example.com"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              disabled={loading}
               required
             />
           </div>
-          <div className="relative">
-            <label htmlFor="password" className="block text-text text-left font-medium mb-2 text-sm">Mot de passe</label>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Mot de Passe</label>
             <input
+              type="password"
               id="password"
-              type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="********"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm pr-10"
+              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary focus:border-primary text-base"
+              placeholder="Minimum 6 caractères"
+              disabled={loading}
               required
             />
-            {/* Icônes Lucide React pour une meilleure cohérence visuelle */}
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5 mt-7"
-              aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-            >
-              {showPassword ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye-off text-gray-500 hover:text-gray-700"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.76 9.76 0 0 0 4.7-1.24"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye text-gray-500 hover:text-gray-700"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-              )}
-            </button>
           </div>
-
-          {/* Section de sélection d'avatar pour l'inscription */}
+          
           {!isLogin && (
-            <div className="mt-6 border-t border-gray-200 pt-4">
-              <h3 className="text-xl font-semibold text-text mb-3">Choisir votre Avatar</h3>
-              <div className="mb-4">
-                <p className="text-lg text-text font-semibold mb-3">Aperçu :</p>
-                <div className="w-24 h-24 mx-auto rounded-full bg-neutralBg flex items-center justify-center text-5xl border-2 border-primary overflow-hidden">
-                  {/* Utilise la clé pour forcer le re-rendu de l'image */}
-                  {registrationAvatarPreviewUrl ? (
-                      <img key={registrationAvatarPreviewUrl} src={registrationAvatarPreviewUrl} alt="Aperçu de l'avatar" className="w-full h-full object-cover" />
-                  ) : (
-                      <span className="text-5xl">{selectedRegistrationEmoji}</span>
-                  )}
+            <div className="pt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Avatar</label>
+              <div className="flex items-center space-x-4">
+                {/* Section Emojis */}
+                <div className="flex-1 overflow-x-auto whitespace-nowrap p-2 bg-gray-100 rounded-xl flex items-center space-x-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                  {emojis.map(emoji => (
+                    <span
+                      key={emoji}
+                      onClick={() => {
+                        setSelectedAvatar(emoji);
+                        const fileInput = document.getElementById('avatar-upload');
+                        if (fileInput) fileInput.value = ''; // Réinitialiser l'input fichier
+                      }}
+                      className={`text-2xl cursor-pointer p-1 rounded-full hover:bg-gray-200 transition-colors duration-200 
+                                  ${selectedAvatar === emoji ? 'ring-2 ring-primary bg-gray-200' : ''}`}
+                    >
+                      {emoji}
+                    </span>
+                  ))}
                 </div>
-              </div>
 
-              {/* Sélecteur Photo / Emoji */}
-              <div className="flex justify-center mb-4 bg-neutralBg rounded-full p-1 shadow-inner">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRegistrationAvatarType('emoji');
-                    // Si on bascule sur emoji, on efface l'image précédemment sélectionnée
-                    setRegistrationAvatarFile(null);
-                    if (registrationAvatarPreviewUrl) URL.revokeObjectURL(registrationAvatarPreviewUrl);
-                    setRegistrationAvatarPreviewUrl(null);
-                  }}
-                  className={`flex-1 py-2 px-4 rounded-full font-semibold text-sm transition duration-300
-                              ${registrationAvatarType === 'emoji' ? 'bg-primary text-white shadow-md' : 'text-text hover:bg-gray-200'}`}
-                >
-                  Emoji
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRegistrationAvatarType('upload');
-                    // Si on bascule sur upload, on s'assure que l'emoji n'est pas sélectionné
-                    setSelectedRegistrationEmoji(null);
-                  }}
-                  className={`flex-1 py-2 px-4 rounded-full font-semibold text-sm transition duration-300
-                              ${registrationAvatarType === 'upload' ? 'bg-primary text-white shadow-md' : 'text-text hover:bg-gray-200'}`}
-                >
-                  Photo
-                </button>
-              </div>
+                {/* Séparateur */}
+                <div className="h-10 w-px bg-gray-300"></div>
 
-              {registrationAvatarType === 'emoji' ? (
-                <div className="mb-4">
-                  <h4 className="text-lg font-semibold text-text mb-2">Sélectionner un Emoji :</h4>
-                  <div className="grid grid-cols-6 gap-2 max-h-32 overflow-y-auto custom-scrollbar p-1 rounded-lg bg-neutralBg">
-                    {emojis.map((emoji, index) => (
-                      <button
-                        key={index}
-                        type="button"
-                        onClick={() => {
-                          setSelectedRegistrationEmoji(emoji);
-                          setRegistrationAvatarFile(null);
-                          if (registrationAvatarPreviewUrl) URL.revokeObjectURL(registrationAvatarPreviewUrl); // Libère l'URL si elle existe
-                          setRegistrationAvatarPreviewUrl(null); // Clear preview for image
-                        }}
-                        className={`p-1 rounded-full text-2xl transition duration-150 hover:bg-primary/20 
-                                    ${selectedRegistrationEmoji === emoji ? 'bg-primary/40' : 'bg-transparent'}`}
-                        disabled={loading}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="mb-4">
-                  <h4 className="text-lg font-semibold text-text mb-2">Télécharger une Image (Max 2MB) :</h4>
+                {/* Section Upload */}
+                <div className="flex-shrink-0">
+                  <label htmlFor="avatar-upload" className="cursor-pointer">
+                    <span className="inline-flex items-center justify-center p-2 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 transition-colors duration-200">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-4l-4 4m0 0l4 4m0-4h4m-4-4v8m-4-4h4" />
+                      </svg>
+                    </span>
+                  </label>
                   <input
+                    id="avatar-upload"
                     type="file"
                     accept="image/*"
-                    onChange={handleRegistrationFileChange}
-                    className="w-full text-sm text-text file:mr-4 file:py-2 file:px-4
-                               file:rounded-full file:border-0 file:text-sm file:font-semibold
-                               file:bg-primary file:text-white hover:file:bg-secondary cursor-pointer"
+                    onChange={handleFileChange}
+                    className="hidden"
                     disabled={loading}
                   />
                 </div>
-              )}
+              </div>
+              <div className="mt-4 flex justify-center items-center">
+                <span className="text-5xl border-4 border-dashed border-gray-300 rounded-full w-24 h-24 flex items-center justify-center">
+                  {selectedAvatar.includes('http') ? (
+                    <img src={selectedAvatar} alt="Avatar" className="w-full h-full object-cover rounded-full" />
+                  ) : (
+                    selectedAvatar
+                  )}
+                </span>
+              </div>
             </div>
           )}
-        </div>
 
-        <div className="flex flex-col gap-3 mt-6">
-          <button
-            onClick={handleAuthAction}
-            disabled={loading || !email || !password || (!isLogin && (!displayName || (!selectedRegistrationEmoji && !registrationAvatarFile)))}
-            className="w-full bg-primary hover:bg-secondary text-white font-semibold py-3 px-4 rounded-full shadow-lg 
+          <div className="pt-4 space-y-3">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-primary hover:bg-secondary text-white font-semibold py-3 px-4 rounded-full shadow-md 
                        transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-base"
-          >
-            {loading ? 'Chargement...' : (isLogin ? 'Se connecter' : 'S\'inscrire')}
-          </button>
+            >
+              {loading ? 'Chargement...' : (isLogin ? 'Se connecter' : 'S\'inscrire')}
+            </button>
 
-          <button
-            onClick={() => setIsLogin(!isLogin)}
-            disabled={loading}
-            className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-4 rounded-full shadow-md 
+            <button
+              type="button"
+              onClick={() => setIsLogin(!isLogin)}
+              disabled={loading}
+              className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-4 rounded-full shadow-md 
                        transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-base"
-          >
-            {isLogin ? 'Pas de compte ? S\'inscrire' : 'Déjà un compte ? Se connecter'}
-          </button>
+            >
+              {isLogin ? 'Pas de compte ? S\'inscrire' : 'Déjà un compte ? Se connecter'}
+            </button>
+          </div>
+        </form>
 
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="w-full bg-transparent hover:bg-gray-100 text-gray-600 font-semibold py-2 px-4 rounded-full 
-                       transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-          >
-            Annuler
-          </button>
-        </div>
+        <button
+          onClick={onClose}
+          disabled={loading}
+          className="mt-4 w-full bg-transparent hover:bg-gray-100 text-gray-600 font-semibold py-2 px-4 rounded-full 
+                     transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+        >
+          Annuler
+        </button>
       </div>
 
-      {/* Modale de recadrage d'image */}
       {showImageCropper && imageToCropUrl && (
         <ImageCropperModal
           imageSrc={imageToCropUrl}
-          onClose={handleCancelCrop} // Utilise la nouvelle fonction de gestion de l'annulation
-          onCropComplete={handleCroppedImage}
+          onClose={handleCancelCrop}
+          onCropComplete={handleCropComplete}
         />
       )}
     </div>

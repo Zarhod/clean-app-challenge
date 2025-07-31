@@ -5,6 +5,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { toast } from 'react-toastify';
 
 // Récupération des variables d'environnement Supabase.
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
@@ -78,6 +79,8 @@ export const UserProvider = ({ children }) => {
         throw error;
       }
 
+      // Supabase 2.x ne crée pas automatiquement le user dans la table public.users
+      // Nous devons le faire manuellement ici.
       if (data.user) {
         console.log("UserContext: DÉBOGAGE: Utilisateur créé dans auth.users. Tentative d'insertion dans public.users avec l'ID:", data.user.id);
         const { error: insertError } = await supabase.from('users').insert({
@@ -185,6 +188,7 @@ export const UserProvider = ({ children }) => {
             await supabase.auth.signOut();
             setCurrentUser(null);
             setIsAdmin(false);
+            toast.error("Erreur lors de la création du profil utilisateur.");
           } else {
             console.log("UserContext: Profile created in public.users. Re-fetching data to update state.");
             const { data: newUserData, error: newFetchError } = await supabase
@@ -197,10 +201,12 @@ export const UserProvider = ({ children }) => {
               console.error("UserContext: Error re-fetching new user data after insert:", newFetchError ? newFetchError.message : "No data received.");
               setCurrentUser(null);
               setIsAdmin(false);
+              toast.error("Erreur de connexion.");
             } else {
               console.log("UserContext: New user data re-fetched successfully after insert:", newUserData[0]);
               setCurrentUser({ ...user, ...newUserData[0] });
               setIsAdmin(newUserData[0].is_admin);
+              toast.success(`Bonjour, ${newUserData[0].display_name} !`);
             }
           }
         } else if (userData) {
@@ -209,6 +215,7 @@ export const UserProvider = ({ children }) => {
           setIsAdmin(userData.is_admin);
           updateUserDataInDb(user.id, { last_login: new Date().toISOString() });
           setLoadingUser(false);
+          toast.success(`Bonjour, ${userData.display_name} !`);
         }
       } else {
         console.log("UserContext: No user session found. Setting currentUser to null and loadingUser to false.");
