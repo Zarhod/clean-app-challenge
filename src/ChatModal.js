@@ -1,7 +1,7 @@
 // src/ChatModal.js
 // Modale de chat en temps réel, mise à jour pour utiliser Supabase.
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // useCallback retiré
 import { toast } from 'react-toastify';
 import { useUser } from './UserContext'; // Pour accéder à supabase et currentUser
 

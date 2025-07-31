@@ -9,7 +9,7 @@ import ConfirmActionModal from './ConfirmActionModal';
 import { useUser } from './UserContext'; // Pour accéder à supabase et currentUser
 
 const AdminUserManagementModal = ({ onClose, realisations }) => {
-  const { supabase, currentUser, isAdmin, setCurrentUser } = useUser();
+  const { supabase, currentUser, isAdmin } = useUser(); // setCurrentUser retiré
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userToReset, setUserToReset] = useState(null);

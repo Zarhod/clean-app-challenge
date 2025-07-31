@@ -54,7 +54,7 @@ const AuthModal = ({ onClose }) => {
     setRegistrationAvatarType('emoji'); // Revient au type emoji par défaut
     setImageToCropUrl(null);
     setShowImageCropper(false);
-  }, [isLogin]); // Dépendance uniquement à isLogin pour les réinitialisations générales
+  }, [isLogin, registrationAvatarPreviewUrl]); // Ajout de registrationAvatarPreviewUrl
 
   // Nettoyage des Object URLs lors du démontage du composant ou si l'URL change
   useEffect(() => {

@@ -31,7 +31,7 @@ const PasswordChangeModal = ({ onClose, currentUser }) => {
     try {
       // Supabase n'a pas de méthode pour "réauthentifier" avec l'ancien mot de passe côté client
       // La méthode `updateUser` est utilisée pour changer le mot de passe de l'utilisateur actuellement connecté.
-      const { data, error } = await supabase.auth.updateUser({
+      const { error } = await supabase.auth.updateUser({ // data retiré
         password: newPassword,
       });
 

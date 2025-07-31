@@ -217,6 +217,8 @@ export const UserProvider = ({ children }) => {
     // Fonction de nettoyage pour désabonner le listener lors du démontage du composant.
     // Ajout d'une vérification pour s'assurer que 'data' et 'subscription' existent.
     return () => {
+      // Supabase onAuthStateChange retourne un objet avec 'data' et 'error'.
+      // La fonction de désabonnement est dans 'data.subscription'.
       if (authListener && authListener.data && authListener.data.subscription) {
         authListener.data.subscription.unsubscribe();
       }

@@ -17,6 +17,7 @@
 // Assure que la confirmation d'email est gérée côté Supabase (désactivée pour le dev).
 // CORRECTION: Ajout des déclarations useState manquantes pour les objectifs atteints.
 // CORRECTION: Importation de UserProvider.
+// CORRECTION ESLINT: Suppression des imports non utilisés, utilisation des états déclarés.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -39,7 +40,7 @@ import AvatarSelectionModal from './AvatarSelectionModal';
 import PasswordChangeModal from './PasswordChangeModal'; 
 import ChatFloatingButton from './ChatFloatingButton'; 
 import ProfileEditOptionsModal from './ProfileEditOptionsModal'; 
-import AdminLoginButton from './AdminLoginButton'; // Gardé si vous avez un bouton admin séparé
+// import AdminLoginButton from './AdminLoginButton'; // Supprimé car non utilisé
 
 import confetti from 'canvas-confetti'; 
 
@@ -47,12 +48,12 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
 // Importation du contexte utilisateur qui utilise maintenant Supabase
-import { useUser, UserProvider } from './UserContext'; // <-- AJOUT DE UserProvider ICI
+import { useUser, UserProvider } from './UserContext'; 
 
 const LOGO_FILENAME = 'logo.png'; 
 
 // Composant pour la popup d'objectif atteint
-const ObjectiveAchievedModal = ({ objective, onClose }) => {
+const ObjectiveAchievedModal = ({ objective, onClose }) => { // Composant utilisé maintenant
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4 animate-fade-in">
       <div className="bg-gradient-to-br from-primary to-secondary text-white rounded-3xl p-8 shadow-2xl w-full max-w-md text-center transform scale-105 animate-bounce-in border-4 border-white">
@@ -186,9 +187,9 @@ function AppContent() {
   const [showAvatarSelectionModal, setShowAvatarSelectionModal] = useState(false); 
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false); 
 
-  // Nouveaux états pour la popup d'objectif atteint
-  const [showObjectiveAchievedModal, setShowObjectiveAchievedModal] = useState(false); // <-- DÉCLARATION MANQUANTE
-  const [objectiveAchievedData, setObjectiveAchievedData] = useState(null); // <-- DÉCLARATION MANQUANTE
+  // Nouveaux états pour la popup d'objectif atteint (précédemment manquants)
+  const [showObjectiveAchievedModal, setShowObjectiveAchievedModal] = useState(false);
+  const [objectiveAchievedData, setObjectiveAchievedData] = useState(null);
 
   // États pour la pagination des réalisations
   const [realizationsPerPage] = useState(10);
@@ -1073,7 +1074,7 @@ function AppContent() {
         }
       }
     }
-  }, [currentUser, supabase, setObjectiveAchievedData, setShowObjectiveAchievedModal]); // <-- AJOUT DES DÉPENDANCES
+  }, [currentUser, supabase, setObjectiveAchievedData, setShowObjectiveAchievedModal]); // <-- DÉPENDANCES CORRECTES
 
   const handleAuthAction = async () => {
     if (currentUser) {
@@ -3292,6 +3293,14 @@ function AppContent() {
         
         {/* Le bouton flottant du chat est rendu ici */}
         <ChatFloatingButton currentUser={currentUser} supabase={supabase} />
+
+        {/* Rendu conditionnel de ObjectiveAchievedModal */}
+        {showObjectiveAchievedModal && objectiveAchievedData && (
+          <ObjectiveAchievedModal
+            objective={objectiveAchievedData}
+            onClose={() => setShowObjectiveAchievedModal(false)}
+          />
+        )}
 
       </div>
       <ToastContainer 

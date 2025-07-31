@@ -4,7 +4,7 @@
 
 import React, { useState, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
-import { getOrientation } from 'get-orientation/browser'; // Pour gérer l'orientation des images
+// import { getOrientation } from 'get-orientation/browser'; // Commenté ou supprimé car non utilisé
 // Importe les fonctions utilitaires. readFile est exporté une seule fois à la fin.
 
 // Styles pour le composant Cropper
