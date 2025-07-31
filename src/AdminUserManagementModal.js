@@ -1,15 +1,26 @@
 // src/AdminUserManagementModal.js
 import React, { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
-import { db } from './firebase'; // Assurez-vous que votre instance db est exportée de firebase.js
 import { toast } from 'react-toastify';
+// IMPORTEZ useUser POUR ACCÉDER À DB DEPUIS LE CONTEXTE
+import { useUser } from './UserContext'; 
 
 const AdminUserManagementModal = ({ onClose, realisations }) => {
+  // OBTENIR db DU CONTEXTE UTILISATEUR
+  const { db, auth } = useUser(); // Ajout de 'auth' pour la vérification de chargement si nécessaire
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [taskCounts, setTaskCounts] = useState({});
 
+  // Utilisez useCallback pour mémoriser la fonction fetchUsers
   const fetchUsers = useCallback(async () => {
+    // Vérifiez si db est disponible avant de tenter de récupérer les données
+    if (!db) {
+      console.warn("Firestore est indisponible. Impossible de récupérer les utilisateurs.");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const usersCollectionRef = collection(db, "users");
@@ -32,13 +43,22 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
     } finally {
       setLoading(false);
     }
-  }, [realisations]);
+  }, [db, realisations]); // Ajoutez 'db' aux dépendances de useCallback
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    // Assurez-vous que 'db' est disponible avant d'appeler fetchUsers
+    if (db) {
+      fetchUsers();
+    }
+  }, [fetchUsers, db]); // Ajoutez 'db' aux dépendances de useEffect
 
-  const toggleAdminStatus = async (userId, currentStatus) => {
+  const toggleAdminStatus = useCallback(async (userId, currentStatus) => {
+    // Vérifiez si db est disponible
+    if (!db) {
+      toast.error("Firestore est indisponible. Impossible de modifier le statut.");
+      return;
+    }
+
     setLoading(true);
     try {
       const userRef = doc(db, "users", userId);
@@ -53,7 +73,7 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [db, fetchUsers]); // Ajoutez 'db' et 'fetchUsers' aux dépendances de useCallback
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
