@@ -1,6 +1,5 @@
 /* global __firebase_config */ // Déclare __firebase_config comme globale pour ESLint
 
-// src/firebase.js
 // Ce fichier a pour unique rôle de fournir l'objet de configuration Firebase.
 // Il ne doit PAS initialiser l'application Firebase (pas d'appel à initializeApp ici).
 // Il ne doit PAS exporter 'app', 'auth', ou 'db' directement.

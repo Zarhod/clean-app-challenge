@@ -1,14 +1,11 @@
-// src/AdminUserManagementModal.js
 import React, { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
-import { useUser } from './UserContext'; // Importe useUser pour accéder à db et auth
+import ListAndInfoModal from './ListAndInfoModal';
+import { useUser } from './UserContext'; // Pour db et isAdmin
 
 const AdminUserManagementModal = ({ onClose, realisations }) => {
-  // Déstructure seulement 'db' car 'auth' n'est pas utilisé directement dans ce composant.
-  // Si 'auth' était nécessaire pour des opérations spécifiques (ex: supprimer un utilisateur via Auth),
-  // il faudrait le laisser et l'utiliser. Ici, seul Firestore est manipulé.
-  const { db } = useUser(); 
+  const { db, isAdmin } = useUser();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [taskCounts, setTaskCounts] = useState({});
@@ -16,10 +13,9 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      // S'assurer que db est disponible avant de faire des appels Firestore
       if (!db) {
-        console.error("Firestore DB non disponible dans AdminUserManagementModal.");
-        toast.error("Service de base de données non disponible.");
+        console.error("Firestore DB non disponible.");
+        toast.error("Erreur: Base de données non connectée.");
         setLoading(false);
         return;
       }
@@ -43,25 +39,29 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
     } finally {
       setLoading(false);
     }
-  }, [realisations, db]); // Ajout de db aux dépendances de useCallback
+  }, [db, realisations]); // Ajout de db aux dépendances
 
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
 
   const toggleAdminStatus = async (userId, currentIsAdmin) => {
+    if (!isAdmin) {
+      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
+      return;
+    }
     setLoading(true);
     try {
       if (!db) {
-        toast.error("Service de base de données non disponible.");
+        console.error("Firestore DB non disponible.");
+        toast.error("Erreur: Base de données non connectée.");
         setLoading(false);
         return;
       }
-      const userDocRef = doc(db, "users", userId);
-      await updateDoc(userDocRef, { isAdmin: !currentIsAdmin });
-      toast.success(`Statut admin de l'utilisateur mis à jour !`);
-      // Re-fetch users to update the list
-      fetchUsers();
+      const userRef = doc(db, "users", userId);
+      await updateDoc(userRef, { isAdmin: !currentIsAdmin });
+      toast.success(`Statut administrateur de l'utilisateur mis à jour !`);
+      fetchUsers(); // Re-fetch pour mettre à jour la liste
     } catch (error) {
       toast.error("Erreur lors de la mise à jour du statut admin.");
       console.error("Erreur toggleAdminStatus:", error);
@@ -70,35 +70,22 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
-        <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto">
-          <div className="flex justify-center items-center py-4">
-            <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
-            <p className="ml-3 text-lightText">Chargement des utilisateurs...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
-      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl w-full max-w-xs sm:max-w-md md:max-w-lg text-center animate-fade-in-scale border border-primary/20 mx-auto">
-        <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4">
-          Gestion des Utilisateurs
-        </h3>
-
-        {users.length === 0 ? (
-          <p className="text-center text-lightText text-lg py-4">Aucun utilisateur enregistré.</p>
-        ) : (
-          <div className="flex flex-col gap-3 mb-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
-            {users.map((user) => (
-              <div key={user.id} className="bg-neutralBg rounded-lg p-3 flex flex-col sm:flex-row items-center justify-between shadow-sm border border-primary/10">
-                <div className="flex flex-col items-center sm:items-start mb-2 sm:mb-0">
-                  <span className="text-4xl mb-1">{user.avatar || '👤'}</span>
-                  <p className="font-semibold text-text text-lg">{user.displayName || user.email}</p>
+    <ListAndInfoModal title="Gestion des Utilisateurs" onClose={onClose} sizeClass="max-w-md">
+      {loading ? (
+        <div className="flex justify-center items-center py-4">
+          <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
+          <p className="ml-3 text-lightText">Chargement des utilisateurs...</p>
+        </div>
+      ) : (
+        <div className="space-y-4 max-h-80 overflow-y-auto custom-scrollbar">
+          {users.length === 0 ? (
+            <p className="text-center text-lightText text-lg">Aucun utilisateur enregistré.</p>
+          ) : (
+            users.map((user) => (
+              <div key={user.id} className="bg-neutralBg rounded-xl p-4 shadow-md border border-primary/10 flex flex-col sm:flex-row items-center justify-between">
+                <div className="text-center sm:text-left mb-2 sm:mb-0">
+                  <p className="text-lg font-semibold text-secondary">{user.displayName || user.email}</p>
                   <p className="text-sm text-lightText">ID: {user.id}</p>
                   <p className="text-sm text-lightText">Tâches complétées: {taskCounts[user.id] || 0}</p>
                 </div>
@@ -116,19 +103,11 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-
-        <button
-          onClick={onClose}
-          className="mt-6 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg
-                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
-        >
-          Fermer
-        </button>
-      </div>
-    </div>
+            ))
+          )}
+        </div>
+      )}
+    </ListAndInfoModal>
   );
 };
 

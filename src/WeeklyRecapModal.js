@@ -1,6 +1,5 @@
-// src/WeeklyRecapModal.js
 import React from 'react';
-import ListAndInfoModal from './ListAndInfoModal'; // Assurez-vous que ce chemin est correct
+import ListAndInfoModal from './ListAndInfoModal';
 
 const WeeklyRecapModal = ({ recapData, onClose }) => {
   if (!recapData) return null;
@@ -33,7 +32,7 @@ const WeeklyRecapModal = ({ recapData, onClose }) => {
           </p>
         )}
         <p className="text-sm text-lightText italic">
-          Ce récapitulatif est également disponible dans la section "Historique" de l'application.
+          Ce récapitulatif est basé sur les tâches complétées et les points gagnés la semaine dernière.
         </p>
       </div>
     </ListAndInfoModal>

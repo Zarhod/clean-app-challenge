@@ -1,6 +1,5 @@
-// src/ProfileEditOptionsModal.js
 import React from 'react';
-import ListAndInfoModal from './ListAndInfoModal'; // Utilise la modale de base
+import ListAndInfoModal from './ListAndInfoModal';
 
 const ProfileEditOptionsModal = ({ onClose, onOpenAvatar, onOpenPassword }) => {
   return (

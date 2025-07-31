@@ -1,64 +1,119 @@
-// src/AvatarSelectionModal.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { useUser } from './UserContext'; // Pour accéder à currentUser
+import { useUser } from './UserContext';
+import { toast } from 'react-toastify';
+import ReactCrop from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 
 const AvatarSelectionModal = ({ currentAvatar, currentPhotoURL, onClose, onSave }) => {
-  const { currentUser } = useUser(); // <-- 'db' retiré car non directement utilisé ici
+  const { currentUser } = useUser();
   const [selectedAvatar, setSelectedAvatar] = useState(currentAvatar);
-  const [selectedPhoto, setSelectedPhoto] = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(currentPhotoURL);
-  const [avatarType, setAvatarType] = useState(currentPhotoURL ? 'photo' : 'emoji'); // Détermine le type initial
+  const [avatarType, setAvatarType] = useState(currentPhotoURL ? 'photo' : 'emoji');
   const [loading, setLoading] = useState(false);
 
-  // Liste d'emojis pour les avatars (curated pour ne pas être excessive)
+  // Pour le recadrage d'image
+  const [imageSrc, setImageSrc] = useState(currentPhotoURL);
+  const [crop, setCrop] = useState({ aspect: 1, unit: '%', width: 90 });
+  const [completedCrop, setCompletedCrop] = useState(null);
+  const imgRef = useRef(null);
+  const previewCanvasRef = useRef(null);
+
+  // Liste d'emojis pour les avatars
   const avatarOptions = [
     '😀', '😁', '😂', '😇', '😈', '😉', '😊', '😍', '😎', '🤓', '🤔', '🤫', '😶', '😐', '🙄', '😴', '🥳', '🤩',
-    '🤖', '👾', '👽', '👻', '🎃', '😺', '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦉', '🦋', '🐝', '🐞', '🕷️',
-    '🌳', '🌲', '🌴', '🌵', '🌱', '🌿', '🌸', '🌼', '🌻', '🌎', '🌈', '☀️', '⭐', '✨', '⚡️', '🔥', '💥', '💧',
-    '🍎', '🍊', '🍌', '🍉', '🍓', '🍍', '🍕', '🍔', '🍟', '🍩', '🍪', '🎂', '☕️', '🍺', '🏆', '🥇', '🥈', '🥉',
-    '⚽️', '🏀', '🎮', '🎲', '🧩', '📚', '🎨', '🎵', '✈️', '🚀', '🚗', '🚲', '🏠', '💡', '⏰', '🎁', '🎈', '🎉',
-    '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝'
-  ];
+    '🤖', '👾', '👽', '👻', '🎃', '😺', '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦉', '🦋', '🐢', '🐍', '🐉', '🐳', '🐬', '🐠', '🐙', '🦀', '🦞', '🦐', '🦑', '🐡', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🦒', '🦘', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🐐', '🦌', '🐕', '🐩', '🐈', '🐓', '🦃', '🕊️', '🦅', '🦆', '🦢', '🦩', '🦜', '🐦', '🐧', '🦉', '🦚', '🦃', '🐓', '🐔', '🐣', '🐤', '🐥', '👶', '👦', '👧', '🧑', '👨', '👩', '👴', '👵', '🧓', '👨‍⚕️', '👩‍⚕️', '👨‍🎓', '👩‍🎓', '👨‍🏫', '👩‍🏫', '👨‍⚖️', '👩‍⚖️', '👨‍🌾', '👩‍🌾', '👨‍🍳', '👩‍🍳', '👨‍🔧', '👩‍🔧', '👨‍🏭', '👩‍🏭', '👨‍💼', '👩‍💼', '👨‍🔬', '👩‍🔬', '👨‍💻', '👩‍💻', '👨‍🎤', '👩‍🎤', '👨‍🎨', '👩‍🎨', '👨‍✈️', '👩‍✈️', '👨‍🚀', '👩‍🚀', '👨‍🚒', '👩‍🚒', '👮', '🕵️', '💂', '👷', '🤴', '👸', '👳', '👲', '🧕', '🤵', '👰', '🤰', '🤱', '👼', '🎅', '🤶', '🦸', '🦹', '🧙', '🧚', '🧛', '🧜', '🧝', '🧟', '🧞', '👨‍🦯', '👩‍🦯', '👨‍🦼', '👩‍🦼', '👨‍🦽', '👩‍🦽', '🗣️', '👤', '👥', '🫂'];
 
   useEffect(() => {
-    // Si l'utilisateur change d'avis et revient à l'emoji, réinitialise la photo
     if (avatarType === 'emoji') {
-      setSelectedPhoto(null);
-      setPhotoPreview(null);
-    } else { // Si passe en mode photo, réinitialise l'emoji
-      setSelectedAvatar(null);
-    }
-  }, [avatarType]);
-
-  const handlePhotoChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedPhoto(file);
-      setPhotoPreview(URL.createObjectURL(file));
-      setSelectedAvatar(null); // Désélectionne l'emoji si une photo est choisie
+      setImageSrc(null);
+      setCompletedCrop(null);
     } else {
-      setSelectedPhoto(null);
-      setPhotoPreview(null);
+      setSelectedAvatar(null);
+      // Si on passe en mode photo et qu'il y a une photo actuelle, la charger
+      if (currentPhotoURL && !imageSrc) {
+        setImageSrc(currentPhotoURL);
+      }
+    }
+  }, [avatarType, currentPhotoURL, imageSrc]);
+
+  const onSelectFile = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setCrop(undefined); // Makes crop controlled
+      const reader = new FileReader();
+      reader.addEventListener('load', () => setImageSrc(reader.result?.toString() || ''));
+      reader.readAsDataURL(e.target.files[0]);
     }
   };
 
-  const uploadPhoto = async (userId, file) => {
+  const onImageLoad = useCallback((e) => {
+    imgRef.current = e.currentTarget;
+  }, []);
+
+  const getCroppedImg = useCallback(() => {
+    if (!completedCrop || !imgRef.current || !previewCanvasRef.current) {
+      return null;
+    }
+
+    const image = imgRef.current;
+    const canvas = previewCanvasRef.current;
+    const crop = completedCrop;
+
+    const scaleX = image.naturalWidth / image.width;
+    const scaleY = image.naturalHeight / image.height;
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = crop.width * scaleX;
+    canvas.height = crop.height * scaleY;
+
+    ctx.drawImage(
+      image,
+      crop.x * scaleX,
+      crop.y * scaleY,
+      crop.width * scaleX,
+      crop.height * scaleY,
+      0,
+      0,
+      crop.width * scaleX,
+      crop.height * scaleY
+    );
+
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          console.error('Canvas is empty');
+          return;
+        }
+        blob.name = 'cropped.jpeg';
+        resolve(blob);
+      }, 'image/jpeg', 0.75);
+    });
+  }, [completedCrop]);
+
+  const uploadPhoto = async (userId, croppedBlob) => {
+    if (!croppedBlob) return null;
     const storage = getStorage();
-    const storageRef = ref(storage, `avatars/${userId}/${file.name}`);
-    await uploadBytes(storageRef, file);
+    // Utiliser un nom de fichier unique pour éviter les conflits et faciliter la suppression si nécessaire
+    const storageRef = ref(storage, `avatars/${userId}/${Date.now()}_cropped.jpeg`);
+    await uploadBytes(storageRef, croppedBlob);
     return await getDownloadURL(storageRef);
   };
 
   const deleteOldPhoto = async (photoURL) => {
     if (!photoURL || !currentUser) return;
     const storage = getStorage();
-    const photoRef = ref(storage, photoURL); // Crée une référence à partir de l'URL
     try {
-      await deleteObject(photoRef);
-      console.log("Ancienne photo supprimée de Storage.");
+      // Pour supprimer, il faut une référence exacte au fichier.
+      // Si photoURL est un URL de téléchargement, il faut extraire le chemin.
+      // Firebase Storage URLs sont généralement de la forme:
+      // https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<path_to_file>?alt=media...
+      const path = photoURL.split('/o/')[1]?.split('?')[0];
+      if (path) {
+        const decodedPath = decodeURIComponent(path);
+        const photoRef = ref(storage, decodedPath);
+        await deleteObject(photoRef);
+        console.log("Ancienne photo supprimée de Storage.");
+      }
     } catch (error) {
-      // Ignore si le fichier n'existe pas ou si l'utilisateur n'a pas les permissions
       console.warn("Impossible de supprimer l'ancienne photo (peut-être déjà supprimée ou permissions insuffisantes):", error);
     }
   };
@@ -68,35 +123,42 @@ const AvatarSelectionModal = ({ currentAvatar, currentPhotoURL, onClose, onSave 
     let newAvatarValue = null;
     let newPhotoURLValue = null;
 
-    if (avatarType === 'emoji') {
-      newAvatarValue = selectedAvatar;
-      // Si on passe d'une photo à un emoji, supprimer l'ancienne photo
-      if (currentPhotoURL) {
-        await deleteOldPhoto(currentPhotoURL);
-      }
-    } else { // avatarType === 'photo'
-      if (selectedPhoto) {
-        // Supprimer l'ancienne photo si elle existe et est différente
-        if (currentPhotoURL && photoPreview !== currentPhotoURL) {
+    try {
+      if (avatarType === 'emoji') {
+        newAvatarValue = selectedAvatar;
+        // Si on passe d'une photo à un emoji, supprimer l'ancienne photo
+        if (currentPhotoURL) {
           await deleteOldPhoto(currentPhotoURL);
         }
-        newPhotoURLValue = await uploadPhoto(currentUser.uid, selectedPhoto);
-      } else {
-        // Si l'utilisateur choisit "photo" mais ne sélectionne rien, et qu'il y avait une photo, la conserver
-        // Ou si on retire la photo, la supprimer
-        if (photoPreview === null && currentPhotoURL) { // L'utilisateur a retiré la photo
+      } else { // avatarType === 'photo'
+        if (imageSrc && completedCrop) {
+          const croppedBlob = await getCroppedImg();
+          if (croppedBlob) {
+            // Supprimer l'ancienne photo si elle existe et est différente de la nouvelle
+            if (currentPhotoURL && currentPhotoURL !== imageSrc) { // Comparer avec imageSrc (l'URL de l'image actuellement chargée pour le crop)
+              await deleteOldPhoto(currentPhotoURL);
+            }
+            newPhotoURLValue = await uploadPhoto(currentUser.uid, croppedBlob);
+          } else {
+            toast.error("Erreur lors du recadrage de l'image.");
+            setLoading(false);
+            return;
+          }
+        } else if (currentPhotoURL && !imageSrc) { // L'utilisateur a enlevé la photo existante
           await deleteOldPhoto(currentPhotoURL);
           newPhotoURLValue = null;
-        } else {
-          newPhotoURLValue = currentPhotoURL; // Conserver la photo existante si aucune nouvelle n'est sélectionnée
+        } else { // Aucune nouvelle photo sélectionnée, conserver l'ancienne si elle existe
+          newPhotoURLValue = currentPhotoURL;
         }
       }
+      
+      onSave({ newAvatar: newAvatarValue, newPhotoURL: newPhotoURLValue });
+    } catch (error) {
+      toast.error("Erreur lors de l'enregistrement de l'avatar.");
+      console.error("Error saving avatar:", error);
+    } finally {
+      setLoading(false);
     }
-    
-    // Appelle la fonction onSave passée par le parent avec les nouvelles valeurs
-    // OnSave doit gérer la mise à jour dans Firestore
-    onSave({ newAvatar: newAvatarValue, newPhotoURL: newPhotoURLValue });
-    setLoading(false);
   };
 
   return (
@@ -144,14 +206,35 @@ const AvatarSelectionModal = ({ currentAvatar, currentPhotoURL, onClose, onSave 
             <input
               type="file"
               accept="image/*"
-              onChange={handlePhotoChange}
+              onChange={onSelectFile}
               className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-secondary cursor-pointer"
               disabled={loading}
             />
-            {photoPreview && (
-              <img src={photoPreview} alt="Aperçu de l'avatar" className="mt-4 w-24 h-24 rounded-full object-cover border-2 border-primary shadow-md" />
+            {imageSrc && (
+              <div className="mt-4 w-full flex flex-col items-center">
+                <ReactCrop
+                  crop={crop}
+                  onChange={c => setCrop(c)}
+                  onComplete={(c) => setCompletedCrop(c)}
+                  circularCrop
+                  className="max-w-full h-auto"
+                >
+                  <img ref={imgRef} alt="Source" src={imageSrc} onLoad={onImageLoad} className="max-w-full h-auto" />
+                </ReactCrop>
+                <canvas
+                  ref={previewCanvasRef}
+                  style={{
+                    display: 'none',
+                    width: completedCrop?.width,
+                    height: completedCrop?.height,
+                  }}
+                />
+                {completedCrop && (
+                  <p className="text-sm text-gray-500 mt-2">Image prête à être recadrée.</p>
+                )}
+              </div>
             )}
-            {!photoPreview && <p className="text-sm text-gray-500 mt-2">Aucune photo sélectionnée.</p>}
+            {!imageSrc && <p className="text-sm text-gray-500 mt-2">Aucune photo sélectionnée.</p>}
           </div>
         )}
 

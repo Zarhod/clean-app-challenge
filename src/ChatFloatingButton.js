@@ -1,6 +1,5 @@
-// src/ChatFloatingButton.js
 import React, { useState, useEffect } from 'react';
-import ChatModal from './ChatModal'; // Importe la nouvelle ChatModal
+import ChatModal from './ChatModal';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 const ChatFloatingButton = ({ currentUser, db }) => {
@@ -9,15 +8,14 @@ const ChatFloatingButton = ({ currentUser, db }) => {
 
   useEffect(() => {
     if (!currentUser || !db) {
-      setUnreadCount(0); // Réinitialise le compteur si pas d'utilisateur ou de DB
+      setUnreadCount(0);
       return;
     }
 
-    // Récupère le timestamp de la dernière lecture de l'utilisateur
-    // Si lastReadTimestamp est null, tous les messages sont considérés comme non lus
     const lastReadTimestamp = currentUser.lastReadTimestamp;
 
     // Requête pour les messages non lus
+    // Si lastReadTimestamp est null, tous les messages sont considérés comme non lus
     const q = lastReadTimestamp
       ? query(collection(db, 'chat_messages'), where('timestamp', '>', lastReadTimestamp))
       : collection(db, 'chat_messages');
@@ -34,20 +32,18 @@ const ChatFloatingButton = ({ currentUser, db }) => {
       setUnreadCount(count);
     }, (error) => {
       console.error("Erreur lors du calcul des messages non lus:", error);
-      setUnreadCount(0); // En cas d'erreur, réinitialise le compteur
+      setUnreadCount(0);
     });
 
     return () => unsubscribe();
-  }, [currentUser, db]); // Dépendances pour re-exécuter l'effet si l'utilisateur ou la DB changent
+  }, [currentUser, db]);
 
-  // Le bouton ne s'affiche que si l'utilisateur est connecté
   if (!currentUser) {
-    return null; 
+    return null;
   }
 
   return (
     <>
-      {/* Bouton flottant pour ouvrir le chat */}
       <button
         onClick={() => setShowChatModal(true)}
         className="fixed bottom-6 right-6 bg-accent hover:bg-yellow-600 text-white p-4 rounded-full shadow-xl
@@ -62,9 +58,10 @@ const ChatFloatingButton = ({ currentUser, db }) => {
         )}
       </button>
 
-      {/* La modale du chat est rendue conditionnellement */}
       {showChatModal && (
-        <ChatModal onClose={() => setShowChatModal(false)} />
+        <ChatModal
+          onClose={() => setShowChatModal(false)}
+        />
       )}
     </>
   );

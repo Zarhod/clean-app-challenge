@@ -1,4 +1,3 @@
-// src/ListAndInfoModal.js
 import React from 'react';
 
 const ListAndInfoModal = ({ title, children, onClose, sizeClass = 'max-w-md' }) => {

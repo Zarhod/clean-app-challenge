@@ -1,6 +1,5 @@
-// src/TaskHistoryModal.js
 import React, { useState, useEffect } from 'react';
-import ListAndInfoModal from './ListAndInfoModal'; // Assurez-vous que le chemin est correct
+import ListAndInfoModal from './ListAndInfoModal';
 
 function TaskHistoryModal({ taskId, allRealisations, allTasks, onClose }) {
   const [taskDetails, setTaskDetails] = useState(null);
@@ -51,12 +50,12 @@ function TaskHistoryModal({ taskId, allRealisations, allTasks, onClose }) {
               <p className="text-sm text-lightText">
                 Le {new Date(real.timestamp).toLocaleDateString('fr-FR')} à {new Date(real.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </p>
-              <p className="text-sm text-primary">{real.pointsGagnes} points</p>
+              <p className="text-sm text-primary">{real.pointsGagnes} points gagnés</p>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-center text-lightText text-lg">Aucune réalisation trouvée pour cette tâche.</p>
+        <p className="text-center text-lightText text-md">Aucune réalisation trouvée pour cette tâche.</p>
       )}
     </ListAndInfoModal>
   );

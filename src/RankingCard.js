@@ -1,4 +1,3 @@
-// src/RankingCard.js
 import React from 'react';
 
 function RankingCard({ participant, rank, type, onParticipantClick, getParticipantBadges }) {
@@ -10,7 +9,7 @@ function RankingCard({ participant, rank, type, onParticipantClick, getParticipa
   const badges = getParticipantBadges(participant);
 
   return (
-    <div 
+    <div
       className={`w-full max-w-sm flex items-center p-4 rounded-2xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105 cursor-pointer border border-primary/10 ${bgColorClass}`}
       onClick={() => onParticipantClick(participant)}
     >
@@ -18,7 +17,11 @@ function RankingCard({ participant, rank, type, onParticipantClick, getParticipa
         <span className={`text-4xl font-extrabold ${rankColorClass}`}>{rank}.</span>
       </div>
       <div className="flex-shrink-0 mr-4">
-        <span className="text-5xl">{participant.Avatar || '👤'}</span> {/* Affichage de l'avatar */}
+        {participant.PhotoURL ? (
+          <img src={participant.PhotoURL} alt="Avatar" className="w-12 h-12 rounded-full object-cover" />
+        ) : (
+          <span className="text-5xl">{participant.Avatar || '👤'}</span>
+        )}
       </div>
       <div className="flex-grow">
         <h3 className="text-xl font-bold text-secondary truncate">{participant.Nom_Participant}</h3>
@@ -30,7 +33,7 @@ function RankingCard({ participant, rank, type, onParticipantClick, getParticipa
         </p>
         {badges.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
-            {badges.slice(0, 3).map(badge => ( // Afficher un nombre limité de badges
+            {badges.slice(0, 3).map(badge => (
               <span key={badge.name} title={badge.description} className="text-xs">{badge.icon}</span>
             ))}
             {badges.length > 3 && <span className="text-xs text-lightText">+{badges.length - 3}</span>}

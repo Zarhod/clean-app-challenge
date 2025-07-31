@@ -1,10 +1,9 @@
-// src/AdminCongratulatoryMessagesModal.js
 import React, { useState, useEffect, useCallback } from 'react';
 import { collection, addDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import ListAndInfoModal from './ListAndInfoModal';
 import ConfirmActionModal from './ConfirmActionModal';
-import { useUser } from './UserContext'; // Pour db et isAdmin
+import { useUser } from './UserContext';
 
 const AdminCongratulatoryMessagesModal = ({ onClose }) => {
   const { db, isAdmin } = useUser();
@@ -40,10 +39,7 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
     }
     setLoading(true);
     try {
-      await addDoc(collection(db, 'congratulatory_messages'), {
-        Texte_Message: newMessage.trim(),
-        createdAt: new Date().toISOString(),
-      });
+      await addDoc(collection(db, 'congratulatory_messages'), { Texte_Message: newMessage.trim() });
       setNewMessage('');
       toast.success("Message ajouté avec succès !");
     } catch (error) {
@@ -54,20 +50,20 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
     }
   };
 
-  const handleDeleteMessage = useCallback(async (messageId, skipConfirmation = false) => {
+  const handleDeleteMessage = useCallback(async (id, confirmed = false) => {
     if (!isAdmin) {
       toast.error("Accès refusé. Vous n'êtes pas administrateur.");
       return;
     }
-    if (!skipConfirmation) {
-      setMessageToDelete(messageId);
+    if (!confirmed) {
+      setMessageToDelete(id);
       setShowConfirmDeleteModal(true);
       return;
     }
 
     setLoading(true);
     try {
-      await deleteDoc(doc(db, 'congratulatory_messages', messageId));
+      await deleteDoc(doc(db, 'congratulatory_messages', id));
       toast.success("Message supprimé avec succès !");
     } catch (error) {
       toast.error("Erreur lors de la suppression du message.");
@@ -77,14 +73,14 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
       setShowConfirmDeleteModal(false);
       setMessageToDelete(null);
     }
-  }, [isAdmin, db]);
+  }, [db, isAdmin]);
 
   return (
     <>
-      <ListAndInfoModal title="Gérer les Messages de Félicitation" onClose={onClose} sizeClass="max-w-lg">
+      <ListAndInfoModal title="Gérer les Messages de Félicitations" onClose={onClose} sizeClass="max-w-md">
         <div className="mb-4">
           <textarea
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm mb-2"
+            className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm resize-y custom-scrollbar"
             rows="3"
             placeholder="Ajouter un nouveau message de félicitation..."
             value={newMessage}
@@ -93,14 +89,14 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
           ></textarea>
           <button
             onClick={handleAddMessage}
-            disabled={loading || newMessage.trim() === ''}
-            className="w-full bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            className="mt-2 w-full bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
+            disabled={loading}
           >
-            {loading ? 'Ajout en cours...' : 'Ajouter le Message'}
+            Ajouter le Message
           </button>
         </div>
 
-        <h3 className="text-xl font-bold text-secondary mb-3 text-center">Messages Actuels</h3>
+        <h4 className="text-lg font-bold text-secondary mb-3 text-center">Messages Actuels</h4>
         {loading ? (
           <div className="flex justify-center items-center py-4">
             <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>

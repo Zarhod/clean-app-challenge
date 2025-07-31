@@ -1,9 +1,10 @@
-// src/AuthModal.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore'; // <-- AJOUT DE GETDOC ICI
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-toastify';
+import ReactCrop from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 import ListAndInfoModal from './ListAndInfoModal';
 import { useUser } from './UserContext'; 
 import ConfirmActionModal from './ConfirmActionModal';
@@ -22,8 +23,13 @@ const AuthModal = ({ onClose }) => {
   const [showAuthErrorModal, setShowAuthErrorModal] = useState(false);
   const [authErrorMessage, setAuthErrorMessage] = useState('');
   const [avatarType, setAvatarType] = useState('emoji'); // 'emoji' ou 'photo'
-  const [selectedPhoto, setSelectedPhoto] = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(null);
+
+  // Pour le recadrage d'image
+  const [imageSrc, setImageSrc] = useState(null);
+  const [crop, setCrop] = useState({ aspect: 1, unit: '%', width: 90 });
+  const [completedCrop, setCompletedCrop] = useState(null);
+  const imgRef = useRef(null);
+  const previewCanvasRef = useRef(null);
 
   useEffect(() => {
     setEmail('');
@@ -33,28 +39,71 @@ const AuthModal = ({ onClose }) => {
     setLoading(false);
     setShowAuthErrorModal(false);
     setAuthErrorMessage('');
-    setSelectedPhoto(null);
-    setPhotoPreview(null);
+    setImageSrc(null);
+    setCrop({ aspect: 1, unit: '%', width: 90 });
+    setCompletedCrop(null);
     setSelectedAvatar('👤'); // Réinitialiser l'avatar emoji
     setAvatarType('emoji'); // Par défaut à emoji
   }, [isLogin]);
 
-  const handlePhotoChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedPhoto(file);
-      setPhotoPreview(URL.createObjectURL(file));
-    } else {
-      setSelectedPhoto(null);
-      setPhotoPreview(null);
+  const onSelectFile = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setCrop(undefined); // Makes crop controlled
+      const reader = new FileReader();
+      reader.addEventListener('load', () => setImageSrc(reader.result?.toString() || ''));
+      reader.readAsDataURL(e.target.files[0]);
     }
   };
 
-  const uploadPhoto = async (userId, file) => {
-    if (!file) return null;
+  const onImageLoad = useCallback((e) => {
+    imgRef.current = e.currentTarget;
+  }, []);
+
+  const getCroppedImg = useCallback(() => {
+    if (!completedCrop || !imgRef.current || !previewCanvasRef.current) {
+      return null;
+    }
+
+    const image = imgRef.current;
+    const canvas = previewCanvasRef.current;
+    const crop = completedCrop;
+
+    const scaleX = image.naturalWidth / image.width;
+    const scaleY = image.naturalHeight / image.height;
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = crop.width * scaleX;
+    canvas.height = crop.height * scaleY;
+
+    ctx.drawImage(
+      image,
+      crop.x * scaleX,
+      crop.y * scaleY,
+      crop.width * scaleX,
+      crop.height * scaleY,
+      0,
+      0,
+      crop.width * scaleX,
+      crop.height * scaleY
+    );
+
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          console.error('Canvas is empty');
+          return;
+        }
+        blob.name = 'cropped.jpeg';
+        resolve(blob);
+      }, 'image/jpeg', 0.75);
+    });
+  }, [completedCrop]);
+
+  const uploadPhoto = async (userId, croppedBlob) => {
+    if (!croppedBlob) return null;
     const storage = getStorage();
-    const storageRef = ref(storage, `avatars/${userId}/${file.name}`);
-    await uploadBytes(storageRef, file);
+    const storageRef = ref(storage, `avatars/${userId}/${Date.now()}_cropped.jpeg`);
+    await uploadBytes(storageRef, croppedBlob);
     return await getDownloadURL(storageRef);
   };
 
@@ -119,14 +168,19 @@ const AuthModal = ({ onClose }) => {
           onClose();
         }
 
-      } else {
+      } else { // Inscription
         if (!displayName.trim()) {
           setError("Le nom d'affichage est requis.");
           setLoading(false);
           return;
         }
-        if (avatarType === 'photo' && !selectedPhoto) {
+        if (avatarType === 'photo' && !imageSrc) {
           setError("Veuillez sélectionner une photo pour votre avatar.");
+          setLoading(false);
+          return;
+        }
+        if (avatarType === 'photo' && !completedCrop) {
+          setError("Veuillez recadrer votre photo d'avatar.");
           setLoading(false);
           return;
         }
@@ -137,9 +191,16 @@ const AuthModal = ({ onClose }) => {
         let avatarToSave = selectedAvatar;
         let photoURLToSave = null;
 
-        if (avatarType === 'photo' && selectedPhoto) {
-          photoURLToSave = await uploadPhoto(user.uid, selectedPhoto);
-          avatarToSave = null; // Si une photo est utilisée, l'avatar emoji est null
+        if (avatarType === 'photo' && imageSrc && completedCrop) {
+          const croppedBlob = await getCroppedImg();
+          if (croppedBlob) {
+            photoURLToSave = await uploadPhoto(user.uid, croppedBlob);
+            avatarToSave = null; // Si une photo est utilisée, l'avatar emoji est null
+          } else {
+            setError("Erreur lors du recadrage de l'image.");
+            setLoading(false);
+            return;
+          }
         }
 
         await updateProfile(user, { displayName: displayName.trim() });
@@ -287,14 +348,35 @@ const AuthModal = ({ onClose }) => {
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={handlePhotoChange}
+                  onChange={onSelectFile}
                   className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-secondary cursor-pointer"
                   disabled={isDisabled}
                 />
-                {photoPreview && (
-                  <img src={photoPreview} alt="Aperçu de l'avatar" className="mt-4 w-24 h-24 rounded-full object-cover border-2 border-primary shadow-md" />
+                {imageSrc && (
+                  <div className="mt-4 w-full flex flex-col items-center">
+                    <ReactCrop
+                      crop={crop}
+                      onChange={c => setCrop(c)}
+                      onComplete={(c) => setCompletedCrop(c)}
+                      circularCrop
+                      className="max-w-full h-auto"
+                    >
+                      <img ref={imgRef} alt="Source" src={imageSrc} onLoad={onImageLoad} className="max-w-full h-auto" />
+                    </ReactCrop>
+                    <canvas
+                      ref={previewCanvasRef}
+                      style={{
+                        display: 'none', // Cache le canvas de prévisualisation
+                        width: completedCrop?.width,
+                        height: completedCrop?.height,
+                      }}
+                    />
+                    {completedCrop && (
+                      <p className="text-sm text-gray-500 mt-2">Image prête à être recadrée.</p>
+                    )}
+                  </div>
                 )}
-                {!photoPreview && <p className="text-sm text-gray-500 mt-2">Aucune photo sélectionnée.</p>}
+                {!imageSrc && <p className="text-sm text-gray-500 mt-2">Aucune photo sélectionnée.</p>}
               </div>
             )}
           </div>

@@ -433,9 +433,6 @@ function AppContent() {
     }
   };
 
-  // La fonction handleReportRealization a été supprimée car elle n'était pas utilisée.
-  // La logique de signalement est gérée directement par confirmReportRealization appelée depuis ReportTaskModal.
-
   const confirmReportRealization = async () => {
     if (!reportedTaskDetails || !db) {
       toast.error("Détails du signalement manquants.");
@@ -492,8 +489,7 @@ function AppContent() {
     try {
       // Ceci est un exemple TRÈS SIMPLIFIÉ et NON SÉCURISÉ pour un mot de passe admin fixe en frontend.
       // EN PRODUCTION, le mot de passe admin DOIT être vérifié sur un serveur backend sécurisé.
-      if (password === "admin123") { // Remplacez par un vrai mécanisme d'authentification admin
-        // Simule la connexion admin en mettant à jour le rôle de l'utilisateur actuel
+      if (password === "admin123") {
         if (currentUser && db) {
           const userRef = doc(db, 'users', currentUser.uid);
           await updateDoc(userRef, { isAdmin: true });
@@ -528,7 +524,7 @@ function AppContent() {
       if (auth) {
         await signOut(auth);
         toast.info("Vous avez été déconnecté.");
-        setCurrentUser(null); // S'assurer que le currentUser est null après déconnexion
+        setCurrentUser(null);
       }
     } catch (error) {
       toast.error("Erreur lors de la déconnexion.");
@@ -543,7 +539,7 @@ function AppContent() {
       users.forEach(user => {
         const userRef = doc(db, 'users', user.uid);
         batch.update(userRef, {
-          previousWeeklyPoints: user.weeklyPoints || 0, // Sauvegarde les points de la semaine passée
+          previousWeeklyPoints: user.weeklyPoints || 0,
           weeklyPoints: 0
         });
       });
@@ -616,13 +612,12 @@ function AppContent() {
     if (participant.isAdmin) {
       badges.push({ name: "Admin", icon: "👑", description: "Administrateur de l'application" });
     }
-    if (participant.XP >= 500) { // Exemple de badge pour 500 XP
+    if (participant.XP >= 500) {
       badges.push({ name: "Expert", icon: "🌟", description: "A atteint 500 XP" });
     }
-    if (participant.Level >= 5) { // Exemple de badge pour Niveau 5
+    if (participant.Level >= 5) {
       badges.push({ name: "Maître", icon: "🧙‍♂️", description: "A atteint le niveau 5" });
     }
-    // Ajoutez d'autres logiques de badges ici
     return badges;
   }, []);
 
@@ -764,7 +759,7 @@ function AppContent() {
                     )}
                     {isAdmin && (
                       <button
-                        onClick={() => { setShowAddTaskModal(true); setTaskToDelete(task); }} // Réutilise le state taskToDelete pour l'édition
+                        onClick={() => { setShowAddTaskModal(true); setTaskToDelete(task); }}
                         className="flex-1 bg-warning hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
                       >
                         Modifier
@@ -778,7 +773,7 @@ function AppContent() {
                         Supprimer
                       </button>
                     )}
-                    {currentUser && ( // Bouton Historique pour tous les utilisateurs connectés
+                    {currentUser && (
                       <button
                         onClick={() => { setSelectedTaskIdForHistory(task.id); setShowTaskHistoryModal(true); }}
                         className="flex-1 bg-info hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
@@ -810,7 +805,7 @@ function AppContent() {
                   {isAdmin && (
                     <div className="flex flex-col sm:flex-row gap-2 mt-auto">
                       <button
-                        onClick={() => { setShowAddObjectiveModal(true); setObjectiveToDelete(objective); }} // Réutilise le state objectiveToDelete pour l'édition
+                        onClick={() => { setShowAddObjectiveModal(true); setObjectiveToDelete(objective); }}
                         className="flex-1 bg-warning hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
                       >
                         Modifier
@@ -837,8 +832,8 @@ function AppContent() {
           ) : (
             <div className="flex flex-col gap-3 items-center">
               {leaderboard
-                .filter(p => p.Points_Total_Semaine_Courante > 0) // N'affiche que ceux avec des points > 0
-                .slice(0, 3) // Affiche uniquement le top 3
+                .filter(p => p.Points_Total_Semaine_Courante > 0)
+                .slice(0, 3)
                 .map((participant, index) => (
                   <RankingCard
                     key={participant.ID_Utilisateur}
@@ -923,7 +918,6 @@ function AppContent() {
               >
                 Voir Historique des Podiums
               </button>
-              {/* Le bouton "Signaler une Réalisation (Admin)" ouvre la modale, l'admin devra saisir les détails ou une future UI les pré-remplira */}
               <button
                 onClick={() => {
                   setReportedTaskDetails(null);
@@ -1044,7 +1038,6 @@ function AppContent() {
             historicalPodiums={historicalPodiums}
             onClose={() => setShowHistoricalPodiumsModal(false)}
           >
-            {/* Vous pouvez passer le récapitulatif hebdomadaire ici si vous voulez l'afficher au-dessus */}
           </HistoricalPodiums>
         )}
 
@@ -1129,7 +1122,6 @@ function AppContent() {
           />
         )}
         
-        {/* Le bouton flottant du chat est rendu ici */}
         <ChatFloatingButton currentUser={currentUser} db={db} />
 
       </div>
