@@ -112,7 +112,6 @@ export const UserProvider = ({ children }) => {
     }
   }, []);
 
-
   const signOut = useCallback(async () => {
     setLoadingUser(true);
     console.log("UserContext: Attempting signOut...");
@@ -168,47 +167,42 @@ export const UserProvider = ({ children }) => {
           userError = e;
         }
 
-        if (userError) {
-          if (userError.code === 'PGRST116' || !userData) {
-            console.warn("UserContext: Authenticated user not found in public.users. Attempting to create profile.");
-            const { error: insertError } = await supabase.from('users').insert({
-              id: user.id,
-              email: user.email,
-              display_name: user.user_metadata?.display_name || user.email.split('@')[0],
-              avatar: user.user_metadata?.avatar_url || '👤',
-              points: 0,
-              is_admin: false,
-              last_login: new Date().toISOString()
-            });
-            if (insertError) {
-              console.error("UserContext: Erreur lors de la création du profil pour un nouvel utilisateur dans public.users:", insertError.message);
-              await supabase.auth.signOut();
+        // CORRECTION CLÉ: La condition vérifie si le profil n'existe pas,
+        // même s'il n'y a pas d'erreur de requête.
+        if (userError || !userData) {
+          console.warn("UserContext: Authenticated user not found in public.users. Attempting to create profile.");
+          const { error: insertError } = await supabase.from('users').insert({
+            id: user.id,
+            email: user.email,
+            display_name: user.user_metadata?.display_name || user.email.split('@')[0],
+            avatar: user.user_metadata?.avatar_url || '👤',
+            points: 0,
+            is_admin: false,
+            last_login: new Date().toISOString()
+          });
+          if (insertError) {
+            console.error("UserContext: Erreur lors de la création du profil pour un nouvel utilisateur dans public.users:", insertError.message);
+            await supabase.auth.signOut();
+            setCurrentUser(null);
+            setIsAdmin(false);
+          } else {
+            console.log("UserContext: Profile created in public.users. Re-fetching data to update state.");
+            const { data: newUserData, error: newFetchError } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', user.id)
+              .limit(1);
+
+            if (newFetchError || !newUserData || newUserData.length === 0) {
+              console.error("UserContext: Error re-fetching new user data after insert:", newFetchError ? newFetchError.message : "No data received.");
               setCurrentUser(null);
               setIsAdmin(false);
             } else {
-              console.log("UserContext: Profile created in public.users. Re-fetching data to update state.");
-              const { data: newUserData, error: newFetchError } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', user.id)
-                .limit(1);
-
-              if (newFetchError || !newUserData || newUserData.length === 0) {
-                console.error("UserContext: Error re-fetching new user data after insert:", newFetchError ? newFetchError.message : "No data received.");
-                setCurrentUser(null);
-                setIsAdmin(false);
-              } else {
-                console.log("UserContext: New user data re-fetched successfully after insert:", newUserData[0]);
-                setCurrentUser({ ...user, ...newUserData[0] });
-                setIsAdmin(newUserData[0].is_admin);
-              }
+              console.log("UserContext: New user data re-fetched successfully after insert:", newUserData[0]);
+              setCurrentUser({ ...user, ...newUserData[0] });
+              setIsAdmin(newUserData[0].is_admin);
             }
-          } else {
-            console.error("UserContext: Unexpected error fetching user data from public.users:", userError.message, "Code:", userError.code);
-            setCurrentUser(null);
-            setIsAdmin(false);
           }
-          setLoadingUser(false);
         } else if (userData) {
           console.log("UserContext: User data successfully loaded from public.users:", userData);
           setCurrentUser({ ...user, ...userData });
