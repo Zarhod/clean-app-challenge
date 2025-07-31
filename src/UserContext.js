@@ -1,11 +1,11 @@
-/* global __initial_auth_token */
 // src/UserContext.js
 // Ce fichier est le SEUL responsable de l'initialisation de l'application Firebase
 // et de la gestion de l'état d'authentification de l'utilisateur.
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth'; // signInAnonymously a été retiré
+// signInWithCustomToken et signInAnonymously ne sont plus importés car non utilisés
+import { getAuth, onAuthStateChanged } from 'firebase/auth'; 
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 // Importe la configuration Firebase depuis le fichier firebase.js
@@ -78,7 +78,6 @@ export const UserProvider = ({ children }) => {
       return;
     }
 
-    // Modification ici : Supprime la logique de signInWithCustomToken et signInAnonymously
     // L'application attendra une connexion explicite (email/mot de passe)
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
