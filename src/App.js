@@ -1,9 +1,6 @@
-// src/App.js
-
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { useUser, UserProvider } from './UserContext'; // <-- AJOUT DE USERPROVIDER ICI
-import { collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDoc } from 'firebase/firestore'; // <-- 'query' retiré car non directement utilisé ici
+import { useUser, UserProvider } from './UserContext';
+import { collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -29,7 +26,7 @@ import AvatarSelectionModal from './AvatarSelectionModal';
 import PasswordChangeModal from './PasswordChangeModal';
 import ChatFloatingButton from './ChatFloatingButton';
 import TaskStatisticsChart from './TaskStatisticsChart';
-import ExportSelectionModal from './ExportSelectionModal'; // <-- AJOUT DE CET IMPORT
+import ExportSelectionModal from './ExportSelectionModal';
 
 // Fonction utilitaire pour le téléchargement CSV
 const exportToCsv = (filename, rows) => {
@@ -60,11 +57,9 @@ function AppContent() {
   const [showUserManagementModal, setShowUserManagementModal] = useState(false);
   const [showCongratulatoryMessagesModal, setShowCongratulatoryMessagesModal] = useState(false);
   const [showConfirmDeleteTaskModal, setShowConfirmDeleteTaskModal] = useState(false);
-  const [taskToDelete, setTaskToDelete] = useState(null); // Utilisé aussi pour l'édition
+  const [taskToDelete, setTaskToDelete] = useState(null);
   const [showConfirmDeleteObjectiveModal, setShowConfirmDeleteObjectiveModal] = useState(false);
-  const [objectiveToDelete, setObjectiveToDelete] = useState(null); // Utilisé aussi pour l'édition
-  // const [showConfirmDeleteRealisationModal, setShowConfirmDeleteRealisationModal] = useState(false); // <-- SUPPRIMÉ
-  // const [realisationToDelete, setRealisationToDelete] = useState(null); // <-- SUPPRIMÉ
+  const [objectiveToDelete, setObjectiveToDelete] = useState(null);
   const [showConfirmResetWeeklyPointsModal, setShowConfirmResetWeeklyPointsModal] = useState(false);
   const [showConfirmResetAllPointsModal, setShowConfirmResetAllPointsModal] = useState(false);
   const [showWeeklyRecapModal, setShowWeeklyRecapModal] = useState(false);
@@ -113,7 +108,6 @@ function AppContent() {
       setLoadingData(false);
     }, (error) => {
       console.error("Erreur lors du chargement des tâches:", error);
-      // toast.error("Erreur de chargement des tâches."); // Désactivé pour éviter les toasts sur la page de connexion
       setLoadingData(false);
     });
 
@@ -121,28 +115,24 @@ function AppContent() {
       setObjectives(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
       console.error("Erreur lors du chargement des objectifs:", error);
-      // toast.error("Erreur de chargement des objectifs.");
     });
 
     const unsubscribeRealisations = onSnapshot(collection(db, 'realizations'), (snapshot) => {
       setRealisations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
       console.error("Erreur lors du chargement des réalisations:", error);
-      // toast.error("Erreur de chargement des réalisations.");
     });
 
     const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
       console.error("Erreur lors du chargement des utilisateurs:", error);
-      // toast.error("Erreur de chargement des utilisateurs.");
     });
 
     const unsubscribePodiums = onSnapshot(collection(db, 'historical_podiums'), (snapshot) => {
       setHistoricalPodiums(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
       console.error("Erreur lors du chargement des podiums historiques:", error);
-      // toast.error("Erreur de chargement des podiums historiques.");
     });
 
 
@@ -153,7 +143,7 @@ function AppContent() {
       unsubscribeUsers();
       unsubscribePodiums();
     };
-  }, [db]); // Dépendance à db pour s'assurer qu'il est initialisé
+  }, [db]);
 
   // Calcul des points hebdomadaires et cumulatifs
   const calculateLeaderboard = useCallback(() => {
@@ -177,7 +167,7 @@ function AppContent() {
       return {
         Nom_Participant: user.displayName,
         Avatar: user.avatar,
-        PhotoURL: user.photoURL, // Ajout de PhotoURL
+        PhotoURL: user.photoURL,
         ID_Utilisateur: user.uid,
         Points_Total_Semaine_Courante: weeklyPoints,
         Points_Total_Cumulatif: totalCumulativePoints,
@@ -244,7 +234,7 @@ function AppContent() {
       tasksCompleted,
       isWinner
     };
-  }, [currentUser, realisations, users, tasks]); // Ajout de 'tasks' aux dépendances
+  }, [currentUser, realisations, users, tasks]);
 
   // Fonction pour vérifier et afficher le récapitulatif hebdomadaire au chargement
   useEffect(() => {
@@ -443,23 +433,21 @@ function AppContent() {
     }
   };
 
-  // Fonction pour signaler une réalisation (admin seulement) - RENOMMÉE ET SIMPLIFIÉE
-  // Cette fonction est désormais un simple utilitaire pour préparer les détails du rapport
-  // Elle n'est plus directement appelée par un bouton "Signaler" sur une réalisation spécifique dans l'UI principale,
-  // mais elle serait utilisée si vous implémentiez une liste de réalisations administrables.
-  // Pour l'instant, le bouton "Signaler une Réalisation (Admin)" dans le panneau admin ouvrira la modale de rapport
-  // et l'admin devra y saisir les détails ou une future UI les pré-remplira.
-  const prepareReportDetails = (realisation) => {
+  // Fonction pour signaler une réalisation (admin seulement)
+  const handleReportRealization = async (realisation) => {
+    if (!isAdmin) {
+      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
+      return;
+    }
     setReportedTaskDetails({
       id: realisation.id,
       name: realisation.nomTache,
-      participant: realisation.userName, // <-- CORRECTION ICI
-      userId: realisation.userId, // <-- CORRECTION ICI
+      participant: realisation.userName,
+      userId: realisation.userId,
       points: parseFloat(realisation.pointsGagnes) || 0
     });
     setShowReportTaskModal(true);
   };
-
 
   const confirmReportRealization = async () => {
     if (!reportedTaskDetails || !db) {
@@ -1035,23 +1023,6 @@ function AppContent() {
           />
         )}
 
-        {/* La modale de confirmation de suppression de réalisation n'est pas utilisée actuellement,
-            car la logique de signalement/suppression est gérée via ReportTaskModal.
-            Si vous souhaitez la réactiver, il faudra un moyen de déclencher setShowConfirmDeleteRealisationModal(true)
-            avec un 'realisationToDelete' valide.
-        {showConfirmDeleteRealisationModal && (
-          <ConfirmActionModal
-            title="Confirmer la Suppression"
-            message="Êtes-vous sûr de vouloir supprimer cette réalisation ? Cette action est irréversible et retirera les points."
-            confirmText="Oui, Supprimer"
-            confirmButtonClass="bg-error hover:bg-red-700"
-            cancelText="Non, Annuler"
-            onConfirm={() => {  }}
-            onCancel={() => { setShowConfirmDeleteRealisationModal(false); setRealisationToDelete(null); }}
-          />
-        )}
-        */}
-
         {showConfirmResetWeeklyPointsModal && (
           <ConfirmActionModal
             title="Réinitialiser Points Hebdomadaires"
@@ -1118,12 +1089,12 @@ function AppContent() {
           />
         )}
 
-        {showReportTaskModal && ( // Ne pas vérifier reportedTaskDetails ici, car il peut être null au début
+        {showReportTaskModal && (
           <ReportTaskModal
             show={showReportTaskModal}
             onClose={() => setShowReportTaskModal(false)}
             onSubmit={confirmReportRealization}
-            reportedTaskDetails={reportedTaskDetails} // Passé même s'il est null, la modale gère l'affichage
+            reportedTaskDetails={reportedTaskDetails}
           />
         )}
 
