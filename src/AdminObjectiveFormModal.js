@@ -1,5 +1,4 @@
 import React from 'react';
-import ListAndInfoModal from './ListAndInfoModal'; // Importation du composant ListAndInfoModal
 
 /**
  * Composant modal pour l'ajout ou l'édition d'un objectif.
@@ -12,84 +11,151 @@ import ListAndInfoModal from './ListAndInfoModal'; // Importation du composant L
  */
 function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClose, loading, editingObjective }) {
   return (
-    <ListAndInfoModal
-      title={editingObjective ? 'Modifier l\'Objectif' : 'Ajouter un Objectif'}
-      onClose={onClose}
-      sizeClass="max-w-xs sm:max-w-md"
-    >
-      <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }} className="space-y-3">
-        <div>
-          <label htmlFor="Nom_Objectif" className="block text-sm font-medium text-gray-700 text-left">Nom de l'Objectif</label>
-          <input
-            type="text"
-            id="Nom_Objectif"
-            name="Nom_Objectif"
-            value={objectiveData.Nom_Objectif}
-            onChange={onFormChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2 text-sm"
-            required
-            disabled={loading}
-          />
-        </div>
-        <div>
-          <label htmlFor="Description" className="block text-sm font-medium text-gray-700 text-left">Description</label>
-          <textarea
-            id="Description"
-            name="Description"
-            value={objectiveData.Description}
-            onChange={onFormChange}
-            rows="3"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2 text-sm resize-y custom-scrollbar"
-            disabled={loading}
-          ></textarea>
-        </div>
-        <div>
-          <label htmlFor="Date_Limite" className="block text-sm font-medium text-gray-700 text-left">Date Limite</label>
-          <input
-            type="date"
-            id="Date_Limite"
-            name="Date_Limite"
-            value={objectiveData.Date_Limite}
-            onChange={onFormChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2 text-sm"
-            required
-            disabled={loading}
-          />
-        </div>
-
-        {editingObjective && ( // Afficher "Objectif Atteint" seulement en mode édition
-          <div className="flex items-center justify-center mt-4">
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4"> 
+      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl w-full max-w-xs sm:max-w-md md:max-w-lg animate-fade-in-scale border border-primary/20 mx-auto"> 
+        <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-center"> 
+          {editingObjective ? 'Modifier l\'Objectif' : 'Ajouter un Objectif'}
+        </h3>
+        <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }} className="space-y-3"> 
+          <div>
+            <label htmlFor="ID_Objectif" className="block text-sm font-medium text-text text-left mb-0.5">ID Objectif</label>
             <input
-              id="Est_Atteint"
-              type="checkbox"
-              name="Est_Atteint"
-              checked={objectiveData.Est_Atteint === true || String(objectiveData.Est_Atteint).toLowerCase() === 'true'}
-              onChange={(e) => onFormChange({ target: { name: 'Est_Atteint', value: e.target.checked } })}
-              className="form-checkbox h-5 w-5 text-primary rounded focus:ring-2 focus:ring-primary"
+              id="ID_Objectif"
+              type="text"
+              name="ID_Objectif"
+              value={objectiveData.ID_Objectif}
+              onChange={onFormChange}
+              placeholder="Ex: OBJ001"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              required
+              disabled={editingObjective ? true : false} 
             />
-            <label htmlFor="Est_Atteint" className="ml-2 text-text text-sm font-medium">Objectif Atteint</label>
           </div>
-        )}
+          <div>
+            <label htmlFor="Nom_Objectif" className="block text-sm font-medium text-text text-left mb-0.5">Nom de l'Objectif</label>
+            <input
+              id="Nom_Objectif"
+              type="text"
+              name="Nom_Objectif"
+              value={objectiveData.Nom_Objectif}
+              onChange={onFormChange}
+              placeholder="Ex: Réduire les déchets plastiques"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="Description" className="block text-sm font-medium text-text text-left mb-0.5">Description</label>
+            <textarea
+              id="Description"
+              name="Description"
+              value={objectiveData.Description}
+              onChange={onFormChange}
+              placeholder="Détaillez l'objectif à atteindre..."
+              rows="3"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm resize-y custom-scrollbar"
+              required
+            ></textarea>
+          </div>
+          <div>
+            <label htmlFor="Points_Objectif" className="block text-sm font-medium text-text text-left mb-0.5">Points de l'Objectif</label>
+            <input
+              id="Points_Objectif"
+              type="number"
+              name="Points_Objectif"
+              value={objectiveData.Points_Objectif}
+              onChange={onFormChange}
+              placeholder="Ex: 500"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="Date_Debut" className="block text-sm font-medium text-text text-left mb-0.5">Date de Début</label>
+            <input
+              id="Date_Debut"
+              type="date"
+              name="Date_Debut"
+              value={objectiveData.Date_Debut}
+              onChange={onFormChange}
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="Date_Fin" className="block text-sm font-medium text-text text-left mb-0.5">Date de Fin</label>
+            <input
+              id="Date_Fin"
+              type="date"
+              name="Date_Fin"
+              value={objectiveData.Date_Fin}
+              onChange={onFormChange}
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              required
+            />
+          </div>
+          {editingObjective && (
+            <>
+              <div>
+                <label htmlFor="Progress_Current" className="block text-sm font-medium text-text text-left mb-0.5">Progression Actuelle</label>
+                <input
+                  id="Progress_Current"
+                  type="number"
+                  name="Progress_Current"
+                  value={objectiveData.Progress_Current}
+                  onChange={onFormChange}
+                  placeholder="Ex: 250"
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="Progress_Target" className="block text-sm font-medium text-text text-left mb-0.5">Cible de Progression</label>
+                <input
+                  id="Progress_Target"
+                  type="number"
+                  name="Progress_Target"
+                  value={objectiveData.Progress_Target}
+                  onChange={onFormChange}
+                  placeholder="Ex: 500"
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  required
+                />
+              </div>
+              <div className="flex items-center justify-start mt-2">
+                <input
+                  id="Est_Atteint"
+                  type="checkbox"
+                  name="Est_Atteint"
+                  checked={objectiveData.Est_Atteint === true || String(objectiveData.Est_Atteint).toLowerCase() === 'true'}
+                  onChange={(e) => onFormChange({ target: { name: 'Est_Atteint', value: e.target.checked } })}
+                  className="form-checkbox h-5 w-5 text-primary rounded focus:ring-2 focus:ring-primary"
+                />
+                <label htmlFor="Est_Atteint" className="ml-2 text-text text-sm font-medium">Objectif Atteint</label>
+              </div>
+            </>
+          )}
 
-        <div className="flex flex-col sm:flex-row gap-2 mt-4">
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex-1 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
-          >
-            {loading ? 'Envoi...' : (editingObjective ? 'Mettre à jour' : 'Ajouter')}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-            className="flex-1 bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
-          >
-            Annuler
-          </button>
-        </div>
-      </form>
-    </ListAndInfoModal>
+          <div className="flex flex-col sm:flex-row gap-2 mt-4"> 
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm" 
+            >
+              {loading ? 'Envoi...' : (editingObjective ? 'Mettre à jour' : 'Ajouter')}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm" 
+            >
+              Annuler
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 

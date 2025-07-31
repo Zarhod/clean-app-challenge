@@ -1,1131 +1,1124 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useUser, UserProvider } from './UserContext';
-import { collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDoc } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+// src/App.js
+// Version mise à jour pour utiliser Firebase Authentication et Firestore.
 
-// Composants
-import AuthModal from './AuthModal';
-import AdminLoginButton from './AdminLoginButton';
-import AdminTaskFormModal from './AdminTaskFormModal';
-import AdminObjectiveFormModal from './AdminObjectiveFormModal';
-import AdminUserManagementModal from './AdminUserManagementModal';
-import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal';
-import ListAndInfoModal from './ListAndInfoModal';
-import ConfirmActionModal from './ConfirmActionModal';
-import WeeklyRecapModal from './WeeklyRecapModal';
-import HistoricalPodiums from './HistoricalPodiums';
-import OverallRankingModal from './OverallRankingModal';
-import RankingCard from './RankingCard';
-import TaskHistoryModal from './TaskHistoryModal';
-import ReportTaskModal from './ReportTaskModal';
-import ConfettiOverlay from './ConfettiOverlay';
-import ProfileEditOptionsModal from './ProfileEditOptionsModal';
-import AvatarSelectionModal from './AvatarSelectionModal';
-import PasswordChangeModal from './PasswordChangeModal';
-import ChatFloatingButton from './ChatFloatingButton';
-import TaskStatisticsChart from './TaskStatisticsChart';
-import ExportSelectionModal from './ExportSelectionModal';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import './App.css'; 
+import HistoricalPodiums from './HistoricalPodiums'; 
+import AdminTaskFormModal from './AdminTaskFormModal'; 
+import ConfirmActionModal from './ConfirmActionModal'; 
+import ConfettiOverlay from './ConfettiOverlay'; 
+import TaskStatisticsChart from './TaskStatisticsChart'; 
+import AdminObjectiveFormModal from './AdminObjectiveFormModal'; 
+import ListAndInfoModal from './ListAndInfoModal'; 
+import RankingCard from './RankingCard'; 
+import OverallRankingModal from './OverallRankingModal'; 
+import ReportTaskModal from './ReportTaskModal'; 
+import AuthModal from './AuthModal'; // Import corrigé
+import AdminUserManagementModal from './AdminUserManagementModal'; 
+import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; 
+import WeeklyRecapModal from './WeeklyRecapModal'; 
+import AdminLoginButton from './AdminLoginButton'; // Import du bouton de connexion admin
+import ChatFloatingButton from './ChatFloatingButton'; // Import du bouton flottant de chat
+import ChatModal from './ChatModal'; // Import de la modale de chat
+import AvatarSelectionModal from './AvatarSelectionModal'; // Import de la modale de sélection d'avatar
+import PasswordChangeModal from './PasswordChangeModal'; // Import de la modale de changement de mot de passe
+import ExportSelectionModal from './ExportSelectionModal'; // Import de la modale d'exportation
 
-// Fonction utilitaire pour le téléchargement CSV
-const exportToCsv = (filename, rows) => {
-  if (!rows || rows.length === 0) {
-    toast.warn("Aucune donnée à exporter.");
-    return;
-  }
+import confetti from 'canvas-confetti'; 
 
-  const csvContent = "data:text/csv;charset=utf-8,"
-    + rows.map(e => e.join(",")).join("\n");
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
-  link.setAttribute("download", filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  toast.success(`Exportation de ${filename} réussie !`);
-};
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css'; 
 
+// Importations Firebase
+import { db, auth } from './firebase';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, onSnapshot, runTransaction, orderBy, limit } from 'firebase/firestore'; 
+import { signOut as firebaseSignOut } from 'firebase/auth'; // Renommer pour éviter le conflit
+import { useUser, UserProvider } from './UserContext'; // Importation du contexte utilisateur
+
+// Composant principal de l'application (contenu)
 function AppContent() {
-  const { currentUser, isAdmin, loadingUser, db, auth, setCurrentUser } = useUser();
+  const { currentUser, isAdmin, isAuthReady, signOut, unreadMessagesCount, markMessagesAsRead } = useUser();
 
+  const [taches, setTaches] = useState([]);
+  const [objectifs, setobjectifs] = useState([]);
+  const [realisations, setRealisations] = useState([]);
+  const [users, setUsers] = useState([]); // Ajout de l'état pour les utilisateurs
+  const [loading, setLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
-  const [showAddObjectiveModal, setShowAddObjectiveModal] = useState(false);
-  const [showUserManagementModal, setShowUserManagementModal] = useState(false);
-  const [showCongratulatoryMessagesModal, setShowCongratulatoryMessagesModal] = useState(false);
-  const [showConfirmDeleteTaskModal, setShowConfirmDeleteTaskModal] = useState(false);
-  const [taskToDelete, setTaskToDelete] = useState(null);
-  const [showConfirmDeleteObjectiveModal, setShowConfirmDeleteObjectiveModal] = useState(false);
-  const [objectiveToDelete, setObjectiveToDelete] = useState(null);
-  const [showConfirmResetWeeklyPointsModal, setShowConfirmResetWeeklyPointsModal] = useState(false);
-  const [showConfirmResetAllPointsModal, setShowConfirmResetAllPointsModal] = useState(false);
-  const [showWeeklyRecapModal, setShowWeeklyRecapModal] = useState(false);
-  const [weeklyRecapData, setWeeklyRecapData] = useState(null);
+  const [showConfirmActionModal, setShowConfirmActionModal] = useState(false);
+  const [actionToConfirm, setActionToConfirm] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showReportTaskModal, setShowReportTaskModal] = useState(false);
+  const [selectedTaskToReport, setSelectedTaskToReport] = useState(null);
+  const [showOverallRankingModal, setShowOverallRankingModal] = useState(false);
   const [showHistoricalPodiumsModal, setShowHistoricalPodiumsModal] = useState(false);
   const [historicalPodiums, setHistoricalPodiums] = useState([]);
-  const [showOverallRankingModal, setShowOverallRankingModal] = useState(false);
-  const [showExportSelectionModal, setShowExportSelectionModal] = useState(false);
-  const [showTaskHistoryModal, setShowTaskHistoryModal] = useState(false);
-  const [selectedTaskIdForHistory, setSelectedTaskIdForHistory] = useState(null);
-  const [showReportTaskModal, setShowReportTaskModal] = useState(false);
-  const [reportedTaskDetails, setReportedTaskDetails] = useState(null);
-  const [showConfetti, setShowConfetti] = useState(false);
+  const [showChatModal, setShowChatModal] = useState(false);
   const [showProfileEditOptionsModal, setShowProfileEditOptionsModal] = useState(false);
   const [showAvatarSelectionModal, setShowAvatarSelectionModal] = useState(false);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
+  const [showAdminUserManagementModal, setShowAdminUserManagementModal] = useState(false);
+  const [showAdminCongratulatoryMessagesModal, setShowAdminCongratulatoryMessagesModal] = useState(false);
+  const [showAdminTaskFormModal, setShowAdminTaskFormModal] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+  const [showAdminObjectiveFormModal, setShowAdminObjectiveFormModal] = useState(false);
+  const [editingObjective, setEditingObjective] = useState(null);
+  const [showGlobalDataViewModal, setShowGlobalDataViewModal] = useState(false);
+  const [selectedDocumentDetails, setSelectedDocumentDetails] = useState(null);
+  const [weeklyRecapData, setWeeklyRecapData] = useState(null);
+  const [showWeeklyRecapModal, setShowWeeklyRecapModal] = useState(false);
+  const [congratulatoryMessages, setCongratulatoryMessages] = useState([]);
+  const [showCongratulatoryMessage, setShowCongratulatoryMessage] = useState(false);
+  const [currentCongratulatoryMessage, setCurrentCongratulatoryMessage] = useState('');
 
-  // États pour les données Firestore
-  const [tasks, setTasks] = useState([]);
-  const [objectives, setObjectives] = useState([]);
-  const [realisations, setRealisations] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [loadingData, setLoadingData] = useState(true);
-
-  // État pour le thème (clair par défaut)
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
-
-  // Effet pour appliquer la classe de thème au body et sauvegarder dans localStorage
+  // Récupération des données initiales et écoute des changements
   useEffect(() => {
-    document.documentElement.classList.remove('light', 'dark');
-    document.documentElement.classList.add(theme);
-    localStorage.setItem('theme', theme);
-  }, [theme]);
+    if (!db || !isAuthReady) return;
 
-  // Fonction pour basculer le thème
-  const toggleTheme = () => {
-    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
-  };
-
-  // Listeners Firestore
-  useEffect(() => {
-    if (!db) return;
-
-    const unsubscribeTasks = onSnapshot(collection(db, 'tasks'), (snapshot) => {
-      setTasks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      setLoadingData(false);
+    const unsubscribeTaches = onSnapshot(collection(db, 'taches'), (snapshot) => {
+      const fetchedTaches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTaches(fetchedTaches);
     }, (error) => {
-      console.error("Erreur lors du chargement des tâches:", error);
-      setLoadingData(false);
+      console.error("Error fetching tasks:", error);
+      toast.error("Erreur lors du chargement des tâches.");
     });
 
-    const unsubscribeObjectives = onSnapshot(collection(db, 'objectives'), (snapshot) => {
-      setObjectives(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    const unsubscribeObjectifs = onSnapshot(collection(db, 'objectifs'), (snapshot) => {
+      const fetchedObjectifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setobjectifs(fetchedObjectifs);
     }, (error) => {
-      console.error("Erreur lors du chargement des objectifs:", error);
+      console.error("Error fetching objectives:", error);
+      toast.error("Erreur lors du chargement des objectifs.");
     });
 
-    const unsubscribeRealisations = onSnapshot(collection(db, 'realizations'), (snapshot) => {
-      setRealisations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    const unsubscribeRealisations = onSnapshot(collection(db, 'realisations'), (snapshot) => {
+      const fetchedRealisations = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setRealisations(fetchedRealisations);
     }, (error) => {
-      console.error("Erreur lors du chargement des réalisations:", error);
+      console.error("Error fetching realisations:", error);
+      toast.error("Erreur lors du chargement des réalisations.");
     });
 
     const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const fetchedUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setUsers(fetchedUsers);
+      setLoading(false);
     }, (error) => {
-      console.error("Erreur lors du chargement des utilisateurs:", error);
+      console.error("Error fetching users:", error);
+      toast.error("Erreur lors du chargement des utilisateurs.");
+      setLoading(false);
     });
 
     const unsubscribePodiums = onSnapshot(collection(db, 'historical_podiums'), (snapshot) => {
-      setHistoricalPodiums(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const fetchedPodiums = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setHistoricalPodiums(fetchedPodiums);
     }, (error) => {
-      console.error("Erreur lors du chargement des podiums historiques:", error);
+      console.error("Error fetching historical podiums:", error);
     });
 
+    const unsubscribeCongratulatoryMessages = onSnapshot(collection(db, 'congratulatory_messages'), (snapshot) => {
+      const fetchedMessages = snapshot.docs.map(doc => doc.data().Texte_Message);
+      setCongratulatoryMessages(fetchedMessages);
+    }, (error) => {
+      console.error("Error fetching congratulatory messages:", error);
+    });
 
     return () => {
-      unsubscribeTasks();
-      unsubscribeObjectives();
+      unsubscribeTaches();
+      unsubscribeObjectifs();
       unsubscribeRealisations();
       unsubscribeUsers();
       unsubscribePodiums();
+      unsubscribeCongratulatoryMessages();
     };
-  }, [db]);
+  }, [db, isAuthReady]);
 
-  // Calcul des points hebdomadaires et cumulatifs
-  const calculateLeaderboard = useCallback(() => {
-    const leaderboard = users.map(user => {
-      const userRealisations = realisations.filter(real => real.userId === user.uid);
-
-      const weeklyPoints = userRealisations
-        .filter(real => {
-          const realDate = new Date(real.timestamp);
-          const today = new Date();
-          const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay())); // Dimanche
-          return realDate >= startOfWeek;
-        })
-        .reduce((sum, real) => sum + (parseFloat(real.pointsGagnes) || 0), 0);
-
-      const totalCumulativePoints = userRealisations.reduce((sum, real) => sum + (parseFloat(real.pointsGagnes) || 0), 0);
-
-      const xp = userRealisations.reduce((sum, real) => sum + (parseFloat(real.pointsGagnes) || 0), 0); // XP = points gagnés
-      const level = Math.floor(xp / 100) + 1; // 100 XP par niveau
-
-      return {
-        Nom_Participant: user.displayName,
-        Avatar: user.avatar,
-        PhotoURL: user.photoURL,
-        ID_Utilisateur: user.uid,
-        Points_Total_Semaine_Courante: weeklyPoints,
-        Points_Total_Cumulatif: totalCumulativePoints,
-        XP: xp,
-        Level: level,
-        isAdmin: user.isAdmin,
-        lastReadTimestamp: user.lastReadTimestamp,
-        dateJoined: user.dateJoined
-      };
-    }).sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
-
-    return leaderboard;
-  }, [users, realisations]);
-
-  const leaderboard = calculateLeaderboard();
-
-  // Fonction pour calculer le récapitulatif hebdomadaire
-  const calculateWeeklyRecap = useCallback(() => {
-    if (!currentUser || !realisations || realisations.length === 0) {
-      return null;
+  // Fonction pour afficher un message de félicitation aléatoire
+  const triggerCongratulatoryMessage = useCallback(() => {
+    if (congratulatoryMessages.length > 0) {
+      const randomIndex = Math.floor(Math.random() * congratulatoryMessages.length);
+      setCurrentCongratulatoryMessage(congratulatoryMessages[randomIndex]);
+      setShowCongratulatoryMessage(true);
+      setTimeout(() => setShowCongratulatoryMessage(false), 5000); // Message disparaît après 5 secondes
     }
+  }, [congratulatoryMessages]);
 
-    const today = new Date();
-    const currentDay = today.getDay(); // 0 for Sunday, 1 for Monday, etc.
-
-    // Calculate the start and end of the *previous* week
-    const prevWeekEndDate = new Date(today);
-    prevWeekEndDate.setDate(today.getDate() - currentDay - 1); // Go to last Saturday
-    prevWeekEndDate.setHours(23, 59, 59, 999);
-
-    const prevWeekStartDate = new Date(prevWeekEndDate);
-    prevWeekStartDate.setDate(prevWeekEndDate.getDate() - 6); // Go back 6 days to Sunday
-    prevWeekStartDate.setHours(0, 0, 0, 0);
-
-    const userRealisationsPrevWeek = realisations.filter(real => {
-      const realDate = new Date(real.timestamp);
-      return real.userId === currentUser.uid && realDate >= prevWeekStartDate && realDate <= prevWeekEndDate;
-    });
-
-    const pointsGained = userRealisationsPrevWeek.reduce((sum, real) => sum + (parseFloat(real.pointsGagnes) || 0), 0);
-    const tasksCompleted = userRealisationsPrevWeek.map(real => {
-      const task = tasks.find(t => String(t.ID_Tache) === String(real.taskId));
-      return task ? task.Nom_Tache : 'Tâche inconnue';
-    });
-
-    // Determine if the user was the winner of the previous week
-    // This requires calculating the leaderboard for the previous week's data
-    const previousWeekLeaderboard = users.map(user => {
-      const userRealisationsPrevWeekForLeaderboard = realisations.filter(real => {
-        const realDate = new Date(real.timestamp);
-        return real.userId === user.uid && realDate >= prevWeekStartDate && realDate <= prevWeekEndDate;
-      });
-      const points = userRealisationsPrevWeekForLeaderboard.reduce((sum, real) => sum + (parseFloat(real.pointsGagnes) || 0), 0);
-      return { userId: user.uid, points: points };
-    }).sort((a, b) => b.points - a.points);
-
-    const isWinner = previousWeekLeaderboard.length > 0 && previousWeekLeaderboard[0].userId === currentUser.uid && previousWeekLeaderboard[0].points > 0;
-
-    return {
-      displayName: currentUser.displayName || currentUser.email,
-      startDate: prevWeekStartDate.toLocaleDateString('fr-FR'),
-      endDate: prevWeekEndDate.toLocaleDateString('fr-FR'),
-      pointsGained,
-      tasksCompleted,
-      isWinner
-    };
-  }, [currentUser, realisations, users, tasks]);
-
-  // Fonction pour vérifier et afficher le récapitulatif hebdomadaire au chargement
+  // Vérification hebdomadaire et réinitialisation des points
   useEffect(() => {
-    if (!currentUser || !db) return;
+    if (!db || !isAuthReady || !currentUser || !isAdmin) return; // Seul l'admin gère la réinitialisation
 
-    const checkAndShowRecap = async () => {
-      const userDocRef = doc(db, 'users', currentUser.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      const userData = userDocSnap.data();
+    const checkAndResetWeeklyPoints = async () => {
+      const lastResetDocRef = doc(db, 'admin', 'lastWeeklyReset');
+      const lastResetSnap = await getDoc(lastResetDocRef);
+      const lastResetDate = lastResetSnap.exists() ? new Date(lastResetSnap.data().timestamp) : null;
 
       const today = new Date();
-      const currentDay = today.getDay(); // 0 for Sunday, 1 for Monday, etc.
+      // Calculer le début de la semaine actuelle (lundi)
+      const currentWeekStart = new Date(today);
+      currentWeekStart.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1)); // Lundi
+      currentWeekStart.setHours(0, 0, 0, 0);
 
-      // Define Sunday as the day to show the recap (e.g., end of week)
-      const recapDisplayDay = 0; // Sunday
+      if (!lastResetDate || lastResetDate < currentWeekStart) {
+        // La dernière réinitialisation est antérieure à cette semaine, ou n'existe pas
+        // Il est temps de réinitialiser et d'enregistrer le podium
+        console.log("Il est temps de réinitialiser les points hebdomadaires et d'enregistrer le podium.");
 
-      if (currentDay === recapDisplayDay) {
-        // Calculate the start and end of the *previous* week
-        const prevWeekEndDate = new Date(today);
-        prevWeekEndDate.setDate(today.getDate() - 1); // Go to last Saturday
-        prevWeekEndDate.setHours(23, 59, 59, 999);
+        try {
+          // 1. Enregistrer le podium de la semaine passée
+          const previousWeekEnd = new Date(currentWeekStart);
+          previousWeekEnd.setDate(currentWeekStart.getDate() - 1); // Dimanche de la semaine passée
+          previousWeekEnd.setHours(23, 59, 59, 999);
 
-        const prevWeekStartDate = new Date(prevWeekEndDate);
-        prevWeekStartDate.setDate(prevWeekEndDate.getDate() - 6); // Go back 6 days to Sunday
-        prevWeekStartDate.setHours(0, 0, 0, 0);
+          const usersSnapshot = await getDocs(collection(db, 'users'));
+          const usersWithWeeklyPoints = usersSnapshot.docs.map(doc => ({
+            uid: doc.id,
+            displayName: doc.data().displayName,
+            weeklyPoints: doc.data().weeklyPoints || 0,
+            avatar: doc.data().avatar || '👤',
+            photoURL: doc.data().photoURL || null
+          }));
 
-        const lastRecapShownDate = userData?.lastRecapShownDate ? new Date(userData.lastRecapShownDate) : null;
+          const sortedUsers = usersWithWeeklyPoints.sort((a, b) => b.weeklyPoints - a.weeklyPoints);
+          const top3 = sortedUsers.slice(0, 3).map(user => ({
+            displayName: user.displayName,
+            points: user.weeklyPoints,
+            avatar: user.avatar,
+            photoURL: user.photoURL
+          }));
 
-        // Check if recap for the previous week has NOT been shown yet
-        // Compare by date string to avoid timezone issues for "same day" check
-        if (!lastRecapShownDate || lastRecapShownDate.toLocaleDateString('fr-FR') !== prevWeekEndDate.toLocaleDateString('fr-FR')) {
-          const recap = calculateWeeklyRecap();
-          if (recap && recap.pointsGained > 0) { // Show recap only if points were gained
-            setWeeklyRecapData(recap);
-            setShowWeeklyRecapModal(true);
-            // Update lastRecapShownDate in Firestore
-            await updateDoc(userDocRef, {
-              lastRecapShownDate: prevWeekEndDate.toISOString()
+          if (top3.length > 0) {
+            await addDoc(collection(db, 'historical_podiums'), {
+              date: previousWeekEnd.toISOString(),
+              winners: top3,
+              fullRanking: sortedUsers.map(u => ({ displayName: u.displayName, points: u.weeklyPoints })) // Optionnel: enregistrer le classement complet
             });
-            // Also update the local currentUser context
-            setCurrentUser(prevUser => ({ ...prevUser, lastRecapShownDate: prevWeekEndDate.toISOString() }));
-
-            // Save podium if user was winner
-            if (recap.isWinner) {
-              const currentPodium = leaderboard
-                .filter(p => p.Points_Total_Semaine_Courante > 0)
-                .slice(0, 3) // Top 3
-                .map(p => ({
-                  name: p.Nom_Participant,
-                  points: p.Points_Total_Semaine_Courante
-                }));
-
-              if (currentPodium.length > 0) {
-                await addDoc(collection(db, 'historical_podiums'), {
-                  Date_Podium: prevWeekEndDate.toISOString(),
-                  top3: currentPodium
-                });
-                toast.success("Podium hebdomadaire enregistré !");
-              }
-            }
+            toast.info("Podium hebdomadaire enregistré !");
           }
+
+          // 2. Réinitialiser les points hebdomadaires de tous les utilisateurs
+          const batch = db.batch();
+          usersSnapshot.docs.forEach(userDoc => {
+            const userRef = doc(db, 'users', userDoc.id);
+            batch.update(userRef, {
+              previousWeeklyPoints: userDoc.data().weeklyPoints || 0, // Sauvegarde les points de la semaine passée
+              weeklyPoints: 0
+            });
+          });
+          await batch.commit();
+
+          // 3. Mettre à jour le timestamp de la dernière réinitialisation
+          await setDoc(lastResetDocRef, { timestamp: today.toISOString() });
+          toast.success("Points hebdomadaires réinitialisés et podium mis à jour !");
+
+          // Afficher le récapitulatif de la semaine passée pour l'utilisateur actuel
+          const currentUserWeeklyPoints = usersWithWeeklyPoints.find(u => u.uid === currentUser.uid)?.weeklyPoints || 0;
+          const userRankInPreviousWeek = sortedUsers.findIndex(u => u.uid === currentUser.uid) + 1;
+
+          setWeeklyRecapData({
+            date: previousWeekEnd.toISOString(),
+            topUsers: top3,
+            userRank: userRankInPreviousWeek > 0 ? userRankInPreviousWeek : 'N/A',
+            userPoints: currentUserWeeklyPoints
+          });
+          setShowWeeklyRecapModal(true); // Afficher la modale de récapitulatif
+        } catch (error) {
+          console.error("Erreur lors de la réinitialisation hebdomadaire:", error);
+          toast.error("Erreur lors de la réinitialisation hebdomadaire des points.");
         }
       }
     };
 
-    // Only run this check if user data is loaded and not loading
-    if (currentUser && !loadingUser && db) {
-      checkAndShowRecap();
-    }
-  }, [currentUser, loadingUser, db, calculateWeeklyRecap, leaderboard, setCurrentUser]);
-
-
-  // Fonctions de gestion des tâches
-  const handleAddTask = async (newTaskData) => {
-    try {
-      if (!db) { toast.error("Service de base de données non disponible."); return; }
-      await addDoc(collection(db, 'tasks'), newTaskData);
-      toast.success('Tâche ajoutée avec succès !');
-      return true; // Indique le succès
-    } catch (error) {
-      toast.error('Erreur lors de l\'ajout de la tâche.');
-      console.error('Error adding task:', error);
-      return false; // Indique l'échec
-    }
-  };
-
-  const handleUpdateTask = async (taskId, updatedTaskData) => {
-    try {
-      if (!db) { toast.error("Service de base de données non disponible."); return; }
-      const taskRef = doc(db, 'tasks', taskId);
-      await updateDoc(taskRef, updatedTaskData);
-      toast.success('Tâche mise à jour avec succès !');
-      return true;
-    } catch (error) {
-      toast.error('Erreur lors de la mise à jour de la tâche.');
-      console.error('Error updating task:', error);
-      return false;
-    }
-  };
-
-  const handleDeleteTask = async (taskId) => {
-    try {
-      if (!db) { toast.error("Service de base de données non disponible."); return; }
-      const taskRef = doc(db, 'tasks', taskId);
-      await deleteDoc(taskRef);
-      toast.success('Tâche supprimée avec succès !');
-    } catch (error) {
-      toast.error('Erreur lors de la suppression de la tâche.');
-      console.error('Error deleting task:', error);
-    } finally {
-      setShowConfirmDeleteTaskModal(false);
-      setTaskToDelete(null);
-    }
-  };
-
-  // Fonctions de gestion des objectifs
-  const handleAddObjective = async (newObjectiveData) => {
-    try {
-      if (!db) { toast.error("Service de base de données non disponible."); return; }
-      await addDoc(collection(db, 'objectives'), newObjectiveData);
-      toast.success('Objectif ajouté avec succès !');
-    } catch (error) {
-      toast.error('Erreur lors de l\'ajout de l\'objectif.');
-      console.error('Error adding objective:', error);
-    }
-  };
-
-  const handleUpdateObjective = async (objectiveId, updatedObjectiveData) => {
-    try {
-      if (!db) { toast.error("Service de base de données non disponible."); return; }
-      const objectiveRef = doc(db, 'objectives', objectiveId);
-      await updateDoc(objectiveRef, updatedObjectiveData);
-      toast.success('Objectif mis à jour avec succès !');
-    } catch (error) {
-      toast.error('Erreur lors de la mise à jour de l\'objectif.');
-      console.error('Error updating objective:', error);
-    }
-  };
-
-  const handleDeleteObjective = async (objectiveId) => {
-    try {
-      if (!db) { toast.error("Service de base de données non disponible."); return; }
-      const objectiveRef = doc(db, 'objectives', objectiveId);
-      await deleteDoc(objectiveRef);
-      toast.success('Objectif supprimé avec succès !');
-    } catch (error) {
-      toast.error('Erreur lors de la suppression de l\'objectif.');
-      console.error('Error deleting objective:', error);
-    } finally {
-      setShowConfirmDeleteObjectiveModal(false);
-      setObjectiveToDelete(null);
-    }
-  };
+    checkAndResetWeeklyPoints();
+  }, [db, isAuthReady, currentUser, isAdmin, congratulatoryMessages]); // Ajout de congratulatoryMessages
 
   // Fonction pour marquer une tâche comme réalisée
-  const handleTaskRealized = async (task) => {
-    if (!currentUser || !db) {
-      toast.error("Vous devez être connecté pour réaliser une tâche.");
+  const handleMarkTaskAsCompleted = useCallback(async (taskId, taskPoints) => {
+    if (!currentUser) {
+      setShowAuthModal(true);
+      toast.info("Veuillez vous connecter pour réaliser une tâche.");
+      return;
+    }
+    if (!db) {
+      toast.error("Base de données non disponible.");
       return;
     }
 
+    setLoading(true);
     try {
-      const realizationData = {
-        userId: currentUser.uid,
-        userName: currentUser.displayName || currentUser.email,
-        taskId: task.id,
-        nomTache: task.Nom_Tache,
-        pointsGagnes: task.Points,
-        categorieTache: task.Categorie,
-        timestamp: new Date().toISOString(),
-      };
-      await addDoc(collection(db, 'realizations'), realizationData);
+      await runTransaction(db, async (transaction) => {
+        const userRef = doc(db, 'users', currentUser.uid);
+        const userDoc = await transaction.get(userRef);
 
-      // Mettre à jour les points de l'utilisateur
-      const userRef = doc(db, 'users', currentUser.uid);
-      const userSnap = await getDoc(userRef);
-      const userData = userSnap.data();
+        if (!userDoc.exists()) {
+          throw "Document utilisateur non trouvé!";
+        }
 
-      const newWeeklyPoints = (userData.weeklyPoints || 0) + (parseFloat(task.Points) || 0);
-      const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + (parseFloat(task.Points) || 0);
-      const newXP = (userData.xp || 0) + (parseFloat(task.Points) || 0);
-      const newLevel = Math.floor(newXP / 100) + 1; // 100 XP par niveau
+        const userData = userDoc.data();
+        const newWeeklyPoints = (userData.weeklyPoints || 0) + taskPoints;
+        const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + taskPoints;
+        const newXp = (userData.xp || 0) + taskPoints;
+        let newLevel = userData.level || 1;
 
-      await updateDoc(userRef, {
-        weeklyPoints: newWeeklyPoints,
-        totalCumulativePoints: newTotalCumulativePoints,
-        xp: newXP,
-        level: newLevel,
+        // Logique de leveling (exemple simple : 100 points = 1 niveau)
+        while (newXp >= newLevel * 100) { // Chaque niveau nécessite 100 * niveau points
+          newLevel++;
+          toast.success(`Félicitations, vous avez atteint le niveau ${newLevel - 1} !`);
+          triggerCongratulatoryMessage();
+        }
+
+        transaction.update(userRef, {
+          weeklyPoints: newWeeklyPoints,
+          totalCumulativePoints: newTotalCumulativePoints,
+          xp: newXp,
+          level: newLevel
+        });
+
+        // Ajouter une réalisation
+        await addDoc(collection(db, 'realisations'), {
+          userId: currentUser.uid,
+          displayName: currentUser.displayName,
+          taskId: taskId,
+          taskName: taches.find(t => t.id === taskId)?.Nom_Tache || 'Tâche inconnue',
+          pointsGagnes: taskPoints,
+          timestamp: new Date().toISOString(),
+          statut: 'validée', // ou 'en attente' si validation admin nécessaire
+        });
       });
 
-      toast.success(`Tâche "${task.Nom_Tache}" réalisée ! +${task.Points} points.`);
+      toast.success("Tâche marquée comme réalisée ! Points ajoutés !");
       setShowConfetti(true); // Déclenche les confettis
     } catch (error) {
-      toast.error('Erreur lors de la réalisation de la tâche.');
-      console.error('Error realizing task:', error);
+      console.error("Erreur lors de la réalisation de la tâche:", error);
+      toast.error("Erreur lors de la réalisation de la tâche.");
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [currentUser, db, taches, triggerCongratulatoryMessage]);
 
-  const confirmReportRealization = async () => {
-    if (!reportedTaskDetails || !db) {
-      toast.error("Détails du signalement manquants.");
+  // Fonction pour marquer un objectif comme atteint
+  const handleMarkObjectiveAsCompleted = useCallback(async (objectiveId, objectivePoints) => {
+    if (!currentUser) {
+      setShowAuthModal(true);
+      toast.info("Veuillez vous connecter pour marquer un objectif comme atteint.");
+      return;
+    }
+    if (!db) {
+      toast.error("Base de données non disponible.");
       return;
     }
 
+    setLoading(true);
     try {
-      // 1. Supprimer la réalisation
-      const realRef = doc(db, 'realizations', reportedTaskDetails.id);
-      await deleteDoc(realRef);
-
-      // 2. Déduire les points de l'utilisateur
-      const userRef = doc(db, 'users', reportedTaskDetails.userId);
-      const userSnap = await getDoc(userRef);
-      const userData = userSnap.data();
-
-      const newWeeklyPoints = Math.max(0, (userData.weeklyPoints || 0) - reportedTaskDetails.points);
-      const newTotalCumulativePoints = Math.max(0, (userData.totalCumulativePoints || 0) - reportedTaskDetails.points);
-      const newXP = Math.max(0, (userData.xp || 0) - reportedTaskDetails.points);
-      const newLevel = Math.floor(newXP / 100) + 1;
-
-      await updateDoc(userRef, {
-        weeklyPoints: newWeeklyPoints,
-        totalCumulativePoints: newTotalCumulativePoints,
-        xp: newXP,
-        level: newLevel,
-      });
-
-      // 3. Ajouter un rapport (optionnel, pour traçabilité)
-      await addDoc(collection(db, 'reports'), {
-        type: 'realization_reported',
-        realizationId: reportedTaskDetails.id,
-        reportedBy: currentUser.uid,
-        reportedUserName: currentUser.displayName || currentUser.email,
-        reportedUserId: reportedTaskDetails.userId,
-        reportedUserNameAffected: reportedTaskDetails.participant,
-        taskName: reportedTaskDetails.name,
-        pointsDeducted: reportedTaskDetails.points,
-        timestamp: new Date().toISOString()
-      });
-
-      toast.success(`Tâche "${reportedTaskDetails.name}" signalée et points déduits !`);
-    } catch (error) {
-      toast.error("Erreur lors du signalement de la tâche.");
-      console.error("Error reporting realization:", error);
-    } finally {
-      setShowReportTaskModal(false);
-      setReportedTaskDetails(null);
-    }
-  };
-
-  // Fonctions de gestion de l'admin
-  const handleAdminLogin = async (password) => {
-    try {
-      // Ceci est un exemple TRÈS SIMPLIFIÉ et NON SÉCURISÉ pour un mot de passe admin fixe en frontend.
-      // EN PRODUCTION, le mot de passe admin DOIT être vérifié sur un serveur backend sécurisé.
-      if (password === "admin123") {
-        if (currentUser && db) {
-          const userRef = doc(db, 'users', currentUser.uid);
-          await updateDoc(userRef, { isAdmin: true });
-          toast.success("Connecté en tant qu'administrateur !");
-        } else {
-          toast.error("Veuillez vous connecter normalement d'abord.");
-        }
-      } else {
-        toast.error("Mot de passe admin incorrect.");
-      }
-    } catch (error) {
-      toast.error("Erreur de connexion admin.");
-      console.error("Admin login error:", error);
-    }
-  };
-
-  const handleAdminLogout = async () => {
-    try {
-      if (currentUser && db) {
+      await runTransaction(db, async (transaction) => {
         const userRef = doc(db, 'users', currentUser.uid);
-        await updateDoc(userRef, { isAdmin: false });
-        toast.info("Déconnecté du mode administrateur.");
-      }
-    } catch (error) {
-      toast.error("Erreur lors de la déconnexion admin.");
-      console.error("Admin logout error:", error);
-    }
-  };
+        const userDoc = await transaction.get(userRef);
 
-  const handleLogout = async () => {
-    try {
-      if (auth) {
-        await signOut(auth);
-        toast.info("Vous avez été déconnecté.");
-        setCurrentUser(null);
-      }
-    } catch (error) {
-      toast.error("Erreur lors de la déconnexion.");
-      console.error("Logout error:", error);
-    }
-  };
+        if (!userDoc.exists()) {
+          throw "Document utilisateur non trouvé!";
+        }
 
-  const handleResetWeeklyPoints = async () => {
-    try {
-      if (!db) { toast.error("Service de base de données non disponible."); return; }
-      const batch = db.batch();
-      users.forEach(user => {
-        const userRef = doc(db, 'users', user.uid);
-        batch.update(userRef, {
-          previousWeeklyPoints: user.weeklyPoints || 0,
-          weeklyPoints: 0
+        const userData = userDoc.data();
+        const newWeeklyPoints = (userData.weeklyPoints || 0) + objectivePoints;
+        const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + objectivePoints;
+        const newXp = (userData.xp || 0) + objectivePoints;
+        let newLevel = userData.level || 1;
+
+        while (newXp >= newLevel * 100) {
+          newLevel++;
+          toast.success(`Félicitations, vous avez atteint le niveau ${newLevel - 1} !`);
+          triggerCongratulatoryMessage();
+        }
+
+        transaction.update(userRef, {
+          weeklyPoints: newWeeklyPoints,
+          totalCumulativePoints: newTotalCumulativePoints,
+          xp: newXp,
+          level: newLevel
+        });
+
+        // Marquer l'objectif comme atteint pour l'utilisateur
+        const userObjectiveRef = doc(db, 'users', currentUser.uid, 'objectives_completed', objectiveId);
+        transaction.set(userObjectiveRef, {
+          objectiveId: objectiveId,
+          objectiveName: objectifs.find(obj => obj.id === objectiveId)?.Nom_Objectif || 'Objectif inconnu',
+          pointsGagnes: objectivePoints,
+          timestamp: new Date().toISOString(),
+          Est_Atteint: true,
         });
       });
-      await batch.commit();
-      toast.success('Points hebdomadaires réinitialisés pour tous les utilisateurs !');
+
+      toast.success("Objectif marqué comme atteint ! Points ajoutés !");
+      setShowConfetti(true);
     } catch (error) {
-      toast.error('Erreur lors de la réinitialisation des points hebdomadaires.');
-      console.error('Error resetting weekly points:', error);
+      console.error("Erreur lors de la réalisation de l'objectif:", error);
+      toast.error("Erreur lors de la réalisation de l'objectif.");
     } finally {
-      setShowConfirmResetWeeklyPointsModal(false);
+      setLoading(false);
+    }
+  }, [currentUser, db, objectifs, triggerCongratulatoryMessage]);
+
+  // Fonction pour ouvrir la modale de signalement
+  const handleReportTask = useCallback((taskId, taskName, realisationId = null) => {
+    if (!currentUser) {
+      setShowAuthModal(true);
+      toast.info("Veuillez vous connecter pour signaler une tâche.");
+      return;
+    }
+    setSelectedTaskToReport({ taskId, taskName, realisationId });
+    setShowReportTaskModal(true);
+  }, [currentUser]);
+
+  // Fonction de connexion admin
+  const handleAdminLogin = async (password) => {
+    // Ceci est une implémentation simplifiée.
+    // En production, un système de gestion d'utilisateurs Firebase avec rôles serait préférable.
+    if (password === "admin123") { // Mot de passe admin codé en dur pour l'exemple
+      // En production, vous feriez une connexion Firebase ici et vérifieriez le rôle
+      toast.success("Connecté en tant qu'administrateur !");
+      // Mettre à jour le rôle admin de l'utilisateur actuel dans Firestore
+      if (currentUser) {
+        try {
+          await updateDoc(doc(db, 'users', currentUser.uid), { isAdmin: true });
+        } catch (error) {
+          console.error("Erreur lors de la mise à jour du rôle admin:", error);
+          toast.error("Erreur lors de l'attribution du rôle admin.");
+        }
+      }
+    } else {
+      toast.error("Mot de passe administrateur incorrect.");
     }
   };
 
-  const handleResetAllPoints = async () => {
+  // Fonction de déconnexion admin (qui est la même que la déconnexion utilisateur)
+  const handleAdminLogout = async () => {
+    await signOut(); // Utilise la fonction signOut du UserContext
+  };
+
+  // Fonction pour ouvrir le panneau admin
+  const handleOpenAdminPanel = () => {
+    setShowAdminPanel(true);
+  };
+
+  // Fonction pour ouvrir la modale de gestion des utilisateurs
+  const handleOpenAdminUserManagement = () => {
+    setShowAdminUserManagementModal(true);
+  };
+
+  // Fonction pour ouvrir la modale de gestion des messages de félicitation
+  const handleOpenAdminCongratulatoryMessages = () => {
+    setShowAdminCongratulatoryMessagesModal(true);
+  };
+
+  // Fonctions de gestion des tâches (pour AdminPanel)
+  const handleAddTask = () => {
+    setEditingTask(null);
+    setShowAdminTaskFormModal(true);
+  };
+
+  const handleEditTask = (task) => {
+    setEditingTask(task);
+    setShowAdminTaskFormModal(true);
+  };
+
+  const handleDeleteTask = useCallback(async (taskId) => {
+    if (!isAdmin) {
+      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
+      return;
+    }
+    setShowConfirmActionModal(true);
+    setActionToConfirm(() => async () => {
+      setLoading(true);
+      try {
+        await deleteDoc(doc(db, 'taches', taskId));
+        toast.success("Tâche supprimée avec succès !");
+      } catch (error) {
+        toast.error("Erreur lors de la suppression de la tâche.");
+        console.error("Error deleting task:", error);
+      } finally {
+        setLoading(false);
+        setShowConfirmActionModal(false);
+        setActionToConfirm(null);
+      }
+    });
+  }, [db, isAdmin]);
+
+  const handleSaveTask = async (taskData) => {
+    if (!isAdmin) {
+      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
+      return;
+    }
+    setLoading(true);
     try {
-      if (!db) { toast.error("Service de base de données non disponible."); return; }
-      const batch = db.batch();
-      users.forEach(user => {
-        const userRef = doc(db, 'users', user.uid);
-        batch.update(userRef, {
-          weeklyPoints: 0,
-          totalCumulativePoints: 0,
-          previousWeeklyPoints: 0,
-          xp: 0,
-          level: 1
-        });
-      });
-      await batch.commit();
-      toast.success('Tous les points et XP ont été réinitialisés pour tous les utilisateurs !');
+      if (editingTask) {
+        await updateDoc(doc(db, 'taches', editingTask.id), taskData);
+        toast.success("Tâche mise à jour avec succès !");
+      } else {
+        await addDoc(collection(db, 'taches'), taskData);
+        toast.success("Tâche ajoutée avec succès !");
+      }
+      setShowAdminTaskFormModal(false);
+      setEditingTask(null);
     } catch (error) {
-      toast.error('Erreur lors de la réinitialisation de tous les points.');
-      console.error('Error resetting all points:', error);
+      toast.error("Erreur lors de l'enregistrement de la tâche.");
+      console.error("Error saving task:", error);
     } finally {
-      setShowConfirmResetAllPointsModal(false);
+      setLoading(false);
     }
   };
 
-  // Fonctions d'export CSV
-  const handleExportClassement = () => {
-    const classementData = leaderboard.map(p => [
-      p.Nom_Participant,
-      p.Points_Total_Semaine_Courante,
-      p.Points_Total_Cumulatif,
-      p.XP,
-      p.Level,
-      p.isAdmin ? 'Admin' : 'Utilisateur',
-      p.dateJoined ? new Date(p.dateJoined).toLocaleDateString('fr-FR') : 'N/A'
-    ]);
-    const headers = ["Nom Participant", "Points Semaine Courante", "Points Cumulatifs", "XP", "Niveau", "Statut", "Date Inscription"];
-    exportToCsv("classement_general.csv", [headers, ...classementData]);
-    setShowExportSelectionModal(false);
+  // Fonctions de gestion des objectifs (pour AdminPanel)
+  const handleAddObjective = () => {
+    setEditingObjective(null);
+    setShowAdminObjectiveFormModal(true);
   };
 
-  const handleExportRealisations = () => {
-    const realisationsData = realisations.map(r => [
-      r.nomTache,
-      r.pointsGagnes,
-      r.categorieTache,
-      r.userName,
-      r.timestamp ? new Date(r.timestamp).toLocaleString('fr-FR') : 'N/A'
-    ]);
-    const headers = ["Nom Tache", "Points Gagnés", "Catégorie", "Utilisateur", "Date Realisation"];
-    exportToCsv("realisations_historique.csv", [headers, ...realisationsData]);
-    setShowExportSelectionModal(false);
+  const handleEditObjective = (objective) => {
+    setEditingObjective(objective);
+    setShowAdminObjectiveFormModal(true);
   };
 
-  // Fonction pour obtenir les badges d'un participant
-  const getParticipantBadges = useCallback((participant) => {
-    const badges = [];
-    if (participant.isAdmin) {
-      badges.push({ name: "Admin", icon: "👑", description: "Administrateur de l'application" });
+  const handleDeleteObjective = useCallback(async (objectiveId) => {
+    if (!isAdmin) {
+      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
+      return;
     }
-    if (participant.XP >= 500) {
-      badges.push({ name: "Expert", icon: "🌟", description: "A atteint 500 XP" });
+    setShowConfirmActionModal(true);
+    setActionToConfirm(() => async () => {
+      setLoading(true);
+      try {
+        await deleteDoc(doc(db, 'objectifs', objectiveId));
+        toast.success("Objectif supprimé avec succès !");
+      } catch (error) {
+        toast.error("Erreur lors de la suppression de l'objectif.");
+        console.error("Error deleting objective:", error);
+      } finally {
+        setLoading(false);
+        setShowConfirmActionModal(false);
+        setActionToConfirm(null);
+      }
+    });
+  }, [db, isAdmin]);
+
+  const handleSaveObjective = async (objectiveData) => {
+    if (!isAdmin) {
+      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
+      return;
     }
-    if (participant.Level >= 5) {
-      badges.push({ name: "Maître", icon: "🧙‍♂️", description: "A atteint le niveau 5" });
+    setLoading(true);
+    try {
+      if (editingObjective) {
+        await updateDoc(doc(db, 'objectifs', editingObjective.id), objectiveData);
+        toast.success("Objectif mis à jour avec succès !");
+      } else {
+        await addDoc(collection(db, 'objectifs'), objectiveData);
+        toast.success("Objectif ajouté avec succès !");
+      }
+      setShowAdminObjectiveFormModal(false);
+      setEditingObjective(null);
+    } catch (error) {
+      toast.error("Erreur lors de l'enregistrement de l'objectif.");
+      console.error("Error saving objective:", error);
+    } finally {
+      setLoading(false);
     }
-    return badges;
+  };
+
+  // Fonction pour afficher les détails d'un document (utilisée par GlobalDataView)
+  const handleViewDocumentDetails = useCallback((document) => {
+    setSelectedDocumentDetails(document);
   }, []);
 
-  // Affichage conditionnel
-  if (loadingUser || loadingData) {
+  const handleCloseDocumentDetails = useCallback(() => {
+    setSelectedDocumentDetails(null);
+  }, []);
+
+  // Fonction pour rendre la modale de vue globale des données
+  const renderGlobalDataViewModal = () => {
+    const allData = [
+      ...taches.map(d => ({ ...d, type: 'Tâche', collection: 'taches' })),
+      ...objectifs.map(d => ({ ...d, type: 'Objectif', collection: 'objectifs' })),
+      ...realisations.map(d => ({ ...d, type: 'Réalisation', collection: 'realisations' })),
+      ...users.map(d => ({ ...d, type: 'Utilisateur', collection: 'users' })),
+      ...historicalPodiums.map(d => ({ ...d, type: 'Podium Historique', collection: 'historical_podiums' }))
+    ].sort((a, b) => {
+      const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
+      const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
+      return dateB - dateA; // Trie par timestamp décroissant
+    });
+
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background-light to-background-dark text-text transition-colors duration-500">
+      <ListAndInfoModal title="Vue Globale des Données" onClose={() => setShowGlobalDataViewModal(false)} sizeClass="max-w-4xl">
+        <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar p-2">
+          {allData.length === 0 ? (
+            <p className="text-center text-lightText text-md">Aucune donnée disponible.</p>
+          ) : (
+            allData.map((item, index) => (
+              <div key={item.id || index} className="bg-neutralBg rounded-lg p-3 shadow-sm border border-gray-100 flex justify-between items-center">
+                <div>
+                  <p className="font-semibold text-text text-sm">{item.type}: {item.Nom_Tache || item.Nom_Objectif || item.displayName || item.id}</p>
+                  <p className="text-lightText text-xs">ID: {item.ID_Tache || item.ID_Objectif || item.id}</p>
+                  {item.timestamp && (
+                    <p className="text-lightText text-xs">Date: {new Date(item.timestamp.toDate ? item.timestamp.toDate() : item.timestamp).toLocaleDateString('fr-FR')}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleViewDocumentDetails(item)}
+                  className="bg-secondary hover:bg-teal-600 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs"
+                >
+                  Détails
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </ListAndInfoModal>
+    );
+  };
+
+  // Fonction pour rendre la modale des détails d'un document
+  const renderDocumentDetailsModal = () => {
+    if (!selectedDocumentDetails) return null;
+
+    return (
+      <ListAndInfoModal title="Détails du Document" onClose={handleCloseDocumentDetails} sizeClass="max-w-md">
+        <div className="space-y-2 text-text text-sm">
+          {Object.entries(selectedDocumentDetails).map(([key, value]) => (
+            <div key={key} className="flex justify-between items-start border-b border-gray-100 py-1">
+              <span className="font-medium">{key}:</span>
+              <span className="text-right ml-2 break-words">
+                {typeof value === 'object' && value !== null ? JSON.stringify(value, null, 2) : String(value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </ListAndInfoModal>
+    );
+  };
+
+  // Préparation des données pour TaskStatisticsChart
+  const taskChartData = taches.map(task => {
+    const completedCount = realisations.filter(r => r.taskId === task.id && r.statut === 'validée').length;
+    return {
+      name: task.Nom_Tache,
+      'Points Gagnés': task.Points_Gagnes,
+      'Tâches Réalisées': completedCount,
+    };
+  });
+
+  // Préparation des données pour OverallRankingModal
+  const rankingData = users
+    .map(user => ({
+      uid: user.id,
+      Nom_Participant: user.displayName,
+      Total_Points: user.totalCumulativePoints,
+      Avatar: user.photoURL || user.avatar,
+    }))
+    .sort((a, b) => b.Total_Points - a.Total_Points);
+
+  // Préparation des données pour le panneau admin (si AdminPanel était un composant séparé)
+  const adminPanelProps = {
+    onClose: () => setShowAdminPanel(false),
+    realisations: realisations,
+    allRawTaches: taches,
+    allObjectives: objectifs,
+    onUpdateTask: handleSaveTask, // Passer la fonction de sauvegarde de tâche
+    onUpdateObjective: handleSaveObjective, // Passer la fonction de sauvegarde d'objectif
+    onUpdateUser: async (uid, data) => { // Passer une fonction de mise à jour utilisateur
+      try {
+        await updateDoc(doc(db, 'users', uid), data);
+        toast.success("Utilisateur mis à jour avec succès !");
+      } catch (error) {
+        console.error("Erreur mise à jour utilisateur:", error);
+        toast.error("Erreur lors de la mise à jour de l'utilisateur.");
+      }
+    },
+    onDeleteTask: handleDeleteTask,
+    onDeleteObjective: handleDeleteObjective,
+    onDeleteUser: handleDeleteUser, // Vous devrez implémenter cette fonction si elle n'existe pas
+  };
+
+  const handleDeleteUser = useCallback(async (userUid) => {
+    if (!isAdmin) {
+      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
+      return;
+    }
+    if (userUid === currentUser.uid) {
+      toast.error("Vous ne pouvez pas supprimer votre propre compte.");
+      return;
+    }
+    setShowConfirmActionModal(true);
+    setActionToConfirm(() => async () => {
+      setLoading(true);
+      try {
+        await deleteDoc(doc(db, 'users', userUid));
+        // Optionnel: Supprimer les réalisations associées à cet utilisateur
+        const userRealisationsQuery = query(collection(db, 'realisations'), where('userId', '==', userUid));
+        const userRealisationsSnapshot = await getDocs(userRealisationsQuery);
+        const deletePromises = userRealisationsSnapshot.docs.map(d => deleteDoc(doc(db, 'realisations', d.id)));
+        await Promise.all(deletePromises);
+        toast.success(`Utilisateur supprimé avec succès !`);
+      } catch (error) {
+        toast.error("Erreur lors de la suppression de l'utilisateur.");
+        console.error("Error deleting user:", error);
+      } finally {
+        setLoading(false);
+        setShowConfirmActionModal(false);
+        setActionToConfirm(null);
+      }
+    });
+  }, [db, isAdmin, currentUser]);
+
+
+  if (!isAuthReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background-light to-background-dark text-white">
         <div className="flex flex-col items-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
-          <p className="mt-4 text-lg font-semibold text-primary">Chargement de l'application...</p>
+          <div className="w-16 h-16 border-4 border-white border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
+          <p className="mt-4 text-lg">Chargement de l'application...</p>
         </div>
       </div>
     );
   }
 
-  // Filtrer les tâches actives (non terminées si applicable, ou toutes si pas de statut)
-  const activeTasks = tasks.filter(task => !task.Est_Terminee);
-  const activeObjectives = objectives.filter(obj => !obj.Est_Atteint);
-
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-background-light to-background-dark text-text transition-colors duration-500 ${theme}`}>
-      <div className="container mx-auto p-4 sm:p-6 lg:p-8 relative">
-        {/* Bouton de connexion/déconnexion et Admin */}
-        {!currentUser ? (
-          <div className="absolute top-4 right-4 z-10">
-            <button
-              onClick={() => setShowAuthModal(true)}
-              className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
-            >
-              Connexion / Inscription
-            </button>
-          </div>
-        ) : (
-          <div className="absolute top-4 right-4 flex items-center space-x-2 z-10">
-            {/* Bouton de profil (icône crayon) */}
-            <button
-              onClick={() => setShowProfileEditOptionsModal(true)}
-              className="bg-accent hover:bg-yellow-600 text-white p-2 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-110 text-xl"
-              aria-label="Modifier le profil"
-            >
-              ✏️
-            </button>
+    <div className="min-h-screen bg-gradient-to-br from-background-light to-background-dark text-text relative pb-16">
+      <AdminLoginButton
+        isAdmin={isAdmin}
+        onLogin={handleAdminLogin}
+        onLogout={handleAdminLogout}
+        onOpenAdminPanel={() => setShowAdminPanel(true)}
+      />
 
-            {/* Thème sombre/clair slider */}
-            <div className="flex items-center space-x-2 bg-neutralBg p-2 rounded-full shadow-inner border border-primary/10">
-              <span className="text-xl">☀️</span>
-              <label htmlFor="themeToggle" className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  id="themeToggle"
-                  className="sr-only peer"
-                  checked={theme === 'dark'}
-                  onChange={toggleTheme}
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/40 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-              </label>
-              <span className="text-xl">🌙</span>
-            </div>
-
-            <button
-              onClick={handleLogout}
-              className="bg-gray-700 hover:bg-gray-800 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
-            >
-              Déconnexion
-            </button>
+      {/* Header */}
+      <header className="py-6 px-4 sm:px-6 bg-white bg-opacity-20 backdrop-filter backdrop-blur-lg shadow-lg text-white text-center rounded-b-3xl relative">
+        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-2">CleanApp Challenge</h1>
+        <p className="text-lg sm:text-xl font-medium opacity-90">Rendez le monde plus propre, gagnez des points !</p>
+        {currentUser && (
+          <div className="mt-4 flex items-center justify-center space-x-3 bg-white bg-opacity-30 rounded-full py-2 px-4 mx-auto w-fit shadow-inner cursor-pointer"
+               onClick={() => setShowProfileEditOptionsModal(true)}>
+            {currentUser.photoURL ? (
+              <img src={currentUser.photoURL} alt="Avatar" className="w-8 h-8 rounded-full object-cover border-2 border-white" />
+            ) : (
+              <span className="text-3xl leading-none">{currentUser.avatar || '👤'}</span>
+            )}
+            <span className="font-semibold text-lg">{currentUser.displayName || 'Invité'}</span>
+            <span className="text-sm opacity-80">({currentUser.totalCumulativePoints || 0} points)</span>
           </div>
         )}
-
-        {/* Bouton Admin */}
-        {currentUser && (
-          <AdminLoginButton
-            isAdmin={isAdmin}
-            onLogin={handleAdminLogin}
-            onLogout={handleAdminLogout}
-            onOpenAdminPanel={() => setShowAdminPanel(true)}
-          />
+        {!currentUser && (
+          <button
+            onClick={() => setShowAuthModal(true)}
+            className="mt-4 bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
+          >
+            Se Connecter / S'inscrire
+          </button>
         )}
+      </header>
 
-        <header className="text-center py-10">
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-primary drop-shadow-lg mb-2">
-            Clean App Challenge
-          </h1>
-          <p className="text-lg sm:text-xl text-secondary font-medium">
-            Rendez le monde plus propre, une tâche à la fois !
-          </p>
-        </header>
-
-        {currentUser && (
-          <section className="mb-8 bg-card rounded-3xl p-6 shadow-2xl border border-primary/20 animate-fade-in-scale">
-            <h2 className="text-3xl font-bold text-primary mb-4 text-center">
-              Bienvenue, {currentUser.displayName || currentUser.email} !
-            </h2>
-            <div className="flex items-center justify-center mb-4">
-              {currentUser.photoURL ? (
-                <img src={currentUser.photoURL} alt="Avatar de l'utilisateur" className="w-24 h-24 rounded-full object-cover mr-4 border-2 border-primary shadow-md" />
-              ) : (
-                <span className="text-6xl mr-4">{currentUser.avatar || '👤'}</span>
-              )}
-              <div>
-                <p className="text-xl font-semibold text-text">Niveau: {currentUser.level || 1}</p>
-                <p className="text-lg text-lightText">XP: {currentUser.xp || 0}</p>
-                <p className="text-lg text-lightText">Points cette semaine: <span className="font-bold text-success">{currentUser.weeklyPoints || 0}</span></p>
-                <p className="text-lg text-lightText">Points cumulatifs: <span className="font-bold text-secondary">{currentUser.totalCumulativePoints || 0}</span></p>
-              </div>
+      <main className="p-4 sm:p-6 lg:p-8">
+        {/* Section Tâches */}
+        <section className="mb-8">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6 text-center drop-shadow-lg">Tâches à Réaliser</h2>
+          {loading ? (
+            <div className="flex justify-center items-center h-40">
+              <div className="w-12 h-12 border-4 border-white border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
+              <p className="ml-4 text-white text-lg">Chargement des tâches...</p>
             </div>
-            <div className="flex flex-wrap justify-center gap-2 mt-4">
-              {getParticipantBadges(currentUser).map(badge => (
-                <span key={badge.name} title={badge.description} className="text-2xl cursor-help">
-                  {badge.icon}
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Section Tâches Actives */}
-        <section className="mb-8 bg-card rounded-3xl p-6 shadow-2xl border border-primary/20 animate-fade-in-scale">
-          <h2 className="text-3xl font-bold text-primary mb-4 text-center">Tâches Actives</h2>
-          {activeTasks.length === 0 ? (
-            <p className="text-center text-lightText text-lg">Aucune tâche active pour le moment. Revenez plus tard !</p>
+          ) : taches.length === 0 ? (
+            <p className="text-center text-white text-lg bg-white bg-opacity-20 p-4 rounded-xl shadow-md">Aucune tâche disponible pour le moment. Revenez plus tard !</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {activeTasks.map(task => (
-                <div key={task.id} className="bg-neutralBg rounded-xl p-4 shadow-md border border-primary/10 flex flex-col justify-between">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {taches.filter(t => t.Est_Active).map((tache) => (
+                <div key={tache.id} className="bg-card rounded-xl shadow-lg p-5 border border-primary/10 flex flex-col justify-between transform transition duration-300 hover:-translate-y-1 hover:shadow-xl">
                   <div>
-                    <h3 className="text-xl font-semibold text-secondary mb-2">{task.Nom_Tache}</h3>
-                    <p className="text-lightText text-sm mb-1">Catégorie: {task.Categorie}</p>
-                    <p className="text-lightText text-sm mb-1">Points: <span className="font-bold text-success">{task.Points}</span></p>
-                    <p className="text-lightText text-sm mb-3">Fréquence: {task.Frequence}</p>
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-2 mt-auto">
-                    {currentUser && (
-                      <button
-                        onClick={() => handleTaskRealized(task)}
-                        className="flex-1 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-                      >
-                        Réaliser
-                      </button>
-                    )}
-                    {isAdmin && (
-                      <button
-                        onClick={() => { setShowAddTaskModal(true); setTaskToDelete(task); }}
-                        className="flex-1 bg-warning hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-                      >
-                        Modifier
-                      </button>
-                    )}
-                    {isAdmin && (
-                      <button
-                        onClick={() => { setTaskToDelete(task.id); setShowConfirmDeleteTaskModal(true); }}
-                        className="flex-1 bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-                      >
-                        Supprimer
-                      </button>
-                    )}
-                    {currentUser && (
-                      <button
-                        onClick={() => { setSelectedTaskIdForHistory(task.id); setShowTaskHistoryModal(true); }}
-                        className="flex-1 bg-info hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-                      >
-                        Historique
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Section Objectifs Actifs */}
-        <section className="mb-8 bg-card rounded-3xl p-6 shadow-2xl border border-primary/20 animate-fade-in-scale">
-          <h2 className="text-3xl font-bold text-primary mb-4 text-center">Objectifs Actifs</h2>
-          {activeObjectives.length === 0 ? (
-            <p className="text-center text-lightText text-lg">Aucun objectif actif pour le moment.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {activeObjectives.map(objective => (
-                <div key={objective.id} className="bg-neutralBg rounded-xl p-4 shadow-md border border-primary/10 flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-xl font-semibold text-secondary mb-2">{objective.Nom_Objectif}</h3>
-                    <p className="text-lightText text-sm mb-1">Description: {objective.Description}</p>
-                    <p className="text-lightText text-sm mb-1">Date Limite: {objective.Date_Limite ? new Date(objective.Date_Limite).toLocaleDateString('fr-FR') : 'N/A'}</p>
-                  </div>
-                  {isAdmin && (
-                    <div className="flex flex-col sm:flex-row gap-2 mt-auto">
-                      <button
-                        onClick={() => { setShowAddObjectiveModal(true); setObjectiveToDelete(objective); }}
-                        className="flex-1 bg-warning hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-                      >
-                        Modifier
-                      </button>
-                      <button
-                        onClick={() => { setObjectiveToDelete(objective.id); setShowConfirmDeleteObjectiveModal(true); }}
-                        className="flex-1 bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-                      >
-                        Supprimer
-                      </button>
+                    <h3 className="text-xl font-bold text-text mb-2">{tache.Nom_Tache}</h3>
+                    <p className="text-lightText text-sm mb-3">{tache.Description}</p>
+                    <div className="flex items-center text-primary font-semibold text-md mb-4">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586l2.293 2.293a1 1 0 001.414-1.414L11 10.586V7z" clipRule="evenodd" />
+                      </svg>
+                      {tache.Points_Gagnes} Points
                     </div>
-                  )}
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                    <button
+                      onClick={() => handleMarkTaskAsCompleted(tache.id, tache.Points_Gagnes)}
+                      disabled={loading || !currentUser}
+                      className="flex-1 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                    >
+                      {loading && !currentUser ? 'Connexion requise' : 'Réalisé !'}
+                    </button>
+                    <button
+                      onClick={() => handleReportTask(tache.id, tache.Nom_Tache)}
+                      disabled={loading || !currentUser}
+                      className="flex-1 bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                    >
+                      Signaler
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </section>
 
-        {/* Section Classement Hebdomadaire */}
-        <section className="mb-8 bg-card rounded-3xl p-6 shadow-2xl border border-primary/20 animate-fade-in-scale">
-          <h2 className="text-3xl font-bold text-primary mb-4 text-center">Classement Hebdomadaire</h2>
-          {leaderboard.length === 0 ? (
-            <p className="text-center text-lightText text-lg">Aucun classement hebdomadaire disponible pour le moment.</p>
+        {/* Section Objectifs */}
+        <section className="mb-8">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6 text-center drop-shadow-lg">Objectifs à Atteindre</h2>
+          {loading ? (
+            <div className="flex justify-center items-center h-40">
+              <div className="w-12 h-12 border-4 border-white border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
+              <p className="ml-4 text-white text-lg">Chargement des objectifs...</p>
+            </div>
+          ) : objectifs.length === 0 ? (
+            <p className="text-center text-white text-lg bg-white bg-opacity-20 p-4 rounded-xl shadow-md">Aucun objectif disponible pour le moment. Revenez plus tard !</p>
           ) : (
-            <div className="flex flex-col gap-3 items-center">
-              {leaderboard
-                .filter(p => p.Points_Total_Semaine_Courante > 0)
-                .slice(0, 3)
-                .map((participant, index) => (
-                  <RankingCard
-                    key={participant.ID_Utilisateur}
-                    participant={participant}
-                    rank={index + 1}
-                    type="weekly"
-                    onParticipantClick={() => { /* Pas d'action pour le clic sur le podium */ }}
-                    getParticipantBadges={getParticipantBadges}
-                  />
-                ))}
-              {leaderboard.filter(p => p.Points_Total_Semaine_Courante > 0).length > 3 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {objectifs.map((objectif) => {
+                const progress = (objectif.Progress_Current / objectif.Progress_Target) * 100;
+                const isCompleted = objectif.Est_Atteint || progress >= 100;
+                const isPastEndDate = new Date() > new Date(objectif.Date_Fin);
+
+                return (
+                  <div key={objectif.id} className={`bg-card rounded-xl shadow-lg p-5 border ${isCompleted ? 'border-success/50' : 'border-accent/50'} flex flex-col justify-between transform transition duration-300 hover:-translate-y-1 hover:shadow-xl`}>
+                    <div>
+                      <h3 className="text-xl font-bold text-text mb-2">{objectif.Nom_Objectif}</h3>
+                      <p className="text-lightText text-sm mb-3">{objectif.Description}</p>
+                      <div className="flex items-center text-primary font-semibold text-md mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586l2.293 2.293a1 1 0 001.414-1.414L11 10.586V7z" clipRule="evenodd" />
+                        </svg>
+                        {objectif.Points_Objectif} Points
+                      </div>
+                      <p className="text-lightText text-xs mb-3">
+                        Du {new Date(objectif.Date_Debut).toLocaleDateString('fr-FR')} au {new Date(objectif.Date_Fin).toLocaleDateString('fr-FR')}
+                      </p>
+                      <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mb-2">
+                        <div
+                          className={`h-2.5 rounded-full ${isCompleted ? 'bg-success' : 'bg-accent'}`}
+                          style={{ width: `${Math.min(100, progress)}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-right text-xs text-lightText">{Math.round(progress)}% Atteint</p>
+                    </div>
+                    <div className="mt-4">
+                      {!isCompleted && !isPastEndDate && (
+                        <button
+                          onClick={() => handleMarkObjectiveAsCompleted(objectif.id, objectif.Points_Objectif)}
+                          disabled={loading || !currentUser}
+                          className="w-full bg-accent hover:bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                        >
+                          {loading && !currentUser ? 'Connexion requise' : 'Marquer comme Atteint'}
+                        </button>
+                      )}
+                      {isCompleted && (
+                        <p className="text-center text-success font-semibold text-md mt-2">Objectif Atteint !</p>
+                      )}
+                      {isPastEndDate && !isCompleted && (
+                        <p className="text-center text-error font-semibold text-md mt-2">Date limite dépassée.</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Section Statistiques et Classement */}
+        <section className="mb-8">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6 text-center drop-shadow-lg">Statistiques & Classement</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Graphique des statistiques de tâches */}
+            <TaskStatisticsChart data={taskChartData} />
+
+            {/* Classement des utilisateurs */}
+            <div className="bg-card rounded-xl shadow-lg p-4 sm:p-6 border border-primary/10">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl sm:text-2xl font-bold text-primary">Top Utilisateurs</h3>
                 <button
                   onClick={() => setShowOverallRankingModal(true)}
-                  className="mt-4 bg-info hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
+                  className="bg-primary hover:bg-secondary text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-sm"
                 >
-                  Voir le classement général
+                  Voir Tout
                 </button>
+              </div>
+              {loading ? (
+                <div className="flex justify-center items-center h-40">
+                  <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
+                  <p className="ml-3 text-lightText">Chargement du classement...</p>
+                </div>
+              ) : rankingData.length === 0 ? (
+                <p className="text-center text-lightText text-md py-4">Aucun utilisateur classé pour le moment.</p>
+              ) : (
+                <div className="space-y-3">
+                  {rankingData.slice(0, 5).map((user, index) => (
+                    <RankingCard
+                      key={user.uid}
+                      user={user}
+                      rank={index + 1}
+                      isCurrentUser={currentUser && user.uid === currentUser.uid}
+                      onClick={() => { /* Optionnel: ouvrir un profil utilisateur */ }}
+                    />
+                  ))}
+                </div>
               )}
             </div>
-          )}
+          </div>
         </section>
 
-        {/* Graphique des statistiques des tâches */}
-        {currentUser && realisations.length > 0 && tasks.length > 0 && (
-          <section className="mb-8 bg-card rounded-3xl p-6 shadow-2xl border border-primary/20 animate-fade-in-scale">
-            <TaskStatisticsChart realisations={realisations} allRawTaches={tasks} />
-          </section>
-        )}
-
-
-        {/* Modales */}
-        {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
-
-        {showAdminPanel && isAdmin && (
-          <ListAndInfoModal title="Panneau Administrateur" onClose={() => setShowAdminPanel(false)} sizeClass="max-w-xl">
-            <div className="flex flex-col space-y-4">
-              <button
-                onClick={() => setShowAddTaskModal(true)}
-                className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-              >
-                Ajouter une Tâche
-              </button>
-              <button
-                onClick={() => setShowAddObjectiveModal(true)}
-                className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-              >
-                Ajouter un Objectif
-              </button>
-              <button
-                onClick={() => setShowUserManagementModal(true)}
-                className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-              >
-                Gérer les Utilisateurs
-              </button>
-              <button
-                onClick={() => setShowCongratulatoryMessagesModal(true)}
-                className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-              >
-                Gérer les Messages de Félicitations
-              </button>
-              <button
-                onClick={() => setShowExportSelectionModal(true)}
-                className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-              >
-                Exporter les Données CSV
-              </button>
-              <button
-                onClick={() => setShowConfirmResetWeeklyPointsModal(true)}
-                className="bg-warning hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-              >
-                Réinitialiser Points Hebdomadaires
-              </button>
-              <button
-                onClick={() => setShowConfirmResetAllPointsModal(true)}
-                className="bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-              >
-                Réinitialiser TOUS les Points
-              </button>
-              <button
-                onClick={() => setShowHistoricalPodiumsModal(true)}
-                className="bg-info hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-              >
-                Voir Historique des Podiums
-              </button>
-              <button
-                onClick={() => {
-                  setReportedTaskDetails(null);
-                  setShowReportTaskModal(true);
-                }}
-                className="bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-              >
-                Signaler une Réalisation (Admin)
-              </button>
-            </div>
-          </ListAndInfoModal>
-        )}
-
-        {showAddTaskModal && isAdmin && (
-          <AdminTaskFormModal
-            taskData={taskToDelete || { Nom_Tache: '', Description: '', Points: 0, Frequence: 'Quotidien', Categorie: '', Parent_Task_ID: '' }}
-            onFormChange={(e) => setTaskToDelete(prev => ({ ...prev, [e.target.name]: e.target.value }))}
-            onSubmit={async (keepOpen) => {
-              const success = taskToDelete && taskToDelete.id
-                ? await handleUpdateTask(taskToDelete.id, taskToDelete)
-                : await handleAddTask(taskToDelete);
-              
-              if (success && !keepOpen) {
-                setShowAddTaskModal(false);
-                setTaskToDelete(null);
-              } else if (success && keepOpen) {
-                setTaskToDelete({ Nom_Tache: '', Description: '', Points: 0, Frequence: 'Quotidien', Categorie: '', Parent_Task_ID: '' });
-              }
-            }}
-            onClose={() => { setShowAddTaskModal(false); setTaskToDelete(null); }}
-            editingTask={taskToDelete && taskToDelete.id}
-          />
-        )}
-
-        {showAddObjectiveModal && isAdmin && (
-          <AdminObjectiveFormModal
-            objectiveData={objectiveToDelete || { Nom_Objectif: '', Description: '', Date_Limite: '', Est_Atteint: false }}
-            onFormChange={(e) => setObjectiveToDelete(prev => ({ ...prev, [e.target.name]: e.target.value }))}
-            onSubmit={async () => {
-              if (objectiveToDelete && objectiveToDelete.id) {
-                await handleUpdateObjective(objectiveToDelete.id, objectiveToDelete);
-              } else {
-                await handleAddObjective(objectiveToDelete);
-              }
-              setShowAddObjectiveModal(false);
-              setObjectiveToDelete(null);
-            }}
-            onClose={() => { setShowAddObjectiveModal(false); setObjectiveToDelete(null); }}
-            editingObjective={objectiveToDelete && objectiveToDelete.id}
-          />
-        )}
-
-        {showUserManagementModal && isAdmin && (
-          <AdminUserManagementModal onClose={() => setShowUserManagementModal(false)} realisations={realisations} />
-        )}
-
-        {showCongratulatoryMessagesModal && isAdmin && (
-          <AdminCongratulatoryMessagesModal onClose={() => setShowCongratulatoryMessagesModal(false)} />
-        )}
-
-        {showConfirmDeleteTaskModal && (
-          <ConfirmActionModal
-            title="Confirmer la Suppression"
-            message="Êtes-vous sûr de vouloir supprimer cette tâche ? Cette action est irréversible."
-            confirmText="Oui, Supprimer"
-            confirmButtonClass="bg-error hover:bg-red-700"
-            cancelText="Non, Annuler"
-            onConfirm={() => handleDeleteTask(taskToDelete)}
-            onCancel={() => { setShowConfirmDeleteTaskModal(false); setTaskToDelete(null); }}
-          />
-        )}
-
-        {showConfirmDeleteObjectiveModal && (
-          <ConfirmActionModal
-            title="Confirmer la Suppression"
-            message="Êtes-vous sûr de vouloir supprimer cet objectif ? Cette action est irréversible."
-            confirmText="Oui, Supprimer"
-            confirmButtonClass="bg-error hover:bg-red-700"
-            cancelText="Non, Annuler"
-            onConfirm={() => handleDeleteObjective(objectiveToDelete)}
-            onCancel={() => { setShowConfirmDeleteObjectiveModal(false); setObjectiveToDelete(null); }}
-          />
-        )}
-
-        {showConfirmResetWeeklyPointsModal && (
-          <ConfirmActionModal
-            title="Réinitialiser Points Hebdomadaires"
-            message="Êtes-vous sûr de vouloir réinitialiser les points hebdomadaires de TOUS les utilisateurs ? Les points de la semaine passée seront sauvegardés."
-            confirmText="Oui, Réinitialiser"
-            confirmButtonClass="bg-warning hover:bg-yellow-600"
-            cancelText="Non, Annuler"
-            onConfirm={handleResetWeeklyPoints}
-            onCancel={() => setShowConfirmResetWeeklyPointsModal(false)}
-          />
-        )}
-
-        {showConfirmResetAllPointsModal && (
-          <ConfirmActionModal
-            title="Réinitialiser TOUS les Points"
-            message="Êtes-vous sûr de vouloir réinitialiser TOUS les points (hebdomadaires et cumulatifs) et l'XP de TOUS les utilisateurs ? Cette action est irréversible."
-            confirmText="Oui, Réinitialiser Tout"
-            confirmButtonClass="bg-error hover:bg-red-700"
-            cancelText="Non, Annuler"
-            onConfirm={handleResetAllPoints}
-            onCancel={() => setShowConfirmResetAllPointsModal(false)}
-          />
-        )}
-
-        {showWeeklyRecapModal && weeklyRecapData && (
-          <WeeklyRecapModal
-            recapData={weeklyRecapData}
-            onClose={() => setShowWeeklyRecapModal(false)}
-          />
-        )}
-
-        {showHistoricalPodiumsModal && (
-          <HistoricalPodiums
-            historicalPodiums={historicalPodiums}
-            onClose={() => setShowHistoricalPodiumsModal(false)}
+        {/* Bouton pour voir les podiums historiques */}
+        <section className="text-center mt-8">
+          <button
+            onClick={() => setShowHistoricalPodiumsModal(true)}
+            className="bg-accent hover:bg-orange-600 text-white font-semibold py-2.5 px-6 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-lg"
           >
-          </HistoricalPodiums>
-        )}
+            Voir les Podiums Historiques
+          </button>
+        </section>
+      </main>
 
-        {showOverallRankingModal && (
-          <OverallRankingModal
-            classement={leaderboard}
-            onClose={() => setShowOverallRankingModal(false)}
-            onParticipantClick={() => { /* Gérer le clic sur un participant si nécessaire */ }}
-            getParticipantBadges={getParticipantBadges}
-          />
-        )}
+      {/* Bouton flottant pour le chat */}
+      {currentUser && (
+        <ChatFloatingButton
+          onClick={() => setShowChatModal(true)}
+          unreadMessagesCount={unreadMessagesCount}
+        />
+      )}
 
-        {showExportSelectionModal && (
-          <ExportSelectionModal
-            onClose={() => setShowExportSelectionModal(false)}
-            onExportClassement={handleExportClassement}
-            onExportRealisations={handleExportRealisations}
-          />
-        )}
+      {/* Modales */}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+      {showChatModal && <ChatModal onClose={() => setShowChatModal(false)} onMarkMessagesAsRead={markMessagesAsRead} />}
+      {showProfileEditOptionsModal && (
+        <ProfileEditOptionsModal
+          onClose={() => setShowProfileEditOptionsModal(false)}
+          onOpenAvatarSelection={() => setShowAvatarSelectionModal(true)}
+          onOpenPasswordChange={() => setShowPasswordChangeModal(true)}
+        />
+      )}
+      {showAvatarSelectionModal && <AvatarSelectionModal onClose={() => setShowAvatarSelectionModal(false)} />}
+      {showPasswordChangeModal && <PasswordChangeModal onClose={() => setShowPasswordChangeModal(false)} />}
 
-        {showTaskHistoryModal && selectedTaskIdForHistory && (
-          <TaskHistoryModal
-            taskId={selectedTaskIdForHistory}
-            allRealisations={realisations}
-            allTasks={tasks}
-            onClose={() => setShowTaskHistoryModal(false)}
-          />
-        )}
+      {showConfirmActionModal && actionToConfirm && (
+        <ConfirmActionModal
+          title="Confirmer l'action"
+          message="Êtes-vous sûr de vouloir effectuer cette action ? Elle est irréversible."
+          confirmText="Confirmer"
+          cancelText="Annuler"
+          onConfirm={actionToConfirm}
+          onCancel={() => { setShowConfirmActionModal(false); setActionToConfirm(null); }}
+          loading={loading}
+        />
+      )}
 
-        {showReportTaskModal && (
-          <ReportTaskModal
-            show={showReportTaskModal}
-            onClose={() => setShowReportTaskModal(false)}
-            onSubmit={confirmReportRealization}
-            reportedTaskDetails={reportedTaskDetails}
-          />
-        )}
+      {showConfetti && <ConfettiOverlay show={showConfetti} onComplete={() => setShowConfetti(false)} />}
 
-        {showConfetti && (
-          <ConfettiOverlay
-            show={showConfetti}
-            onComplete={() => setShowConfetti(false)}
-          />
-        )}
+      {showReportTaskModal && (
+        <ReportTaskModal
+          onClose={() => setShowReportTaskModal(false)}
+          taskDetails={selectedTaskToReport}
+        />
+      )}
 
-        {showProfileEditOptionsModal && currentUser && (
-          <ProfileEditOptionsModal
-            onClose={() => setShowProfileEditOptionsModal(false)}
-            onOpenAvatar={() => { setShowProfileEditOptionsModal(false); setShowAvatarSelectionModal(true); }}
-            onOpenPassword={() => { setShowProfileEditOptionsModal(false); setShowPasswordChangeModal(true); }}
-          />
-        )}
+      {showOverallRankingModal && (
+        <OverallRankingModal
+          onClose={() => setShowOverallRankingModal(false)}
+          rankingData={rankingData}
+        />
+      )}
 
-        {showAvatarSelectionModal && currentUser && (
-          <AvatarSelectionModal
-            currentAvatar={currentUser.avatar || '👤'}
-            currentPhotoURL={currentUser.photoURL || null}
-            onClose={() => setShowAvatarSelectionModal(false)}
-            onSave={async ({ newAvatar, newPhotoURL }) => {
-              try {
-                const updateData = {};
-                if (newAvatar !== undefined) updateData.avatar = newAvatar;
-                if (newPhotoURL !== undefined) updateData.photoURL = newPhotoURL;
+      {showHistoricalPodiumsModal && (
+        <HistoricalPodiums
+          onClose={() => setShowHistoricalPodiumsModal(false)}
+          historicalPodiums={historicalPodiums}
+        />
+      )}
 
-                await updateDoc(doc(db, "users", currentUser.uid), updateData);
-                setCurrentUser(prevUser => ({ ...prevUser, ...updateData }));
-                toast.success("Avatar mis à jour !");
-              } catch (error) {
-                toast.error("Erreur lors de la mise à jour de l'avatar.");
-                console.error("Error updating avatar:", error);
-              } finally {
-                setShowAvatarSelectionModal(false);
-              }
-            }}
-          />
-        )}
+      {/* Modales d'administration */}
+      {showAdminPanel && isAdmin && (
+        <ListAndInfoModal title="Panneau Administrateur" onClose={() => setShowAdminPanel(false)} sizeClass="max-w-xl sm:max-w-2xl md:max-w-4xl">
+          <div className="flex flex-col sm:flex-row justify-center gap-3 mb-6">
+            <button
+              onClick={() => handleAddTask()}
+              className="flex-1 bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"
+            >
+              Ajouter Tâche
+            </button>
+            <button
+              onClick={() => handleAddObjective()}
+              className="flex-1 bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"
+            >
+              Ajouter Objectif
+            </button>
+            <button
+              onClick={() => setShowAdminUserManagementModal(true)}
+              className="flex-1 bg-gray-200 hover:bg-gray-300 text-text font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
+            >
+              Gestion Utilisateurs
+            </button>
+            <button
+              onClick={() => setShowAdminCongratulatoryMessagesModal(true)}
+              className="flex-1 bg-gray-200 hover:bg-gray-300 text-text font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
+            >
+              Messages Félicitation
+            </button>
+            <button
+              onClick={() => setShowGlobalDataViewModal(true)}
+              className="flex-1 bg-gray-200 hover:bg-gray-300 text-text font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
+            >
+              Voir Toutes les Données
+            </button>
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="flex-1 bg-gray-200 hover:bg-gray-300 text-text font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
+            >
+              Exporter Données
+            </button>
+          </div>
 
-        {showPasswordChangeModal && currentUser && (
-          <PasswordChangeModal
-            onClose={() => setShowPasswordChangeModal(false)}
-            currentUser={currentUser}
-          />
-        )}
-        
-        <ChatFloatingButton currentUser={currentUser} db={db} />
+          {/* Affichage des listes de tâches et objectifs pour l'édition/suppression */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <div>
+              <h4 className="text-lg sm:text-xl font-bold text-secondary mb-4 text-center">Gérer les Tâches</h4>
+              {taches.length === 0 ? (
+                <p className="text-center text-lightText text-md">Aucune tâche à gérer.</p>
+              ) : (
+                <div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">
+                  {taches.map((task) => (
+                    <div key={task.id} className="bg-white rounded-lg p-3 flex items-center justify-between shadow-sm border border-neutralBg/50">
+                      <p className="font-semibold text-text text-sm flex-1 mr-2">{task.Nom_Tache}</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEditTask(task)}
+                          className="bg-accent hover:bg-orange-600 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs"
+                        >
+                          Modifier
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTask(task.id)}
+                          className="bg-error hover:bg-red-700 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <h4 className="text-lg sm:text-xl font-bold text-secondary mb-4 text-center">Gérer les Objectifs</h4>
+              {objectifs.length === 0 ? (
+                <p className="text-center text-lightText text-md">Aucun objectif à gérer.</p>
+              ) : (
+                <div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">
+                  {objectifs.map((objective) => (
+                    <div key={objective.id} className="bg-white rounded-lg p-3 flex items-center justify-between shadow-sm border border-neutralBg/50">
+                      <p className="font-semibold text-text text-sm flex-1 mr-2">{objective.Nom_Objectif}</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEditObjective(objective)}
+                          className="bg-accent hover:bg-orange-600 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs"
+                        >
+                          Modifier
+                        </button>
+                        <button
+                          onClick={() => handleDeleteObjective(objective.id)}
+                          className="bg-error hover:bg-red-700 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </ListAndInfoModal>
+      )}
 
-      </div>
-      <ToastContainer 
+      {showAdminTaskFormModal && isAdmin && (
+        <AdminTaskFormModal
+          taskData={editingTask || { ID_Tache: '', Nom_Tache: '', Description: '', Points_Gagnes: 0, Frequence: '', Est_Active: true }}
+          onFormChange={(e) => setEditingTask({ ...editingTask, [e.target.name]: e.target.value })}
+          onSubmit={handleSaveTask}
+          onClose={() => setShowAdminTaskFormModal(false)}
+          loading={loading}
+          editingTask={editingTask}
+        />
+      )}
+
+      {showAdminObjectiveFormModal && isAdmin && (
+        <AdminObjectiveFormModal
+          objectiveData={editingObjective || { ID_Objectif: '', Nom_Objectif: '', Description: '', Points_Objectif: 0, Date_Debut: '', Date_Fin: '', Progress_Current: 0, Progress_Target: 0, Est_Atteint: false }}
+          onFormChange={(e) => setEditingObjective({ ...editingObjective, [e.target.name]: e.target.value })}
+          onSubmit={handleSaveObjective}
+          onClose={() => setShowAdminObjectiveFormModal(false)}
+          loading={loading}
+          editingObjective={editingObjective}
+        />
+      )}
+
+      {showAdminUserManagementModal && isAdmin && (
+        <AdminUserManagementModal
+          onClose={() => setShowAdminUserManagementModal(false)}
+          realisations={realisations}
+          onUpdateUser={async (uid, data) => {
+            try {
+              await updateDoc(doc(db, 'users', uid), data);
+              toast.success("Utilisateur mis à jour avec succès !");
+            } catch (error) {
+              console.error("Erreur mise à jour utilisateur:", error);
+              toast.error("Erreur lors de la mise à jour de l'utilisateur.");
+            }
+          }}
+          onDeleteUser={handleDeleteUser}
+        />
+      )}
+
+      {showAdminCongratulatoryMessagesModal && isAdmin && (
+        <AdminCongratulatoryMessagesModal
+          onClose={() => setShowAdminCongratulatoryMessagesModal(false)}
+        />
+      )}
+
+      {showGlobalDataViewModal && isAdmin && renderGlobalDataViewModal()}
+      {selectedDocumentDetails && isAdmin && renderDocumentDetailsModal()}
+
+      {showWeeklyRecapModal && weeklyRecapData && (
+        <WeeklyRecapModal
+          recapData={weeklyRecapData}
+          onClose={() => setShowWeeklyRecapModal(false)}
+        />
+      )}
+
+      {showExportModal && isAdmin && (
+        <ExportSelectionModal
+          onClose={() => setShowExportModal(false)}
+          allRawTaches={taches}
+          allObjectives={objectifs}
+          realisations={realisations}
+        />
+      )}
+
+      {showCongratulatoryMessage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-[1001] p-4 animate-fade-in-scale">
+          <div className="bg-gradient-to-br from-primary to-secondary text-white rounded-3xl p-8 shadow-2xl text-center max-w-md w-full">
+            <h3 className="text-4xl font-extrabold mb-4">Félicitations !</h3>
+            <p className="text-xl mb-6">{currentCongratulatoryMessage}</p>
+            <button
+              onClick={() => setShowCongratulatoryMessage(false)}
+              className="bg-white text-primary font-semibold py-2 px-6 rounded-full shadow-lg transition duration-300 hover:scale-105"
+            >
+              Super !
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ToastContainer
         position="top-right"
         autoClose={5000}
         hideProgressBar={false}

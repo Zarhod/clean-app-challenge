@@ -1,29 +1,53 @@
-/* global __firebase_config */ // Déclare __firebase_config comme globale pour ESLint
+// src/firebase.js
+// Configuration et initialisation de Firebase
 
-// Ce fichier a pour unique rôle de fournir l'objet de configuration Firebase.
-// Il ne doit PAS initialiser l'application Firebase (pas d'appel à initializeApp ici).
-// Il ne doit PAS exporter 'app', 'auth', ou 'db' directement.
+import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
+import { getAuth, signInWithCustomToken, signInAnonymously } from 'firebase/auth';
 
-// La variable globale __firebase_config est fournie par l'environnement de déploiement (Cloudflare Pages).
-// Elle contient vos secrets REACT_APP_FIREBASE_... transformés en un objet JSON.
+// Les variables globales __firebase_config, __app_id et __initial_auth_token
+// sont fournies par l'environnement Canvas.
+// Il est crucial de les utiliser pour l'initialisation de Firebase.
+
 const firebaseConfig = typeof __firebase_config !== 'undefined'
   ? JSON.parse(__firebase_config)
   : {
-      // #####################################################################################
-      // # IMPORTANT : COLLEZ VOS INFORMATIONS FIREBASE ICI                                #
-      // # Remplacez les valeurs ci-dessous par les VRAIES informations de votre projet Firebase. #
-      // # Vous les trouverez dans la console Firebase (Paramètres du projet > Vos applications > Votre application web). #
-      // # Ces valeurs seront utilisées si __firebase_config n'est pas fournie par l'environnement. #
-      // #####################################################################################
+      // Fallback local pour le développement si non défini dans l'environnement Canvas
       apiKey: "AIzaSyDs0UtfVH2UIhAi5gDFF7asrNmVwQF03sw",
       authDomain: "clean-app-challenge.firebaseapp.com",
       projectId: "clean-app-challenge",
       storageBucket: "clean-app-challenge.firebasestorage.app",
       messagingSenderId: "689290653968",
       appId: "1:689290653968:web:c55ebf0cc8efcef35b7595"
-      // #####################################################################################
     };
 
-// Exporter uniquement l'objet de configuration.
-// C'est la SEULE exportation de ce fichier.
-export { firebaseConfig };
+// Initialise Firebase
+const app = initializeApp(firebaseConfig);
+
+// Obtient les instances de Firestore et Auth
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+// Gère l'authentification initiale avec le jeton personnalisé fourni par Canvas
+// ou se connecte anonymement si aucun jeton n'est disponible.
+async function authenticateFirebase() {
+  try {
+    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+      await signInWithCustomToken(auth, __initial_auth_token);
+      console.log("Authentification Firebase réussie avec le jeton personnalisé.");
+    } else {
+      await signInAnonymously(auth);
+      console.log("Authentification Firebase anonyme réussie.");
+    }
+  } catch (error) {
+    console.error("Erreur d'authentification Firebase:", error);
+    // En production, vous pourriez vouloir afficher un message d'erreur à l'utilisateur
+    // ou rediriger vers une page d'erreur.
+  }
+}
+
+// Appelle la fonction d'authentification au démarrage de l'application
+authenticateFirebase();
+
+export { db, auth };
+

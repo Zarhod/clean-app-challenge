@@ -1,57 +1,30 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'; // <-- Ajout de useCallback ici
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { useUser } from './UserContext';
-import { toast } from 'react-toastify';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getFirestore, doc, updateDoc } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth'; // Import getAuth
+import { toast } from 'react-toastify';
+import { useUser } from './UserContext'; // Importe le contexte utilisateur pour accéder à db et auth
 
-const AvatarSelectionModal = ({ currentAvatar, currentPhotoURL, onClose, onSave }) => {
-  const { currentUser } = useUser();
-  const [selectedAvatar, setSelectedAvatar] = useState(currentAvatar);
-  const [avatarType, setAvatarType] = useState(currentPhotoURL ? 'photo' : 'emoji');
-  const [loading, setLoading] = useState(false);
-
-  // Pour le recadrage d'image
-  const [imageSrc, setImageSrc] = useState(currentPhotoURL);
-  const [crop, setCrop] = useState({ aspect: 1, unit: '%', width: 90 });
+const AvatarSelectionModal = ({ onClose }) => {
+  const { currentUser, setCurrentUser, db, auth } = useUser(); // Récupère db et auth du contexte
+  const [selectedAvatar, setSelectedAvatar] = useState(currentUser?.avatar || '👤');
+  const [imageSrc, setImageSrc] = useState(null);
+  const [crop, setCrop] = useState({ unit: '%', width: 90, aspect: 1 });
   const [completedCrop, setCompletedCrop] = useState(null);
   const imgRef = useRef(null);
   const previewCanvasRef = useRef(null);
+  const [loading, setLoading] = useState(false);
+  const [isCustomImageSelected, setIsCustomImageSelected] = useState(false);
 
-  // Liste d'emojis pour les avatars
-  const avatarOptions = [
-    '😀', '😁', '😂', '😇', '😈', '😉', '😊', '😍', '😎', '🤓', '🤔', '🤫', '😶', '😐', '🙄', '😴', '🥳', '🤩',
-    '🤖', '👾', '👽', '👻', '🎃', '😺', '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦉', '🦋', '🐢', '🐍', '🐉', '🐳', '🐬', '🐠', '🐙', '🦀', '🦞', '🦐', '🦑', '🐡', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🦒', '🦘', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🐐', '🦌', '🐕', '🐩', '🐈', '🐓', '🦃', '🕊️', '🦅', '🦆', '🦢', '🦩', '🦜', '🐦', '🐧', '🦉', '🦚', '🦃', '🐓', '🐔', '🐣', '🐤', '🐥', '👶', '👦', '👧', '🧑', '👨', '👩', '👴', '👵', '🧓', '👨‍⚕️', '👩‍⚕️', '👨‍🎓', '👩‍🎓', '👨‍🏫', '👩‍🏫', '👨‍⚖️', '👩‍⚖️', '👨‍🌾', '👩‍🌾', '👨‍🍳', '👩‍🍳', '👨‍🔧', '👩‍🔧', '👨‍🏭', '👩‍🏭', '👨‍💼', '👩‍💼', '👨‍🔬', '👩‍🔬', '👨‍💻', '👩‍💻', '👨‍🎤', '👩‍🎤', '👨‍🎨', '👩‍🎨', '👨‍✈️', '👩‍✈️', '👨‍🚀', '👩‍🚀', '👨‍🚒', '👩‍🚒', '👮', '🕵️', '💂', '👷', '🤴', '👸', '👳', '👲', '🧕', '🤵', '👰', '🤰', '🤱', '👼', '🎅', '🤶', '🦸', '🦹', '🧙', '🧚', '🧛', '🧜', '🧝', '🧟', '🧞', '👨‍🦯', '👩‍🦯', '👨‍🦼', '👩‍🦼', '👨‍🦽', '👩‍🦽', '🗣️', '👤', '👥', '🫂'];
+  const predefinedAvatars = ['😀', '🐶', '🐱', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐙', '🦋', '🦉', '🐺', '🦄', '🐲', '🤖', '👽', '👻', '🤡', '🤠', '😎', '🤓', '🥳', '🤯', '🥶', '🥵', '😴', '😷', '😇', '😈', '💩', '👍', '👎', '💪', '🧠', '👀', '🌟', '🚀', '💡', '🏆', '🌿', '💧', '⚡', '🔥', '🌍', '🌱', '♻️', '✨', '🌈', '☀️', '🌙', '🌊', '🌲', '🌳', '🌼', '🌷', '🍎', '🥕', '🥦', '🍕', '🍔', '🍟', '🍣', '🍦', '🍩', '☕', '🎮', '⚽', '🏀', '🏈', '⚾', '🎾', '🎳', '🎯', '🎸', '🎹', '🎤', '🎧', '🎨', '📚', '🔬', '🔭', '🧪', '🧬', '🧭', '🗺️', '⏰', '⏳', '💻', '📱', '🖥️', '🖨️', '🖱️', '⌨️', '💾', '💿', '📀', '💽', '📈', '📊', '📉', '📦', '🎁', '🎉', '🎊', '🎈', '🎀', '🎁', '🎄', '🎃', '🎆', '🎇', '🌠', '🌌', '🌉', '🏞️', '🏙️', '🏘️', '🏠', '🏡', '🏢', '🏗️', '🏭', '🏛️', '⛪', '🕌', '🛕', '🕍', '⛩️', '🕋', '⛲', '🗼', '🗽', '🗿', '🎡', '🎢', '🎠', '🚂', '🚃', '🚄', '🚅', '🚆', '🚇', '🚈', '🚉', '🚌', '🚍', '🚎', '🚐', '🚑', '🚒', '🚓', '🚔', '🚕', '🚖', '🚗', '🚘', '🚙', '🚚', '🚛', '🚜', '🛵', '🚲', '🛴', '🛹', '🛼', '🚏', '🛣️', '🛤️', '⛽', '🚨', '🚥', '🚧', '⚓', '⛵', '🚤', '🚢', '✈️', '🛫', '🛬', '💺', '🚁', '🚟', '🚠', '🚡', '🛰️', '🛎️', '🧳', '💼', '👔', '👕', '👖', '👗', '👙', '👚', '👛', '👜', '👝', '🎒', '🩱', '🩲', '🩳', '🩴', '👟', '👞', '👠', '👡', '👢', '👑', '🎩', '🎓', '🧢', '⛑️', '📿', '💍', '💎', '💄', '💅', '🗣️', '👤', '👥', '🫂', '👣', '👂', '👃', '👁️', '👅', '👄', '👍', '👎', '👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '👇', '☝️', '🖕', '👇', '✍️', '👏', '🙌', '👐', '🤲', '🙏', '🤝', '💅', '🤳', '💃', '🕺', '🚶', '🏃', '🧍', '🧎', '🧑‍🤝‍🧑', '👭', '👫', '👬', '👩‍❤️‍💋‍👨', '👨‍❤️‍💋‍👨', '👩‍❤️‍💋‍👩', '👩‍❤️‍👨', '👨‍❤️‍👨', '👩‍❤️‍👩', '💑', '👩‍❤️‍👨', '👨‍❤️‍👨', '👩‍❤️‍👩', '💏', '👩‍❤️‍💋‍👨', '👨‍❤️‍💋‍👨', '👩‍❤️‍💋‍👩', '👪', '👨‍👩‍👧', '👨‍👩‍👧‍👦', '👨‍👩‍👦‍👦', '👨‍👩‍👧‍👧', '👨‍👦', '👨‍👦‍👦', '👨‍👧', '👨‍👧‍👦', '👨‍👧‍👧', '👩‍👦', '👩‍👦‍👦', '👩‍👧', '👩‍👧‍👦', '👩‍👧‍👧', '🗣️', '👤', '👥', '🫂', '👣', '👂', '👃', '👁️', '👅', '👄', '👍', '👎', '👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '👇', '☝️', '🖕', '👇', '✍️', '👏', '🙌', '👐', '🤲', '🙏', '🤝', '💅', '🤳', '💃', '🕺', '🚶', '🏃', '🧍', '🧎', '🧑‍🤝‍🧑', '👭', '👫', '👬', '👩‍❤️‍💋‍👨', '👨‍❤️‍💋‍👨', '👩‍❤️‍💋‍👩', '👩‍❤️‍👨', '👨‍❤️‍👨', '👩‍❤️‍👩', '💑', '👩‍❤️‍👨', '👨‍❤️‍👨', '👩‍❤️‍👩', '💏', '👩‍❤️‍💋‍👨', '👨‍❤️‍💋‍👨', '👩‍❤️‍💋‍👩', '👪', '👨‍👩‍👧', '👨‍👩‍👧‍👦', '👨‍👩‍👦‍👦', '👨‍👩‍👧‍👧', '👨‍👦', '👨‍👦‍👦', '👨‍👧', '👨‍👧‍👦', '👨‍👧‍👧', '👩‍👦', '👩‍👦‍👦', '👩‍👧', '👩‍👧‍👦', '👩‍👧‍👧'];
 
+
+  // Effet pour dessiner l'image recadrée sur le canvas
   useEffect(() => {
-    if (avatarType === 'emoji') {
-      setImageSrc(null);
-      setCompletedCrop(null);
-    } else {
-      setSelectedAvatar(null);
-      // Si on passe en mode photo et qu'il y a une photo actuelle, la charger
-      if (currentPhotoURL && !imageSrc) {
-        setImageSrc(currentPhotoURL);
-      }
-    }
-  }, [avatarType, currentPhotoURL, imageSrc]);
-
-  const onSelectFile = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setCrop(undefined); // Makes crop controlled
-      const reader = new FileReader();
-      reader.addEventListener('load', () => setImageSrc(reader.result?.toString() || ''));
-      reader.readAsDataURL(e.target.files[0]);
-    }
-  };
-
-  const onImageLoad = useCallback((e) => {
-    imgRef.current = e.currentTarget;
-  }, []);
-
-  const getCroppedImg = useCallback(() => {
     if (!completedCrop || !imgRef.current || !previewCanvasRef.current) {
-      return null;
+      return;
     }
 
     const image = imgRef.current;
@@ -62,8 +35,8 @@ const AvatarSelectionModal = ({ currentAvatar, currentPhotoURL, onClose, onSave 
     const scaleY = image.naturalHeight / image.height;
     const ctx = canvas.getContext('2d');
 
-    canvas.width = crop.width * scaleX;
-    canvas.height = crop.height * scaleY;
+    canvas.width = crop.width;
+    canvas.height = crop.height;
 
     ctx.drawImage(
       image,
@@ -73,185 +46,215 @@ const AvatarSelectionModal = ({ currentAvatar, currentPhotoURL, onClose, onSave 
       crop.height * scaleY,
       0,
       0,
-      crop.width * scaleX,
-      crop.height * scaleY
+      crop.width,
+      crop.height
     );
-
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          console.error('Canvas is empty');
-          return;
-        }
-        blob.name = 'cropped.jpeg';
-        resolve(blob);
-      }, 'image/jpeg', 0.75);
-    });
   }, [completedCrop]);
 
-  const uploadPhoto = async (userId, croppedBlob) => {
-    if (!croppedBlob) return null;
-    const storage = getStorage();
-    // Utiliser un nom de fichier unique pour éviter les conflits et faciliter la suppression si nécessaire
-    const storageRef = ref(storage, `avatars/${userId}/${Date.now()}_cropped.jpeg`);
-    await uploadBytes(storageRef, croppedBlob);
-    return await getDownloadURL(storageRef);
-  };
-
-  const deleteOldPhoto = async (photoURL) => {
-    if (!photoURL || !currentUser) return;
-    const storage = getStorage();
-    try {
-      // Pour supprimer, il faut une référence exacte au fichier.
-      // Si photoURL est un URL de téléchargement, il faut extraire le chemin.
-      // Firebase Storage URLs sont généralement de la forme:
-      // https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<path_to_file>?alt=media...
-      const path = photoURL.split('/o/')[1]?.split('?')[0];
-      if (path) {
-        const decodedPath = decodeURIComponent(path);
-        const photoRef = ref(storage, decodedPath);
-        await deleteObject(photoRef);
-        console.log("Ancienne photo supprimée de Storage.");
-      }
-    } catch (error) {
-      console.warn("Impossible de supprimer l'ancienne photo (peut-être déjà supprimée ou permissions insuffisantes):", error);
+  const onSelectFile = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setCrop(undefined); // Réinitialise le crop si une nouvelle image est sélectionnée
+      const reader = new FileReader();
+      reader.addEventListener('load', () => {
+        setImageSrc(reader.result?.toString() || '');
+        setIsCustomImageSelected(true);
+        setSelectedAvatar(null); // Désélectionne l'emoji si une image est choisie
+      });
+      reader.readAsDataURL(e.target.files[0]);
     }
   };
 
-  const handleSave = async () => {
+  const handleSaveAvatar = async () => {
     setLoading(true);
-    let newAvatarValue = null;
-    let newPhotoURLValue = null;
-
     try {
-      if (avatarType === 'emoji') {
-        newAvatarValue = selectedAvatar;
-        // Si on passe d'une photo à un emoji, supprimer l'ancienne photo
-        if (currentPhotoURL) {
-          await deleteOldPhoto(currentPhotoURL);
-        }
-      } else { // avatarType === 'photo'
-        if (imageSrc && completedCrop) {
-          const croppedBlob = await getCroppedImg();
-          if (croppedBlob) {
-            // Supprimer l'ancienne photo si elle existe et est différente de la nouvelle
-            if (currentPhotoURL && currentPhotoURL !== imageSrc) { // Comparer avec imageSrc (l'URL de l'image actuellement chargée pour le crop)
-              await deleteOldPhoto(currentPhotoURL);
-            }
-            newPhotoURLValue = await uploadPhoto(currentUser.uid, croppedBlob);
-          } else {
-            toast.error("Erreur lors du recadrage de l'image.");
-            setLoading(false);
-            return;
-          }
-        } else if (currentPhotoURL && !imageSrc) { // L'utilisateur a enlevé la photo existante
-          await deleteOldPhoto(currentPhotoURL);
-          newPhotoURLValue = null;
-        } else { // Aucune nouvelle photo sélectionnée, conserver l'ancienne si elle existe
-          newPhotoURLValue = currentPhotoURL;
-        }
+      if (!currentUser || !db) {
+        toast.error("Utilisateur non connecté ou base de données non disponible.");
+        setLoading(false);
+        return;
       }
-      
-      onSave({ newAvatar: newAvatarValue, newPhotoURL: newPhotoURLValue });
+
+      const userDocRef = doc(db, 'users', currentUser.uid);
+
+      if (isCustomImageSelected && completedCrop && previewCanvasRef.current) {
+        // Sauvegarde l'image recadrée sur Firebase Storage
+        const canvas = previewCanvasRef.current;
+        const storage = getStorage();
+        const authInstance = getAuth(); // Obtenir l'instance d'authentification
+        const user = authInstance.currentUser; // Obtenir l'utilisateur actuellement connecté
+
+        if (!user) {
+          toast.error("Aucun utilisateur connecté pour sauvegarder l'image.");
+          setLoading(false);
+          return;
+        }
+
+        canvas.toBlob(async (blob) => {
+          if (blob) {
+            const imageRef = ref(storage, `avatars/${user.uid}/${Date.now()}.png`);
+            await uploadBytes(imageRef, blob);
+            const photoURL = await getDownloadURL(imageRef);
+
+            await updateDoc(userDocRef, {
+              photoURL: photoURL,
+              avatar: null // S'assurer que l'avatar emoji est effacé
+            });
+            setCurrentUser(prev => ({ ...prev, photoURL: photoURL, avatar: null }));
+            toast.success("Photo de profil mise à jour !");
+            onClose();
+          } else {
+            toast.error("Erreur lors de la création de l'image.");
+          }
+          setLoading(false);
+        }, 'image/png', 1);
+      } else if (selectedAvatar) {
+        // Sauvegarde l'avatar emoji
+        await updateDoc(userDocRef, {
+          avatar: selectedAvatar,
+          photoURL: null // S'assurer que la photo de profil est effacée
+        });
+        setCurrentUser(prev => ({ ...prev, avatar: selectedAvatar, photoURL: null }));
+        toast.success("Avatar mis à jour !");
+        onClose();
+      } else {
+        toast.error("Veuillez sélectionner un avatar ou une image.");
+        setLoading(false);
+      }
     } catch (error) {
-      toast.error("Erreur lors de l'enregistrement de l'avatar.");
-      console.error("Error saving avatar:", error);
+      console.error("Erreur lors de la sauvegarde de l'avatar:", error);
+      toast.error("Erreur lors de la sauvegarde de l'avatar.");
+      setLoading(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    setLoading(true);
+    try {
+      if (!currentUser || !db) {
+        toast.error("Utilisateur non connecté ou base de données non disponible.");
+        setLoading(false);
+        return;
+      }
+
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userDocRef, {
+        photoURL: null,
+        avatar: '👤' // Revenir à l'avatar par défaut
+      });
+      setCurrentUser(prev => ({ ...prev, photoURL: null, avatar: '👤' }));
+      setImageSrc(null); // Réinitialiser l'aperçu de l'image
+      setSelectedAvatar('👤'); // Sélectionner l'avatar par défaut
+      setIsCustomImageSelected(false);
+      toast.success("Photo de profil supprimée !");
+    } catch (error) {
+      console.error("Erreur lors de la suppression de la photo:", error);
+      toast.error("Erreur lors de la suppression de la photo.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
-      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto">
-        <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4">
-          Changer votre Avatar
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4">
+      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-lg animate-fade-in-scale border border-primary/20 mx-auto">
+        <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6 text-center">
+          Choisir votre Avatar
         </h3>
 
-        <div className="flex justify-center items-center mb-4 space-x-4">
-          <span className="text-gray-700 font-medium">Emoji</span>
-          <label htmlFor="avatarTypeToggle" className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              id="avatarTypeToggle"
-              className="sr-only peer"
-              checked={avatarType === 'photo'}
-              onChange={() => setAvatarType(prev => prev === 'emoji' ? 'photo' : 'emoji')}
+        {/* Section de l'avatar actuel */}
+        <div className="flex flex-col items-center mb-6">
+          <p className="text-lightText text-sm mb-2">Avatar actuel :</p>
+          {currentUser?.photoURL ? (
+            <img src={currentUser.photoURL} alt="Current Avatar" className="w-20 h-20 rounded-full object-cover border-2 border-primary shadow-md" />
+          ) : (
+            <span className="text-6xl leading-none">{currentUser?.avatar || '👤'}</span>
+          )}
+          {currentUser?.photoURL && (
+            <button
+              onClick={handleRemovePhoto}
               disabled={loading}
-            />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/40 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-          </label>
-          <span className="text-gray-700 font-medium">Photo</span>
+              className="mt-3 bg-error hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              Supprimer la photo
+            </button>
+          )}
         </div>
 
-        {avatarType === 'emoji' ? (
-          <>
-            <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2 max-h-60 overflow-y-auto custom-scrollbar p-2 mb-4 bg-neutralBg rounded-lg border border-gray-200">
-              {avatarOptions.map((avatar, index) => (
-                <button
-                  key={index}
-                  onClick={() => setSelectedAvatar(avatar)}
-                  className={`p-2 rounded-lg text-3xl sm:text-4xl flex items-center justify-center transition duration-200 ease-in-out transform hover:scale-110
-                              ${selectedAvatar === avatar ? 'bg-primary text-white shadow-lg' : 'bg-white hover:bg-gray-100 text-text shadow-sm'}`}
-                  disabled={loading}
-                >
-                  {avatar}
-                </button>
-              ))}
-            </div>
-            <p className="text-center text-gray-500 text-xs mt-2">Votre avatar actuel: <span className="text-xl align-middle">{selectedAvatar}</span></p>
-          </>
-        ) : (
-          <div className="flex flex-col items-center justify-center p-4 border rounded-md bg-gray-50">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={onSelectFile}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-secondary cursor-pointer"
-              disabled={loading}
-            />
-            {imageSrc && (
-              <div className="mt-4 w-full flex flex-col items-center">
-                <ReactCrop
-                  crop={crop}
-                  onChange={c => setCrop(c)}
-                  onComplete={(c) => setCompletedCrop(c)}
-                  circularCrop
-                  className="max-w-full h-auto"
-                >
-                  <img ref={imgRef} alt="Source" src={imageSrc} onLoad={onImageLoad} className="max-w-full h-auto" />
-                </ReactCrop>
-                <canvas
-                  ref={previewCanvasRef}
-                  style={{
-                    display: 'none',
-                    width: completedCrop?.width,
-                    height: completedCrop?.height,
-                  }}
-                />
-                {completedCrop && (
-                  <p className="text-sm text-gray-500 mt-2">Image prête à être recadrée.</p>
-                )}
-              </div>
-            )}
-            {!imageSrc && <p className="text-sm text-gray-500 mt-2">Aucune photo sélectionnée.</p>}
-          </div>
-        )}
-
-        <div className="flex flex-col sm:flex-row justify-center gap-3 mt-4">
-          <button
-            onClick={handleSave}
-            className="w-full sm:w-auto bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
-                       transition duration-300 ease-in-out transform hover:scale-105 text-sm"
+        {/* Sélection d'image personnalisée */}
+        <div className="mb-6 border-t border-gray-200 pt-6">
+          <h4 className="text-xl font-bold text-text mb-4 text-center">Importer une image</h4>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={onSelectFile}
+            className="w-full text-sm text-text file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-secondary file:cursor-pointer mb-4"
             disabled={loading}
+          />
+
+          {imageSrc && (
+            <div className="flex flex-col items-center mb-4">
+              <ReactCrop
+                crop={crop}
+                onChange={(_, percentCrop) => setCrop(percentCrop)}
+                onComplete={(c) => setCompletedCrop(c)}
+                aspect={1} // Force un ratio 1:1 pour un avatar carré/rond
+                minWidth={50}
+                minHeight={50}
+                circularCrop
+              >
+                <img ref={imgRef} alt="Source" src={imageSrc} className="max-w-full h-auto rounded-lg shadow-md" />
+              </ReactCrop>
+              <canvas
+                ref={previewCanvasRef}
+                style={{
+                  width: completedCrop?.width ?? 0,
+                  height: completedCrop?.height ?? 0,
+                  borderRadius: '50%', // Pour un aperçu rond
+                  marginTop: '1rem',
+                  border: '2px solid var(--color-primary)',
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                }}
+                className="mx-auto"
+              />
+              <p className="text-lightText text-xs mt-2">Aperçu de l'image recadrée (rond)</p>
+            </div>
+          )}
+        </div>
+
+        {/* Sélection d'emoji prédéfinis */}
+        <div className="mb-6 border-t border-gray-200 pt-6">
+          <h4 className="text-xl font-bold text-text mb-4 text-center">Ou choisir un emoji</h4>
+          <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2 max-h-40 overflow-y-auto custom-scrollbar p-2 rounded-lg bg-neutralBg border border-gray-100">
+            {predefinedAvatars.map((emoji, index) => (
+              <button
+                key={index}
+                onClick={() => {
+                  setSelectedAvatar(emoji);
+                  setIsCustomImageSelected(false);
+                  setImageSrc(null); // Clear custom image selection
+                }}
+                className={`p-1.5 rounded-full text-3xl transition duration-200 transform hover:scale-110
+                  ${selectedAvatar === emoji ? 'bg-primary shadow-lg' : 'bg-gray-200 hover:bg-gray-300'} ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                disabled={loading}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Boutons d'action */}
+        <div className="flex flex-col sm:flex-row gap-4 mt-8 justify-center">
+          <button
+            onClick={handleSaveAvatar}
+            disabled={loading || (!selectedAvatar && !imageSrc)}
+            className="flex-1 bg-success hover:bg-green-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-md"
           >
-            {loading ? 'Enregistrement...' : 'Enregistrer l\'Avatar'}
+            {loading ? 'Sauvegarde...' : 'Sauvegarder l\'Avatar'}
           </button>
           <button
             onClick={onClose}
-            className="w-full sm:w-auto bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg
-                       transition duration-300 ease-in-out transform hover:scale-105 text-sm"
             disabled={loading}
+            className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2.5 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-md"
           >
             Annuler
           </button>

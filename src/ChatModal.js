@@ -1,70 +1,66 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useUser } from './UserContext';
-import { collection, query, orderBy, addDoc, onSnapshot, doc, updateDoc } from 'firebase/firestore'; // serverTimestamp supprimé
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'react-toastify';
+import { useUser } from './UserContext'; // Pour db, currentUser, et isAdmin
 
-const ChatModal = ({ onClose }) => {
-  const { currentUser, db, setCurrentUser } = useUser();
+const ChatModal = ({ onClose, onMarkMessagesAsRead }) => {
+  const { db, currentUser } = useUser();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
 
+  // Scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Marque tous les messages comme lus lorsque le chat est ouvert
-  useEffect(() => {
-    if (currentUser && db) {
-      const userDocRef = doc(db, 'users', currentUser.uid);
-      const now = new Date().toISOString();
-      updateDoc(userDocRef, { lastReadTimestamp: now })
-        .then(() => {
-          setCurrentUser(prevUser => ({ ...prevUser, lastReadTimestamp: now }));
-        })
-        .catch(error => {
-          console.error("Erreur lors de la mise à jour du timestamp de lecture:", error);
-        });
-    }
-  }, [currentUser, db, setCurrentUser]);
-
-  // Écouteur de messages en temps réel
+  // Listen for chat messages
   useEffect(() => {
     if (!db) return;
 
-    const q = query(collection(db, 'chat_messages'), orderBy('timestamp'));
+    const q = query(collection(db, 'chat_messages'), orderBy('timestamp', 'asc'), limit(100)); // Limit to last 100 messages
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMessages(fetchedMessages);
       setLoading(false);
+      scrollToBottom(); // Scroll to bottom on new messages
+      if (currentUser) {
+        onMarkMessagesAsRead(); // Mark messages as read when chat is open
+      }
     }, (error) => {
-      toast.error("Erreur lors du chargement des messages.");
-      console.error("Error fetching messages:", error);
+      toast.error("Erreur lors du chargement des messages du chat.");
+      console.error("Error fetching chat messages:", error);
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [db]);
+  }, [db, currentUser, onMarkMessagesAsRead]); // Added onMarkMessagesAsRead to dependencies
 
-  // Défilement vers le bas après le chargement des messages ou l'envoi d'un nouveau message
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
+  // Handle sending a new message
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (newMessage.trim() === '' || !currentUser || !db) return;
+    if (newMessage.trim() === '') {
+      toast.error("Le message ne peut pas être vide.");
+      return;
+    }
+    if (!currentUser) {
+      toast.error("Veuillez vous connecter pour envoyer un message.");
+      return;
+    }
+    if (!db) {
+      toast.error("Base de données non disponible.");
+      return;
+    }
 
     setLoading(true);
     try {
       await addDoc(collection(db, 'chat_messages'), {
-        text: newMessage,
-        senderId: currentUser.uid,
-        senderName: currentUser.displayName || currentUser.email,
-        senderAvatar: currentUser.avatar || '👤',
-        senderPhotoURL: currentUser.photoURL || null,
-        timestamp: new Date().toISOString(), // Utilise ISO string pour la compatibilité
+        userId: currentUser.uid,
+        displayName: currentUser.displayName || currentUser.email,
+        avatar: currentUser.photoURL || currentUser.avatar || '👤',
+        text: newMessage.trim(),
+        timestamp: serverTimestamp(), // Use server timestamp for consistency
       });
       setNewMessage('');
     } catch (error) {
@@ -75,68 +71,85 @@ const ChatModal = ({ onClose }) => {
     }
   };
 
+  // Function to format timestamp
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return 'Envoyé...';
+    // Firebase serverTimestamp is a special object, convert it to Date if it's not already
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4">
-      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-lg h-[90vh] flex flex-col justify-between animate-fade-in-scale border border-primary/20 mx-auto">
-        <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-4 text-center">Chat Général</h3>
+      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl w-full max-w-md animate-fade-in-scale border border-primary/20 mx-auto flex flex-col h-[90vh]">
+        <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-4 text-center">Chat Global</h3>
 
-        {/* Zone d'affichage des messages */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 mb-4 bg-neutralBg rounded-lg border border-gray-200 flex flex-col space-y-3">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 mb-4 bg-neutralBg rounded-lg border border-gray-100 flex flex-col space-y-3">
           {loading ? (
-            <div className="flex justify-center items-center h-full">
+            <div className="flex justify-center items-center py-4">
               <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
               <p className="ml-3 text-lightText">Chargement des messages...</p>
             </div>
           ) : messages.length === 0 ? (
-            <p className="text-center text-lightText text-md flex-grow flex items-center justify-center">Aucun message pour le moment. Soyez le premier à envoyer un message !</p>
+            <p className="text-center text-lightText text-md">Aucun message pour le moment. Soyez le premier à saluer !</p>
           ) : (
-            messages.map((msg) => (
+            messages.map((msg, index) => (
               <div
                 key={msg.id}
-                className={`flex items-start gap-3 ${msg.senderId === currentUser?.uid ? 'justify-end' : 'justify-start'}`}
+                className={`flex items-start gap-3 ${msg.userId === currentUser?.uid ? 'justify-end' : 'justify-start'}`}
               >
-                {msg.senderId !== currentUser?.uid && (
-                  msg.senderPhotoURL ? (
-                    <img src={msg.senderPhotoURL} alt="Avatar" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                  ) : (
-                    <span className="text-2xl flex-shrink-0">{msg.senderAvatar || '👤'}</span>
-                  )
+                {msg.userId !== currentUser?.uid && (
+                  <div className="flex-shrink-0">
+                    {msg.avatar && msg.avatar.startsWith('http') ? (
+                      <img src={msg.avatar} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-gray-200" />
+                    ) : (
+                      <span className="text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-full bg-gray-200">{msg.avatar || '👤'}</span>
+                    )}
+                  </div>
                 )}
-                <div className={`p-3 rounded-xl shadow-sm max-w-[75%] ${msg.senderId === currentUser?.uid ? 'bg-primary text-white rounded-br-none' : 'bg-gray-200 text-text rounded-bl-none'}`}>
-                  <p className="font-semibold text-sm mb-1">{msg.senderName || 'Anonyme'}</p>
-                  <p className="text-sm break-words">{msg.text}</p>
-                  <p className={`text-xs mt-1 ${msg.senderId === currentUser?.uid ? 'text-blue-200' : 'text-gray-500'}`}>
-                    {new Date(msg.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                <div
+                  className={`max-w-[75%] p-3 rounded-xl shadow-sm relative ${
+                    msg.userId === currentUser?.uid
+                      ? 'bg-primary text-white rounded-br-none'
+                      : 'bg-white text-text rounded-bl-none border border-neutralBg'
+                  }`}
+                >
+                  <p className="font-semibold text-sm mb-1">
+                    {msg.userId === currentUser?.uid ? 'Vous' : msg.displayName}
                   </p>
+                  <p className="text-sm break-words">{msg.text}</p>
+                  <span className={`absolute text-xs ${msg.userId === currentUser?.uid ? 'bottom-1 left-3 text-white/80' : 'bottom-1 right-3 text-lightText/80'}`}>
+                    {formatTimestamp(msg.timestamp)}
+                  </span>
                 </div>
-                {msg.senderId === currentUser?.uid && (
-                  currentUser.photoURL ? (
-                    <img src={currentUser.photoURL} alt="Avatar" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                  ) : (
-                    <span className="text-2xl flex-shrink-0">{currentUser.avatar || '👤'}</span>
-                  )
+                {msg.userId === currentUser?.uid && (
+                  <div className="flex-shrink-0">
+                    {currentUser?.photoURL ? (
+                      <img src={currentUser.photoURL} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-primary" />
+                    ) : (
+                      <span className="text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-full bg-primary text-white">{currentUser?.avatar || '👤'}</span>
+                    )}
+                  </div>
                 )}
               </div>
             ))
           )}
-          <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} /> {/* Dummy div for scrolling */}
         </div>
 
-        {/* Zone de saisie de message */}
-        <form onSubmit={handleSendMessage} className="flex gap-2">
-          <textarea
-            className="flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm resize-none custom-scrollbar"
-            rows="2"
-            placeholder="Écrivez votre message..."
+        <form onSubmit={handleSendMessage} className="flex gap-3">
+          <input
+            type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Écrivez votre message..."
+            className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
             disabled={loading || !currentUser}
-          ></textarea>
+          />
           <button
             type="submit"
-            className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-xl shadow-lg
-                       transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm flex-shrink-0"
-            disabled={loading || newMessage.trim() === '' || !currentUser}
+            disabled={loading || !currentUser || newMessage.trim() === ''}
+            className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
           >
             Envoyer
           </button>
@@ -144,10 +157,9 @@ const ChatModal = ({ onClose }) => {
 
         <button
           onClick={onClose}
-          className="mt-6 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg
-                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm self-center"
+          className="mt-4 w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2.5 px-4 rounded-lg shadow-md transition duration-300 text-md"
         >
-          Fermer le Chat
+          Fermer
         </button>
       </div>
     </div>

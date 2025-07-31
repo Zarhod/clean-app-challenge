@@ -1,198 +1,149 @@
-/* global __initial_auth_token */
 // src/UserContext.js
-// Ce fichier est le SEUL responsable de l'initialisation de l'application Firebase
-// et de la gestion de l'état d'authentification de l'utilisateur.
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getAuth, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { toast } from 'react-toastify';
+import { db, auth } from './firebase'; // Importe les instances db et auth initialisées
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-
-// Importe la configuration Firebase depuis le fichier firebase.js
-// Ce fichier (./firebase) ne fait que fournir l'objet de configuration.
-import { firebaseConfig } from './firebase';
-
+// Crée le contexte utilisateur
 const UserContext = createContext();
 
-// Variables pour stocker les instances Firebase
-// Elles seront initialisées une seule fois au niveau du module.
-let firebaseAppInstance = null;
-let firestoreDbInstance = null;
-let firebaseAuthInstance = null;
-let firebaseInitializationError = null; // Variable pour stocker l'erreur d'initialisation
+// Hook personnalisé pour utiliser le contexte utilisateur
+export const useUser = () => useContext(UserContext);
 
-try {
-  // Vérifie si la configuration Firebase est valide avant d'initialiser
-  if (!firebaseConfig.projectId || !firebaseConfig.apiKey || !firebaseConfig.authDomain) {
-    firebaseInitializationError = new Error(
-      "CRITIQUE : La configuration Firebase est incomplète. " +
-      "Veuillez vous assurer que les secrets Cloudflare Pages (REACT_APP_FIREBASE_...) sont correctement définis " +
-      "pour construire la variable globale __firebase_config, ou que firebase.js contient des valeurs par défaut valides."
-    );
-    console.error(firebaseInitializationError.message);
-  } else {
-    // Initialise Firebase App une seule fois
-    if (!getApps().length) {
-      firebaseAppInstance = initializeApp(firebaseConfig);
-    } else {
-      firebaseAppInstance = getApp();
-    }
-    // Initialise Firestore et Auth une seule fois
-    firestoreDbInstance = getFirestore(firebaseAppInstance);
-    firebaseAuthInstance = getAuth(firebaseAppInstance);
-  }
-} catch (e) {
-  firebaseInitializationError = e;
-  console.error("Erreur lors de l'initialisation de Firebase :", e);
-}
-
-export function useUser() {
-  return useContext(UserContext);
-}
-
-export function UserProvider({ children }) {
+// Fournisseur de contexte utilisateur
+export const UserProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [loadingUser, setLoadingUser] = useState(true); // Indique si l'utilisateur est en cours de chargement/initialisation
+  const [isAuthReady, setIsAuthReady] = useState(false); // Indique si l'état d'authentification a été vérifié
+  const [lastReadChatTimestamp, setLastReadChatTimestamp] = useState(null); // Timestamp de la dernière lecture du chat
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0); // Nombre de messages non lus
 
-  // Expose les instances Firebase via le contexte
-  const db = firestoreDbInstance;
-  const auth = firebaseAuthInstance;
-
+  // Écoute les changements d'état d'authentification Firebase
   useEffect(() => {
-    if (firebaseInitializationError) {
-      console.error("Firebase n'a pas pu être initialisé. L'application ne fonctionnera pas correctement.", firebaseInitializationError);
-      setLoadingUser(false);
-      return;
-    }
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // Utilisateur connecté
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
 
-    if (!auth || !db) {
-      console.warn("Firebase Auth ou Firestore ne sont pas encore disponibles.");
-      setLoadingUser(true); // Garder loadingUser à true tant que les instances ne sont pas prêtes
-      return;
-    }
-
-    const setupAuthAndUser = async () => {
-      try {
-        // Tente de se connecter avec le token personnalisé si disponible
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          try {
-            await signInWithCustomToken(auth, __initial_auth_token);
-            console.log("Connecté avec le token personnalisé.");
-          } catch (tokenError) {
-            console.warn("Échec de la connexion avec le token personnalisé, tentative de connexion anonyme:", tokenError);
-            await signInAnonymously(auth);
-            console.log("Connecté anonymement.");
-          }
+        if (userDocSnap.exists()) {
+          const userData = userDocSnap.data();
+          setCurrentUser({ uid: user.uid, ...userData, displayName: user.displayName || userData.displayName || user.email });
+          setIsAdmin(userData.isAdmin || false); // S'assurer qu'isAdmin est un booléen
+          setLastReadChatTimestamp(userData.lastReadTimestamp ? new Date(userData.lastReadTimestamp) : null);
         } else {
-          // Si pas de token, se connecter anonymement
-          await signInAnonymously(auth);
-          console.log("Connecté anonymement.");
-        }
-
-        // Écoute les changements d'état d'authentification
-        const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-          if (user) {
-            const userDocRef = doc(db, 'users', user.uid);
-            const docSnap = await getDoc(userDocRef);
-
-            if (docSnap.exists()) {
-              const userData = docSnap.data();
-              setCurrentUser({
-                uid: user.uid,
-                email: user.email,
-                displayName: userData.displayName || user.displayName,
-                isAdmin: userData.isAdmin || false,
-                avatar: userData.avatar || '👤',
-                photoURL: userData.photoURL || null,
-                weeklyPoints: userData.weeklyPoints || 0,
-                totalCumulativePoints: userData.totalCumulativePoints || 0,
-                previousWeeklyPoints: userData.previousWeeklyPoints || 0,
-                xp: userData.xp || 0,
-                level: userData.level || 1,
-                dateJoined: userData.dateJoined || new Date().toISOString(),
-                lastReadTimestamp: userData.lastReadTimestamp || null
-              });
-              setIsAdmin(userData.isAdmin || false);
-            } else {
-              // Si l'utilisateur est authentifié mais n'a pas de document Firestore, le créer
-              const defaultUserData = {
-                displayName: user.displayName || user.email.split('@')[0],
-                isAdmin: false,
-                avatar: '👤',
-                photoURL: null,
-                weeklyPoints: 0,
-                totalCumulativePoints: 0,
-                previousWeeklyPoints: 0,
-                xp: 0,
-                level: 1,
-                dateJoined: new Date().toISOString(),
-                lastReadTimestamp: new Date().toISOString()
-              };
-              await setDoc(userDocRef, defaultUserData);
-              setCurrentUser({ uid: user.uid, email: user.email, ...defaultUserData });
-              setIsAdmin(false);
-            }
-          } else {
-            setCurrentUser(null);
-            setIsAdmin(false);
-          }
-          setLoadingUser(false);
-        });
-
-        return unsubscribeAuth;
-      } catch (error) {
-        console.error("Erreur de configuration de l'authentification Firebase :", error);
-        setLoadingUser(false);
-      }
-    };
-
-    const cleanup = setupAuthAndUser();
-    return () => {
-      if (typeof cleanup.then === 'function') {
-        cleanup.then(unsubscribe => {
-          if (unsubscribe) unsubscribe();
-        });
-      } else if (typeof cleanup === 'function') {
-        cleanup();
-      }
-    };
-  }, [auth, db]);
-
-  useEffect(() => {
-    if (db && currentUser?.uid) {
-      const userDocRef = doc(db, 'users', currentUser.uid);
-      const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const updatedUserData = docSnap.data();
-          setCurrentUser(prevUser => ({
-            ...prevUser,
-            ...updatedUserData
-          }));
-          setIsAdmin(updatedUserData.isAdmin || false);
-        } else {
-          setCurrentUser(null);
+          // Si l'utilisateur est authentifié mais n'a pas de document Firestore (ex: nouvelle connexion anonyme ou bug)
+          // Créer un document utilisateur par défaut
+          const defaultUserData = {
+            email: user.email || null,
+            displayName: user.displayName || user.email?.split('@')[0] || `Utilisateur_${user.uid.substring(0, 6)}`,
+            isAdmin: false,
+            avatar: '👤',
+            photoURL: null,
+            weeklyPoints: 0,
+            totalCumulativePoints: 0,
+            previousWeeklyPoints: 0,
+            xp: 0,
+            level: 1,
+            dateJoined: new Date().toISOString(),
+            lastReadTimestamp: new Date().toISOString()
+          };
+          await setDoc(userDocRef, defaultUserData);
+          setCurrentUser({ uid: user.uid, ...defaultUserData });
           setIsAdmin(false);
+          setLastReadChatTimestamp(new Date());
+          toast.info("Votre profil a été créé.");
         }
-      }, (error) => {
-        console.error("Erreur lors de l'écoute du document utilisateur :", error);
-      });
-      return () => unsubscribe();
-    }
-  }, [db, currentUser?.uid]);
+      } else {
+        // Utilisateur déconnecté
+        setCurrentUser(null);
+        setIsAdmin(false);
+        setLastReadChatTimestamp(null);
+      }
+      setIsAuthReady(true); // L'état d'authentification initial a été vérifié
+    });
 
-  const value = {
+    return () => unsubscribeAuth(); // Nettoyage de l'écouteur
+  }, []); // Dépendances vides pour n'exécuter qu'une fois au montage
+
+  // Écoute les messages non lus du chat
+  useEffect(() => {
+    if (!db || !currentUser || !isAuthReady) {
+      setUnreadMessagesCount(0);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'chat_messages'),
+      where('timestamp', '>', lastReadChatTimestamp || new Date(0)) // Messages après la dernière lecture ou depuis le début des temps
+    );
+
+    const unsubscribeChat = onSnapshot(q, (snapshot) => {
+      let count = 0;
+      snapshot.forEach(doc => {
+        const message = doc.data();
+        // Compte les messages qui ne sont pas de l'utilisateur actuel
+        // et qui sont réellement "nouveaux" (timestamp > lastReadChatTimestamp)
+        if (message.userId !== currentUser.uid && message.timestamp &&
+            (message.timestamp.toDate ? message.timestamp.toDate() : new Date(message.timestamp)) > (lastReadChatTimestamp || new Date(0))) {
+          count++;
+        }
+      });
+      setUnreadMessagesCount(count);
+    }, (error) => {
+      console.error("Error fetching unread chat messages:", error);
+    });
+
+    return () => unsubscribeChat();
+  }, [db, currentUser, isAuthReady, lastReadChatTimestamp]);
+
+  // Fonction pour marquer les messages comme lus
+  const markMessagesAsRead = useCallback(async () => {
+    if (currentUser && db) {
+      const now = new Date();
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      try {
+        await updateDoc(userDocRef, {
+          lastReadTimestamp: now.toISOString()
+        });
+        setLastReadChatTimestamp(now);
+        setUnreadMessagesCount(0); // Réinitialise le compteur après lecture
+      } catch (error) {
+        console.error("Erreur lors de la mise à jour du timestamp de lecture:", error);
+        toast.error("Erreur lors de la mise à jour de l'état de lecture du chat.");
+      }
+    }
+  }, [currentUser, db]);
+
+  // Fonction de déconnexion
+  const signOut = async () => {
+    try {
+      await firebaseSignOut(auth);
+      // L'onAuthStateChanged gérera la mise à jour de currentUser à null
+      toast.info("Vous avez été déconnecté.");
+    } catch (error) {
+      console.error("Erreur lors de la déconnexion:", error);
+      toast.error("Erreur lors de la déconnexion.");
+    }
+  };
+
+  // Valeurs fournies par le contexte
+  const contextValue = {
     currentUser,
+    setCurrentUser, // Permet de mettre à jour l'utilisateur depuis d'autres composants
     isAdmin,
-    loadingUser,
-    db,
-    auth,
-    setCurrentUser
+    isAuthReady,
+    db, // Fournit l'instance Firestore
+    auth, // Fournit l'instance Auth
+    signOut,
+    unreadMessagesCount,
+    markMessagesAsRead
   };
 
   return (
-    <UserContext.Provider value={value}>
+    <UserContext.Provider value={contextValue}>
       {children}
     </UserContext.Provider>
   );
-}
+};

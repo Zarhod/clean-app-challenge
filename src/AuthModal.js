@@ -1,416 +1,233 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'; // <-- Ajout de useCallback ici
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+// src/AuthModal.js
+import React, { useState, useEffect } from 'react';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from 'firebase/auth';
+import { doc, setDoc, getFirestore } from 'firebase/firestore';
 import { toast } from 'react-toastify';
-import ReactCrop from 'react-image-crop';
-import 'react-image-crop/dist/ReactCrop.css';
-import ListAndInfoModal from './ListAndInfoModal';
-import { useUser } from './UserContext'; 
-import ConfirmActionModal from './ConfirmActionModal';
-
-const avatars = ['😀', '😂', '😎', '🤩', '🥳', '🤓', '🤖', '👻', '👽', '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦉', '🦋', '🐢', '🐍', '🐉', '🐳', '🐬', '🐠', '🐙', '🦀', '🦞', '🦐', '🦑', '🐡', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🦒', '🦘', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🐐', '🦌', '🐕', '🐩', '🐈', '🐓', '🦃', '🕊️', '🦅', '🦆', '🦢', '🦩', '🦜', '🐦', '🐧', '🦉', '🦚', '🦃', '🐓', '🐔', '🐣', '🐤', '🐥', '👶', '👦', '👧', '🧑', '👨', '👩', '👴', '👵', '🧓', '👨‍⚕️', '👩‍⚕️', '👨‍🎓', '👩‍🎓', '👨‍🏫', '👩‍🏫', '👨‍⚖️', '👩‍⚖️', '👨‍🌾', '👩‍🌾', '👨‍🍳', '👩‍🍳', '👨‍🔧', '👩‍🔧', '👨‍🏭', '👩‍🏭', '👨‍💼', '👩‍💼', '👨‍🔬', '👩‍🔬', '👨‍💻', '👩‍💻', '👨‍🎤', '👩‍🎤', '👨‍🎨', '👩‍🎨', '👨‍✈️', '👩‍✈️', '👨‍🚀', '👩‍🚀', '👨‍🚒', '👩‍🚒', '👮', '🕵️', '💂', '👷', '🤴', '👸', '👳', '👲', '🧕', '🤵', '👰', '🤰', '🤱', '👼', '🎅', '🤶', '🦸', '🦹', '🧙', '🧚', '🧛', '🧜', '🧝', '🧟', '🧞', '👨‍🦯', '👩‍🦯', '👨‍🦼', '👩‍🦼', '👨‍🦽', '👩‍🦽', '🗣️', '👤', '👥', '🫂'];
+import { useUser } from './UserContext'; // Importe le contexte utilisateur pour accéder à auth et db
 
 const AuthModal = ({ onClose }) => {
-  const { auth, db, setCurrentUser, loadingUser } = useUser(); 
-  const [isLogin, setIsLogin] = useState(true);
+  const { auth, db } = useUser(); // Accède à auth et db depuis le contexte
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [selectedAvatar, setSelectedAvatar] = useState('👤'); 
-  const [error, setError] = useState('');
-  const [showAuthErrorModal, setShowAuthErrorModal] = useState(false);
-  const [authErrorMessage, setAuthErrorMessage] = useState('');
-  const [avatarType, setAvatarType] = useState('emoji'); // 'emoji' ou 'photo'
-
-  // Pour le recadrage d'image
-  const [imageSrc, setImageSrc] = useState(null);
-  const [crop, setCrop] = useState({ aspect: 1, unit: '%', width: 90 });
-  const [completedCrop, setCompletedCrop] = useState(null);
-  const imgRef = useRef(null);
-  const previewCanvasRef = useRef(null);
+  const [showWelcomeMessage, setShowWelcomeMessage] = useState(true); // État pour le message de bienvenue
 
   useEffect(() => {
-    setEmail('');
-    setPassword('');
-    setDisplayName('');
-    setError('');
-    setLoading(false);
-    setShowAuthErrorModal(false);
-    setAuthErrorMessage('');
-    setImageSrc(null);
-    setCrop({ aspect: 1, unit: '%', width: 90 });
-    setCompletedCrop(null);
-    setSelectedAvatar('👤'); // Réinitialiser l'avatar emoji
-    setAvatarType('emoji'); // Par défaut à emoji
-  }, [isLogin]);
-
-  const onSelectFile = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setCrop(undefined); // Makes crop controlled
-      const reader = new FileReader();
-      reader.addEventListener('load', () => setImageSrc(reader.result?.toString() || ''));
-      reader.readAsDataURL(e.target.files[0]);
-    }
-  };
-
-  const onImageLoad = useCallback((e) => {
-    imgRef.current = e.currentTarget;
+    // Cache le message de bienvenue après 3 secondes
+    const timer = setTimeout(() => {
+      setShowWelcomeMessage(false);
+    }, 3000);
+    return () => clearTimeout(timer);
   }, []);
 
-  const getCroppedImg = useCallback(() => {
-    if (!completedCrop || !imgRef.current || !previewCanvasRef.current) {
-      return null;
-    }
-
-    const image = imgRef.current;
-    const canvas = previewCanvasRef.current;
-    const crop = completedCrop;
-
-    const scaleX = image.naturalWidth / image.width;
-    const scaleY = image.naturalHeight / image.height;
-    const ctx = canvas.getContext('2d');
-
-    canvas.width = crop.width * scaleX;
-    canvas.height = crop.height * scaleY;
-
-    ctx.drawImage(
-      image,
-      crop.x * scaleX,
-      crop.y * scaleY,
-      crop.width * scaleX,
-      crop.height * scaleY,
-      0,
-      0,
-      crop.width * scaleX,
-      crop.height * scaleY
-    );
-
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          console.error('Canvas is empty');
-          return;
-        }
-        blob.name = 'cropped.jpeg';
-        resolve(blob);
-      }, 'image/jpeg', 0.75);
-    });
-  }, [completedCrop]);
-
-  const uploadPhoto = async (userId, croppedBlob) => {
-    if (!croppedBlob) return null;
-    const storage = getStorage();
-    const storageRef = ref(storage, `avatars/${userId}/${Date.now()}_cropped.jpeg`);
-    await uploadBytes(storageRef, croppedBlob);
-    return await getDownloadURL(storageRef);
-  };
-
-  const handleAuth = async (e) => {
+  const handleAuthAction = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
-    setShowAuthErrorModal(false);
-    setAuthErrorMessage('');
-
-    if (loadingUser || !auth || !db) {
-      setAuthErrorMessage("Le service d'authentification n'est pas encore prêt. Veuillez patienter et réessayer.");
-      setShowAuthErrorModal(true);
-      setLoading(false);
-      return;
-    }
 
     try {
-      if (isLogin) {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-
-        if (userDocSnap.exists()) {
-          const userData = userDocSnap.data();
-          setCurrentUser({
-            uid: user.uid,
-            email: user.email,
-            displayName: userData.displayName || user.displayName,
-            isAdmin: userData.isAdmin || false,
-            avatar: userData.avatar || '👤',
-            photoURL: userData.photoURL || null,
-            weeklyPoints: userData.weeklyPoints || 0,
-            totalCumulativePoints: userData.totalCumulativePoints || 0,
-            previousWeeklyPoints: userData.previousWeeklyPoints || 0,
-            xp: userData.xp || 0,
-            level: userData.level || 1,
-            dateJoined: userData.dateJoined || new Date().toISOString(),
-            lastReadTimestamp: userData.lastReadTimestamp || null
-          });
-          toast.success(`Bienvenue, ${userData.displayName || user.email} !`);
-          onClose();
-        } else {
-          const defaultUserData = {
-            displayName: user.displayName || email.split('@')[0],
-            isAdmin: false,
-            avatar: '👤',
-            photoURL: null,
-            weeklyPoints: 0,
-            totalCumulativePoints: 0,
-            previousWeeklyPoints: 0,
-            xp: 0,
-            level: 1,
-            dateJoined: new Date().toISOString(),
-            lastReadTimestamp: new Date().toISOString()
-          };
-          await setDoc(userDocRef, defaultUserData);
-          setCurrentUser({ uid: user.uid, email: user.email, ...defaultUserData });
-          toast.success(`Bienvenue, ${defaultUserData.displayName} ! Votre compte a été initialisé.`);
-          onClose();
-        }
-
-      } else { // Inscription
-        if (!displayName.trim()) {
-          setError("Le nom d'affichage est requis.");
+      if (isResettingPassword) {
+        await sendPasswordResetEmail(auth, email);
+        toast.success("Un e-mail de réinitialisation de mot de passe a été envoyé !");
+        setIsResettingPassword(false);
+      } else if (isRegistering) {
+        if (password !== confirmPassword) {
+          toast.error("Les mots de passe ne correspondent pas.");
           setLoading(false);
           return;
         }
-        if (avatarType === 'photo' && !imageSrc) {
-          setError("Veuillez sélectionner une photo pour votre avatar.");
-          setLoading(false);
-          return;
-        }
-        if (avatarType === 'photo' && !completedCrop) {
-          setError("Veuillez recadrer votre photo d'avatar.");
-          setLoading(false);
-          return;
-        }
-
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
-        
-        let avatarToSave = selectedAvatar;
-        let photoURLToSave = null;
 
-        if (avatarType === 'photo' && imageSrc && completedCrop) {
-          const croppedBlob = await getCroppedImg();
-          if (croppedBlob) {
-            photoURLToSave = await uploadPhoto(user.uid, croppedBlob);
-            avatarToSave = null; // Si une photo est utilisée, l'avatar emoji est null
-          } else {
-            setError("Erreur lors du recadrage de l'image.");
-            setLoading(false);
-            return;
-          }
-        }
-
-        await updateProfile(user, { displayName: displayName.trim() });
-
-        const userDocRef = doc(db, "users", user.uid);
-        const newUserData = {
-          displayName: displayName.trim(),
-          email: email.trim(),
-          dateJoined: new Date().toISOString(),
-          isAdmin: false, 
-          totalCumulativePoints: 0,
+        // Crée un document utilisateur dans Firestore
+        await setDoc(doc(db, 'users', user.uid), {
+          email: user.email,
+          displayName: displayName || user.email.split('@')[0], // Utilise le nom d'affichage ou une partie de l'email
+          isAdmin: false, // Par défaut, non-admin
+          avatar: '👤', // Avatar par défaut
+          photoURL: null, // Pas de photo par défaut
           weeklyPoints: 0,
+          totalCumulativePoints: 0,
           previousWeeklyPoints: 0,
           xp: 0,
           level: 1,
-          avatar: avatarToSave,
-          photoURL: photoURLToSave
-        };
-        await setDoc(userDocRef, newUserData);
+          dateJoined: new Date().toISOString(),
+          lastReadTimestamp: new Date().toISOString()
+        });
 
-        setCurrentUser({ uid: user.uid, ...newUserData });
-        toast.success(`Compte créé et connecté !`);
-        onClose();
+        // Met à jour le profil utilisateur Firebase avec le nom d'affichage
+        await updateProfile(user, { displayName: displayName || user.email.split('@')[0] });
+
+        toast.success("Inscription réussie ! Bienvenue !");
+        onClose(); // Ferme la modale après inscription
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+        toast.success("Connexion réussie !");
+        onClose(); // Ferme la modale après connexion
       }
-    } catch (err) {
-      console.error("Authentication error:", err);
-      let errorMessage = "Une erreur est survenue lors de l'authentification.";
-      switch (err.code) {
+    } catch (error) {
+      console.error("Erreur d'authentification:", error);
+      let errorMessage = "Une erreur est survenue. Veuillez réessayer.";
+      switch (error.code) {
         case 'auth/invalid-email':
-          errorMessage = 'Adresse e-mail invalide.';
+          errorMessage = "L'adresse e-mail est invalide.";
           break;
         case 'auth/user-disabled':
-          errorMessage = 'Ce compte a été désactivé.';
+          errorMessage = "Ce compte a été désactivé.";
           break;
         case 'auth/user-not-found':
-          errorMessage = 'Adresse e-mail ou mot de passe incorrect.';
+          errorMessage = "Aucun utilisateur trouvé avec cette adresse e-mail.";
           break;
         case 'auth/wrong-password':
-          errorMessage = 'Adresse e-mail ou mot de passe incorrect.';
-          break;
-        case 'auth/invalid-credential':
-          errorMessage = 'Adresse e-mail ou mot de passe incorrect.';
+          errorMessage = "Mot de passe incorrect.";
           break;
         case 'auth/email-already-in-use':
-          errorMessage = 'Cette adresse e-mail est déjà utilisée.';
+          errorMessage = "Cette adresse e-mail est déjà utilisée.";
           break;
         case 'auth/weak-password':
-          errorMessage = 'Le mot de passe doit contenir au moins 6 caractères.';
+          errorMessage = "Le mot de passe doit contenir au moins 6 caractères.";
           break;
         case 'auth/network-request-failed':
-          errorMessage = 'Erreur réseau. Veuillez vérifier votre connexion.';
-          break;
-        case 'auth/admin-restricted-operation':
-          errorMessage = "Opération restreinte par l'administrateur Firebase. Veuillez contacter le support.";
+          errorMessage = "Problème de connexion réseau. Veuillez vérifier votre connexion.";
           break;
         default:
-          errorMessage = "Une erreur inattendue est survenue. Veuillez réessayer.";
-          break;
+          errorMessage = `Erreur: ${error.message}`;
       }
-      setAuthErrorMessage(errorMessage);
-      setShowAuthErrorModal(true);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const isDisabled = loading || loadingUser || !auth || !db;
-
   return (
-    <ListAndInfoModal title={isLogin ? "Connexion" : "Inscription"} onClose={onClose} sizeClass="max-w-xs sm:max-w-md">
-      <form onSubmit={handleAuth} className="space-y-4">
-        {!isLogin && (
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4">
+      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-sm sm:max-w-md animate-fade-in-scale border border-primary/20 mx-auto">
+        {showWelcomeMessage && (
+          <div className="text-center mb-6">
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-primary mb-2">Bienvenue !</h2>
+            <p className="text-lightText text-md">Connectez-vous ou inscrivez-vous pour commencer.</p>
+          </div>
+        )}
+
+        <h3 className="text-2xl sm:text-3xl font-bold text-text mb-6 text-center">
+          {isResettingPassword
+            ? 'Réinitialiser le Mot de Passe'
+            : isRegistering
+            ? 'Créer un Compte'
+            : 'Se Connecter'}
+        </h3>
+
+        <form onSubmit={handleAuthAction} className="space-y-4">
+          {isRegistering && (
+            <div>
+              <label htmlFor="displayName" className="block text-sm font-medium text-text text-left mb-1">Nom d'affichage</label>
+              <input
+                id="displayName"
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Votre nom ou pseudo"
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                required={isRegistering}
+              />
+            </div>
+          )}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Nom d'utilisateur</label>
+            <label htmlFor="email" className="block text-sm font-medium text-text text-left mb-1">Adresse E-mail</label>
             <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2"
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="votre.email@example.com"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
               required
-              disabled={isDisabled}
             />
           </div>
-        )}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2"
-            required
-            disabled={isDisabled}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2"
-            required
-            disabled={isDisabled}
-          />
-        </div>
-
-        {!isLogin && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Choisissez votre avatar</label>
-            <div className="flex justify-center items-center mb-4 space-x-4">
-              <span className="text-gray-700 font-medium">Emoji</span>
-              <label htmlFor="avatarTypeToggle" className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  id="avatarTypeToggle"
-                  className="sr-only peer"
-                  checked={avatarType === 'photo'}
-                  onChange={() => setAvatarType(prev => prev === 'emoji' ? 'photo' : 'emoji')}
-                  disabled={isDisabled}
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/40 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-              </label>
-              <span className="text-gray-700 font-medium">Photo</span>
+          {!isResettingPassword && (
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-text text-left mb-1">Mot de Passe</label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Minimum 6 caractères"
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                required
+              />
             </div>
+          )}
+          {isRegistering && (
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-text text-left mb-1">Confirmer le Mot de Passe</label>
+              <input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirmez votre mot de passe"
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                required={isRegistering}
+              />
+            </div>
+          )}
 
-            {avatarType === 'emoji' ? (
-              <>
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 max-h-40 overflow-y-auto p-2 border rounded-md bg-gray-50 custom-scrollbar">
-                  {avatars.map((avatar, index) => (
-                    <div
-                      key={index}
-                      className={`flex items-center justify-center text-2xl sm:text-3xl p-1.5 rounded-full cursor-pointer transition-all duration-200
-                                  ${selectedAvatar === avatar ? 'bg-primary text-white scale-110 shadow-lg' : 'hover:bg-gray-200'}`}
-                      onClick={() => setSelectedAvatar(avatar)}
-                    >
-                      {avatar}
-                    </div>
-                  ))}
-                </div>
-                <p className="text-center text-gray-500 text-xs mt-2">Votre avatar actuel: <span className="text-xl align-middle">{selectedAvatar}</span></p>
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center p-4 border rounded-md bg-gray-50">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={onSelectFile}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-secondary cursor-pointer"
-                  disabled={isDisabled}
-                />
-                {imageSrc && (
-                  <div className="mt-4 w-full flex flex-col items-center">
-                    <ReactCrop
-                      crop={crop}
-                      onChange={c => setCrop(c)}
-                      onComplete={(c) => setCompletedCrop(c)}
-                      circularCrop
-                      className="max-w-full h-auto"
-                    >
-                      <img ref={imgRef} alt="Source" src={imageSrc} onLoad={onImageLoad} className="max-w-full h-auto" />
-                    </ReactCrop>
-                    <canvas
-                      ref={previewCanvasRef}
-                      style={{
-                        display: 'none', // Cache le canvas de prévisualisation
-                        width: completedCrop?.width,
-                        height: completedCrop?.height,
-                      }}
-                    />
-                    {completedCrop && (
-                      <p className="text-sm text-gray-500 mt-2">Image prête à être recadrée.</p>
-                    )}
-                  </div>
-                )}
-                {!imageSrc && <p className="text-sm text-gray-500 mt-2">Aucune photo sélectionnée.</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-primary hover:bg-secondary text-white font-semibold py-3 px-4 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-lg"
+          >
+            {loading ? (
+              <div className="flex items-center justify-center">
+                <div className="w-5 h-5 border-2 border-white border-t-2 border-t-transparent rounded-full animate-spin-fast mr-2"></div>
+                Chargement...
               </div>
+            ) : isResettingPassword ? (
+              'Réinitialiser'
+            ) : isRegistering ? (
+              'S\'inscrire'
+            ) : (
+              'Se Connecter'
             )}
-          </div>
-        )}
+          </button>
+        </form>
 
-        {error && <p className="text-error text-sm mt-2">{error}</p>}
+        <div className="mt-6 text-center flex flex-col sm:flex-row justify-center items-center gap-3">
+          {!isResettingPassword && (
+            <button
+              onClick={() => setIsRegistering(!isRegistering)}
+              className="text-primary hover:text-secondary font-medium text-sm transition duration-300 px-3 py-1.5 rounded-md"
+              disabled={loading}
+            >
+              {isRegistering
+                ? 'Déjà un compte ? Connectez-vous'
+                : 'Pas encore de compte ? Inscrivez-vous'}
+            </button>
+          )}
+
+          <button
+            onClick={() => setIsResettingPassword(!isResettingPassword)}
+            className="text-lightText hover:text-text font-medium text-sm transition duration-300 px-3 py-1.5 rounded-md"
+            disabled={loading}
+          >
+            {isResettingPassword
+              ? 'Retour à la connexion'
+              : 'Mot de passe oublié ?'}
+          </button>
+        </div>
 
         <button
-          type="submit"
-          className="w-full bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50"
-          disabled={isDisabled}
+          onClick={onClose}
+          className="mt-6 w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2.5 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-md"
         >
-          {loading ? 'Chargement...' : (isLogin ? 'Se connecter' : 'S\'inscrire')}
+          Fermer
         </button>
-      </form>
-      <button
-        onClick={() => setIsLogin(!isLogin)}
-        className="mt-4 w-full text-primary hover:text-secondary font-semibold text-sm transition duration-300"
-        disabled={isDisabled}
-      >
-        {isLogin ? "Pas de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
-      </button>
-
-      {showAuthErrorModal && (
-        <ConfirmActionModal
-          title="Erreur d'Authentification"
-          message={authErrorMessage}
-          confirmText="Compris"
-          onConfirm={() => setShowAuthErrorModal(false)}
-          onCancel={() => setShowAuthErrorModal(false)}
-          confirmButtonClass="bg-error hover:bg-red-700"
-        />
-      )}
-    </ListAndInfoModal>
+      </div>
+    </div>
   );
 };
 

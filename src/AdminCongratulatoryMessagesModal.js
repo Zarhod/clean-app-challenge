@@ -1,9 +1,10 @@
+// src/AdminCongratulatoryMessagesModal.js
 import React, { useState, useEffect, useCallback } from 'react';
 import { collection, addDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import ListAndInfoModal from './ListAndInfoModal';
 import ConfirmActionModal from './ConfirmActionModal';
-import { useUser } from './UserContext';
+import { useUser } from './UserContext'; // Pour db et isAdmin
 
 const AdminCongratulatoryMessagesModal = ({ onClose }) => {
   const { db, isAdmin } = useUser();
@@ -34,12 +35,16 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
       return;
     }
     if (newMessage.trim() === '') {
-      toast.warn("Le message ne peut pas être vide.");
+      toast.error("Le message ne peut pas être vide.");
       return;
     }
+
     setLoading(true);
     try {
-      await addDoc(collection(db, 'congratulatory_messages'), { Texte_Message: newMessage.trim() });
+      await addDoc(collection(db, 'congratulatory_messages'), {
+        Texte_Message: newMessage.trim(),
+        timestamp: new Date().toISOString(),
+      });
       setNewMessage('');
       toast.success("Message ajouté avec succès !");
     } catch (error) {
@@ -50,20 +55,20 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
     }
   };
 
-  const handleDeleteMessage = useCallback(async (id, confirmed = false) => {
+  const handleDeleteMessage = useCallback(async (messageId, confirmed = false) => {
     if (!isAdmin) {
       toast.error("Accès refusé. Vous n'êtes pas administrateur.");
       return;
     }
     if (!confirmed) {
-      setMessageToDelete(id);
+      setMessageToDelete(messageId);
       setShowConfirmDeleteModal(true);
       return;
     }
 
     setLoading(true);
     try {
-      await deleteDoc(doc(db, 'congratulatory_messages', id));
+      await deleteDoc(doc(db, 'congratulatory_messages', messageId));
       toast.success("Message supprimé avec succès !");
     } catch (error) {
       toast.error("Erreur lors de la suppression du message.");
@@ -77,22 +82,23 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
 
   return (
     <>
-      <ListAndInfoModal title="Gérer les Messages de Félicitations" onClose={onClose} sizeClass="max-w-md">
+      <ListAndInfoModal title="Messages de Félicitation" onClose={onClose} sizeClass="max-w-md sm:max-w-lg">
         <div className="mb-4">
+          <h4 className="text-lg font-bold text-primary mb-2 text-center">Ajouter un Nouveau Message</h4>
           <textarea
             className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm resize-y custom-scrollbar"
             rows="3"
-            placeholder="Ajouter un nouveau message de félicitation..."
+            placeholder="Écrivez un message de félicitation..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             disabled={loading}
           ></textarea>
           <button
             onClick={handleAddMessage}
-            className="mt-2 w-full bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
-            disabled={loading}
+            className="mt-3 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full text-sm"
+            disabled={loading || newMessage.trim() === ''}
           >
-            Ajouter le Message
+            {loading ? 'Ajout...' : 'Ajouter le Message'}
           </button>
         </div>
 

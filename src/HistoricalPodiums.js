@@ -1,45 +1,35 @@
 import React from 'react';
 import ListAndInfoModal from './ListAndInfoModal';
 
-const HistoricalPodiums = ({ historicalPodiums, onClose, children }) => {
-  // Filtrer les podiums qui n'ont pas de top3 ou dont le top3 est vide/ne contient que des 0 points
-  const validPodiums = historicalPodiums.filter(podium =>
-    podium.top3 &&
-    Array.isArray(podium.top3) &&
-    podium.top3.some(entry => (parseFloat(entry.points) || 0) > 0) // Au moins un participant avec des points > 0
-  ).sort((a, b) => new Date(b.Date_Podium) - new Date(a.Date_Podium)); // Trie du plus récent au plus ancien
-
-  const podiumColors = ['bg-podium-gold', 'bg-podium-silver', 'bg-podium-bronze'];
-  const medals = ['🥇', '🥈', '🥉'];
-
+const HistoricalPodiums = ({ onClose, historicalPodiums }) => {
   return (
-    <ListAndInfoModal title="Historique des Podiums" onClose={onClose} sizeClass="max-w-full sm:max-w-md md:max-w-lg">
-      {children}
-      {validPodiums.length === 0 ? (
-        <p className="text-center text-lightText text-lg py-4">Aucun podium historique disponible pour le moment.</p>
+    <ListAndInfoModal title="Podiums Historiques" onClose={onClose} sizeClass="max-w-xl sm:max-w-2xl">
+      {historicalPodiums.length === 0 ? (
+        <p className="text-center text-lightText text-md mt-4">Aucun podium historique pour le moment.</p>
       ) : (
-        <div className="space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
-          {validPodiums.map((podium, index) => (
-            <div key={podium.Date_Podium + index} className="bg-neutralBg rounded-xl p-4 shadow-inner border border-primary/10">
-              <h3 className="text-xl sm:text-2xl font-bold text-secondary mb-4 text-center">
-                Podium du {new Date(podium.Date_Podium).toLocaleDateString('fr-FR')}
-              </h3>
-              <div className="flex flex-col gap-3">
-                {podium.top3.map((entry, entryIndex) => {
-                  if ((parseFloat(entry.points) || 0) <= 0) return null;
-
-                  return (
-                    <div key={entry.name + entryIndex} className={`flex items-center p-3 rounded-lg shadow-sm
-                      ${podiumColors[entryIndex] || 'bg-gray-100'} text-text`}>
-                      <span className="text-2xl mr-3">{medals[entryIndex] || '🏅'}</span>
-                      <p className="font-semibold text-lg flex-1">{entry.name}</p>
-                      <p className="font-bold text-lg">{entry.points} pts</p>
+        <div className="space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar p-2">
+          {historicalPodiums
+            .sort((a, b) => new Date(b.date) - new Date(a.date)) // Trie par date décroissante
+            .map((podium) => (
+              <div key={podium.id} className="bg-card rounded-xl shadow-lg p-4 border border-primary/10">
+                <h4 className="text-lg font-bold text-primary mb-2 text-center">
+                  Semaine du {new Date(podium.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                  {podium.winners.map((winner, index) => (
+                    <div key={index} className={`p-3 rounded-lg shadow-md ${
+                      index === 0 ? 'bg-podium-gold text-white' :
+                      index === 1 ? 'bg-podium-silver text-white' :
+                      'bg-podium-bronze text-white'
+                    }`}>
+                      <p className="font-extrabold text-xl">{index + 1}{index === 0 ? 'er' : 'ème'}</p>
+                      <p className="font-semibold text-lg mt-1">{winner.displayName}</p>
+                      <p className="text-sm">Points: {winner.points}</p>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
       )}
     </ListAndInfoModal>

@@ -80,22 +80,64 @@ body {
   background: #555;
 }
 
-/* For Firefox */
+/* Pour Firefox */
 .custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: #888 #f1f1f1;
+  scrollbar-width: thin; /* "auto" ou "thin" */
+  scrollbar-color: #888 #f1f1f1; /* thumb color track color */
 }
 
-/* Responsive adjustments for overall layout */
-@media (max-width: 640px) {
-  /* Small screens (mobile) */
-  .container {
-    padding: 1rem; /* Adjust padding for smaller screens */
-  }
-  .text-4xl {
-    font-size: 2.5rem; /* Smaller heading on mobile */
-  }
-  .text-lg {
-    font-size: 1rem;
-  }
+/* Global styles for input fields to ensure consistency */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+textarea,
+select {
+  @apply w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm;
+  /* Ajoutez ici d'autres styles de base si nécessaire */
+}
+
+/* Styles pour les checkboxes */
+input[type="checkbox"] {
+  @apply form-checkbox h-5 w-5 text-primary rounded focus:ring-2 focus:ring-primary;
+}
+
+/* Styles pour les boutons */
+button {
+  @apply font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105;
+}
+
+/* Specific button styles if needed, e.g., for primary/secondary actions */
+.btn-primary {
+  @apply bg-primary text-white hover:bg-secondary;
+}
+
+.btn-secondary {
+  @apply bg-gray-500 text-white hover:bg-gray-600;
+}
+
+.btn-success {
+  @apply bg-success text-white hover:bg-green-700;
+}
+
+.btn-error {
+  @apply bg-error text-white hover:bg-red-700;
+}
+
+/* Ensure images are responsive by default */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block; /* Empêche l'espace sous l'image */
+}
+
+/* Specific styles for ReactCrop component if needed */
+.ReactCrop__crop-selection {
+  border-color: #4A90E2 !important; /* Couleur de la bordure de recadrage */
+}
+
+/* Correct z-index for Toastify to ensure it's always on top */
+.Toastify__toast-container {
+  z-index: 9999 !important;
 }

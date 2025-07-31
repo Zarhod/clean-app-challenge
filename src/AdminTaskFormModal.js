@@ -1,165 +1,124 @@
-import React, { useState } from 'react';
-import ListAndInfoModal from './ListAndInfoModal'; // Importation du composant ListAndInfoModal
+import React from 'react';
 
 /**
- * Composant de modal pour l'ajout ou la modification d'une tâche.
- * @param {Object} taskData - Les données actuelles du formulaire de tâche.
- * @param {function} onFormChange - Fonction de rappel pour gérer les changements du formulaire.
- * @param {function} onSubmit - Fonction de rappel pour soumettre le formulaire.
+ * Composant modal pour l'ajout ou l'édition d'une tâche.
+ * @param {Object} taskData - Les données de la tâche en cours d'édition ou le modèle pour une nouvelle tâche.
+ * @param {function} onFormChange - Fonction de rappel pour gérer les changements dans le formulaire.
+ * @param {function} onSubmit - Fonction de rappel pour soumettre le formulaire (ajouter/modifier).
  * @param {function} onClose - Fonction de rappel pour fermer le modal.
  * @param {boolean} loading - Indique si une opération est en cours (pour désactiver les boutons).
- * @param {Object|null} editingTask - L'objet tâche si nous sommes en mode édition, sinon null.
+ * @param {Object|null} editingTask - La tâche en cours d'édition, null si c'est une nouvelle tâche.
  */
 function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading, editingTask }) {
-  const [keepOpen, setKeepOpen] = useState(false); // Nouvel état pour "garder ouvert"
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSubmit(keepOpen); // Passe l'état de 'keepOpen' à la fonction onSubmit parente
-  };
-
   return (
-    <ListAndInfoModal
-      title={editingTask ? 'Modifier la Tâche' : 'Ajouter une Nouvelle Tâche'}
-      onClose={onClose}
-      sizeClass="max-w-[95%] sm:max-w-md md:max-w-lg"
-    >
-      <form onSubmit={handleSubmit} className="space-y-4"> {/* Utilise le handleSubmit local */}
-        {/* Conteneur du formulaire avec défilement pour les petits écrans */}
-        <div className="max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
+      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl w-full max-w-xs sm:max-w-md md:max-w-lg animate-fade-in-scale border border-primary/20 mx-auto">
+        <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-center">
+          {editingTask ? 'Modifier la Tâche' : 'Ajouter une Nouvelle Tâche'}
+        </h3>
+        <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }} className="space-y-3">
           <div>
-            <label htmlFor="Nom_Tache" className="block text-sm font-medium text-gray-700 text-left">Nom de la Tâche</label>
+            <label htmlFor="ID_Tache" className="block text-sm font-medium text-text text-left mb-0.5">ID Tâche</label>
             <input
+              id="ID_Tache"
               type="text"
-              id="Nom_Tache"
-              name="Nom_Tache"
-              value={taskData.Nom_Tache}
+              name="ID_Tache"
+              value={taskData.ID_Tache}
               onChange={onFormChange}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2 text-sm"
+              placeholder="Ex: TACHE001"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
               required
-              disabled={loading}
+              disabled={editingTask ? true : false} // Empêche la modification de l'ID si c'est une tâche existante
             />
           </div>
           <div>
-            <label htmlFor="Description" className="block text-sm font-medium text-gray-700 text-left">Description</label>
+            <label htmlFor="Nom_Tache" className="block text-sm font-medium text-text text-left mb-0.5">Nom de la Tâche</label>
+            <input
+              id="Nom_Tache"
+              type="text"
+              name="Nom_Tache"
+              value={taskData.Nom_Tache}
+              onChange={onFormChange}
+              placeholder="Ex: Trier les déchets"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="Description" className="block text-sm font-medium text-text text-left mb-0.5">Description</label>
             <textarea
               id="Description"
               name="Description"
               value={taskData.Description}
               onChange={onFormChange}
+              placeholder="Détaillez la tâche à réaliser..."
               rows="3"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2 text-sm resize-y custom-scrollbar"
-              disabled={loading}
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm resize-y custom-scrollbar"
+              required
             ></textarea>
           </div>
           <div>
-            <label htmlFor="Points" className="block text-sm font-medium text-gray-700 text-left">Points</label>
+            <label htmlFor="Points_Gagnes" className="block text-sm font-medium text-text text-left mb-0.5">Points Gagnés</label>
             <input
+              id="Points_Gagnes"
               type="number"
-              id="Points"
-              name="Points"
-              value={taskData.Points}
+              name="Points_Gagnes"
+              value={taskData.Points_Gagnes}
               onChange={onFormChange}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2 text-sm"
+              placeholder="Ex: 10"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
               required
-              min="0"
-              disabled={loading}
             />
           </div>
           <div>
-            <label htmlFor="Frequence" className="block text-sm font-medium text-gray-700 text-left">Fréquence</label>
+            <label htmlFor="Frequence" className="block text-sm font-medium text-text text-left mb-0.5">Fréquence</label>
             <select
               id="Frequence"
               name="Frequence"
               value={taskData.Frequence}
               onChange={onFormChange}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2 text-sm"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
               required
-              disabled={loading}
             >
+              <option value="">Sélectionnez une fréquence</option>
               <option value="Quotidien">Quotidien</option>
               <option value="Hebdomadaire">Hebdomadaire</option>
               <option value="Mensuel">Mensuel</option>
               <option value="Unique">Unique</option>
             </select>
           </div>
-          <div>
-            <label htmlFor="Categorie" className="block text-sm font-medium text-gray-700 text-left">Catégorie</label>
+          <div className="flex items-center justify-start mt-2">
             <input
-              type="text"
-              id="Categorie"
-              name="Categorie"
-              value={taskData.Categorie}
-              onChange={onFormChange}
-              placeholder="Ex: Ménage, Environnement"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-              disabled={loading}
-            />
-          </div>
-          <div>
-            <label htmlFor="Parent_Task_ID" className="block text-sm font-medium text-gray-700 text-left">ID Tâche Parent (Optionnel)</label>
-            <input
-              id="Parent_Task_ID"
-              type="text"
-              name="Parent_Task_ID"
-              value={taskData.Parent_Task_ID}
-              onChange={onFormChange}
-              placeholder="Ex: GT001"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-              disabled={loading}
-            />
-          </div>
-          {editingTask && ( // Option "Tâche terminée" visible seulement en mode édition
-            <div className="flex items-center justify-center mt-4">
-              <input
-                id="Est_Terminee"
-                type="checkbox"
-                name="Est_Terminee"
-                checked={taskData.Est_Terminee === true || String(taskData.Est_Terminee).toLowerCase() === 'true'}
-                onChange={(e) => onFormChange({ target: { name: 'Est_Terminee', value: e.target.checked } })}
-                className="form-checkbox h-5 w-5 text-primary rounded focus:ring-2 focus:ring-primary"
-                disabled={loading}
-              />
-              <label htmlFor="Est_Terminee" className="ml-2 text-text text-sm font-medium">Tâche Terminée</label>
-            </div>
-          )}
-        </div> {/* Fin du conteneur scrollable */}
-
-        {!editingTask && ( // Afficher "Ajouter une autre tâche" seulement en mode ajout
-          <div className="flex items-center justify-center mt-4">
-            <input
-              id="keepOpen"
+              id="Est_Active"
               type="checkbox"
-              checked={keepOpen}
-              onChange={(e) => setKeepOpen(e.target.checked)}
+              name="Est_Active"
+              checked={taskData.Est_Active === true || String(taskData.Est_Active).toLowerCase() === 'true'}
+              onChange={(e) => onFormChange({ target: { name: 'Est_Active', value: e.target.checked } })}
               className="form-checkbox h-5 w-5 text-primary rounded focus:ring-2 focus:ring-primary"
-              disabled={loading}
             />
-            <label htmlFor="keepOpen" className="ml-2 text-text text-sm font-medium">Ajouter une autre tâche après</label>
+            <label htmlFor="Est_Active" className="ml-2 text-text text-sm font-medium">Tâche Active</label>
           </div>
-        )}
 
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6"> {/* Responsive buttons */}
-          <button
-            type="submit" // Changer en type="submit" pour déclencher le formulaire
-            disabled={loading}
-            className="flex-1 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
-                       transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
-          >
-            {loading ? 'Soumission...' : (editingTask ? 'Modifier' : 'Ajouter')}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-            className="flex-1 bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
-                       transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
-          >
-            Annuler
-          </button>
-        </div>
-      </form>
-    </ListAndInfoModal>
+          <div className="flex flex-col sm:flex-row gap-2 mt-4">
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+            >
+              {loading ? 'Envoi...' : (editingTask ? 'Mettre à jour' : 'Ajouter')}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+            >
+              Annuler
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 

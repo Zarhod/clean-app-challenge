@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-function AdminLoginButton({ isAdmin, onLogin, onLogout, onOpenAdminPanel }) {
+function AdminLoginButton({ isAdmin, onLogin, onLogout, onOpenAdminPanel }) { 
   const [showLogin, setShowLogin] = useState(false);
   const [password, setPassword] = useState('');
 
@@ -15,7 +15,7 @@ function AdminLoginButton({ isAdmin, onLogin, onLogout, onOpenAdminPanel }) {
 
   if (isAdmin) {
     return (
-      <div className="absolute top-2 right-2 sm:top-3 sm:right-3 flex flex-col sm:flex-row gap-1 sm:gap-2 z-10">
+      <div className="absolute top-2 right-2 sm:top-3 sm:right-3 flex flex-col sm:flex-row gap-1 sm:gap-2 z-10"> 
         <button
           onClick={onOpenAdminPanel}
           className={`${commonButtonClasses}`}
@@ -33,7 +33,7 @@ function AdminLoginButton({ isAdmin, onLogin, onLogout, onOpenAdminPanel }) {
   }
 
   return (
-    <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10">
+    <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10"> 
       <button
         onClick={() => setShowLogin(!showLogin)}
         className={`${commonButtonClasses}`}
