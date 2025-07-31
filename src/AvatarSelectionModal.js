@@ -1,10 +1,10 @@
 // src/AvatarSelectionModal.js
 import React, { useState, useEffect } from 'react';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { useUser } from './UserContext'; // Pour accéder à currentUser et db
+import { useUser } from './UserContext'; // Pour accéder à currentUser
 
 const AvatarSelectionModal = ({ currentAvatar, currentPhotoURL, onClose, onSave }) => {
-  const { currentUser, db } = useUser();
+  const { currentUser } = useUser(); // <-- 'db' retiré car non directement utilisé ici
   const [selectedAvatar, setSelectedAvatar] = useState(currentAvatar);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(currentPhotoURL);
@@ -14,7 +14,7 @@ const AvatarSelectionModal = ({ currentAvatar, currentPhotoURL, onClose, onSave 
   // Liste d'emojis pour les avatars (curated pour ne pas être excessive)
   const avatarOptions = [
     '😀', '😁', '😂', '😇', '😈', '😉', '😊', '😍', '😎', '🤓', '🤔', '🤫', '😶', '😐', '🙄', '😴', '🥳', '🤩',
-    '🤖', '👾', '👽', '👻', '🎃', '😺', '🐶', '🐱', '🦁', '🐯', '🐼', '🐸', '🐙', '🐠', '🦋', '🐝', '🐞', '🕷️',
+    '🤖', '👾', '👽', '👻', '🎃', '😺', '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦉', '🦋', '🐝', '🐞', '🕷️',
     '🌳', '🌲', '🌴', '🌵', '🌱', '🌿', '🌸', '🌼', '🌻', '🌎', '🌈', '☀️', '⭐', '✨', '⚡️', '🔥', '💥', '💧',
     '🍎', '🍊', '🍌', '🍉', '🍓', '🍍', '🍕', '🍔', '🍟', '🍩', '🍪', '🎂', '☕️', '🍺', '🏆', '🥇', '🥈', '🥉',
     '⚽️', '🏀', '🎮', '🎲', '🧩', '📚', '🎨', '🎵', '✈️', '🚀', '🚗', '🚲', '🏠', '💡', '⏰', '🎁', '🎈', '🎉',

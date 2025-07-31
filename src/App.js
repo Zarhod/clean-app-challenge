@@ -1,31 +1,9 @@
 // src/App.js
-// Version mise à jour pour utiliser Firebase Authentication et Firestore avec des écouteurs en temps réel.
-// Tous les chemins Firestore sont maintenant à la racine de la base de données.
-// Les boutons des modales sont centrés sur mobile.
-// Gestion améliorée des erreurs de permission pour éviter les toasts sur la page de connexion.
-// Correction de l'erreur "TypeError: null is not iterable" dans calculateWeeklyRecap.
-// Améliorations de l'affichage du profil utilisateur, des modales et suppression des logs.
-// Intégration d'une fonctionnalité de chat simple avec bouton flottant.
-// Correction des problèmes de z-index et d'affichage des modales.
-// Correction des dépendances manquantes dans useCallback pour résoudre les erreurs de compilation CI.
-// Amélioration du graphique de statistiques des tâches.
-// Correction des problèmes de boutons de profil et d'affichage d'avatar.
-// Correction des erreurs no-undef dans UserContext.js.
-// Correction des avertissements ESLint 'exhaustive-deps' et 'no-unused-vars'.
-// Correction de la duplication de l'écran de bienvenue lors de l'ouverture de la modale de connexion.
-// Correction du podium affichant des utilisateurs à 0 point.
-// Amélioration majeure de l'interface utilisateur du chat.
-// Correction de l'affichage du bouton de modification de profil.
-// Correction du chevauchement des boutons dans AuthModal.
-// Ajout de l'indicateur de messages non lus sur le bouton de chat.
-// Amélioration des messages d'erreur de connexion.
-// Ajout de la gestion du thème clair/sombre.
-// Ajout de la possibilité d'importer une photo en guise d'avatar.
-// Ajout de l'option pour ne pas fermer la modale d'ajout de tâche.
+
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useUser, UserProvider } from './UserContext'; // <-- AJOUT DE USERPROVIDER ICI
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDoc } from 'firebase/firestore'; // <-- 'query' retiré car non directement utilisé ici
 import { signOut } from 'firebase/auth';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -85,8 +63,8 @@ function AppContent() {
   const [taskToDelete, setTaskToDelete] = useState(null); // Utilisé aussi pour l'édition
   const [showConfirmDeleteObjectiveModal, setShowConfirmDeleteObjectiveModal] = useState(false);
   const [objectiveToDelete, setObjectiveToDelete] = useState(null); // Utilisé aussi pour l'édition
-  const [showConfirmDeleteRealisationModal, setShowConfirmDeleteRealisationModal] = useState(false);
-  const [realisationToDelete, setRealisationToDelete] = useState(null);
+  // const [showConfirmDeleteRealisationModal, setShowConfirmDeleteRealisationModal] = useState(false); // <-- SUPPRIMÉ
+  // const [realisationToDelete, setRealisationToDelete] = useState(null); // <-- SUPPRIMÉ
   const [showConfirmResetWeeklyPointsModal, setShowConfirmResetWeeklyPointsModal] = useState(false);
   const [showConfirmResetAllPointsModal, setShowConfirmResetAllPointsModal] = useState(false);
   const [showWeeklyRecapModal, setShowWeeklyRecapModal] = useState(false);
@@ -465,12 +443,13 @@ function AppContent() {
     }
   };
 
-  // Fonction pour signaler une réalisation (admin seulement)
-  const handleReportRealization = async (realisation) => { // <-- CORRECTION DU NOM DE LA VARIABLE ICI
-    if (!isAdmin) {
-      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
-      return;
-    }
+  // Fonction pour signaler une réalisation (admin seulement) - RENOMMÉE ET SIMPLIFIÉE
+  // Cette fonction est désormais un simple utilitaire pour préparer les détails du rapport
+  // Elle n'est plus directement appelée par un bouton "Signaler" sur une réalisation spécifique dans l'UI principale,
+  // mais elle serait utilisée si vous implémentiez une liste de réalisations administrables.
+  // Pour l'instant, le bouton "Signaler une Réalisation (Admin)" dans le panneau admin ouvrira la modale de rapport
+  // et l'admin devra y saisir les détails ou une future UI les pré-remplira.
+  const prepareReportDetails = (realisation) => {
     setReportedTaskDetails({
       id: realisation.id,
       name: realisation.nomTache,
@@ -480,6 +459,7 @@ function AppContent() {
     });
     setShowReportTaskModal(true);
   };
+
 
   const confirmReportRealization = async () => {
     if (!reportedTaskDetails || !db) {
@@ -968,9 +948,14 @@ function AppContent() {
               >
                 Voir Historique des Podiums
               </button>
-              {/* Bouton pour signaler une réalisation */}
+              {/* Le bouton "Signaler une Réalisation (Admin)" ouvre la modale, l'admin devra saisir les détails ou une future UI les pré-remplira */}
               <button
-                onClick={() => setShowReportTaskModal(true)} // Cette modale est déclenchée par le bouton de signalement sur la tâche
+                onClick={() => {
+                  // Pour l'instant, ouvre la modale sans pré-remplir, car il n'y a pas de liste de réalisations ici.
+                  // Une future amélioration pourrait être d'afficher une liste des réalisations récentes pour sélection.
+                  setReportedTaskDetails(null); // S'assurer que les détails précédents sont effacés
+                  setShowReportTaskModal(true);
+                }}
                 className="bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 text-sm"
               >
                 Signaler une Réalisation (Admin)
@@ -1050,6 +1035,10 @@ function AppContent() {
           />
         )}
 
+        {/* La modale de confirmation de suppression de réalisation n'est pas utilisée actuellement,
+            car la logique de signalement/suppression est gérée via ReportTaskModal.
+            Si vous souhaitez la réactiver, il faudra un moyen de déclencher setShowConfirmDeleteRealisationModal(true)
+            avec un 'realisationToDelete' valide.
         {showConfirmDeleteRealisationModal && (
           <ConfirmActionModal
             title="Confirmer la Suppression"
@@ -1057,10 +1046,11 @@ function AppContent() {
             confirmText="Oui, Supprimer"
             confirmButtonClass="bg-error hover:bg-red-700"
             cancelText="Non, Annuler"
-            onConfirm={() => { /* Logique de suppression de réalisation */ }}
+            onConfirm={() => {  }}
             onCancel={() => { setShowConfirmDeleteRealisationModal(false); setRealisationToDelete(null); }}
           />
         )}
+        */}
 
         {showConfirmResetWeeklyPointsModal && (
           <ConfirmActionModal
@@ -1128,12 +1118,12 @@ function AppContent() {
           />
         )}
 
-        {showReportTaskModal && reportedTaskDetails && (
+        {showReportTaskModal && ( // Ne pas vérifier reportedTaskDetails ici, car il peut être null au début
           <ReportTaskModal
             show={showReportTaskModal}
             onClose={() => setShowReportTaskModal(false)}
             onSubmit={confirmReportRealization}
-            reportedTaskDetails={reportedTaskDetails}
+            reportedTaskDetails={reportedTaskDetails} // Passé même s'il est null, la modale gère l'affichage
           />
         )}
 
@@ -1204,7 +1194,7 @@ function AppContent() {
 
 function App() {
   return (
-    <UserProvider> {/* <-- USERPROVIDER EST BIEN ICI */}
+    <UserProvider>
       <AppContent />
     </UserProvider>
   );
