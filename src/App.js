@@ -13,16 +13,16 @@ import ListAndInfoModal from './ListAndInfoModal';
 import RankingCard from './RankingCard'; 
 import OverallRankingModal from './OverallRankingModal'; 
 import ReportTaskModal from './ReportTaskModal'; 
-import AuthModal from './AuthModal'; // Import corrigé
+import AuthModal from './AuthModal'; 
 import AdminUserManagementModal from './AdminUserManagementModal'; 
 import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; 
 import WeeklyRecapModal from './WeeklyRecapModal'; 
-import AdminLoginButton from './AdminLoginButton'; // Import du bouton de connexion admin
-import ChatFloatingButton from './ChatFloatingButton'; // Import du bouton flottant de chat
-import ChatModal from './ChatModal'; // Import de la modale de chat
-import AvatarSelectionModal from './AvatarSelectionModal'; // Import de la modale de sélection d'avatar
-import PasswordChangeModal from './PasswordChangeModal'; // Import de la modale de changement de mot de passe
-import ExportSelectionModal from './ExportSelectionModal'; // Import de la modale d'exportation
+import AdminLoginButton from './AdminLoginButton'; 
+import ChatFloatingButton from './ChatFloatingButton'; 
+import ChatModal from './ChatModal'; 
+import AvatarSelectionModal from './AvatarSelectionModal'; 
+import PasswordChangeModal from './PasswordChangeModal'; 
+import ExportSelectionModal from './ExportSelectionModal'; 
 
 import confetti from 'canvas-confetti'; 
 
@@ -32,8 +32,11 @@ import 'react-toastify/dist/ReactToastify.css';
 // Importations Firebase
 import { db, auth } from './firebase';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, onSnapshot, runTransaction, orderBy, limit } from 'firebase/firestore'; 
-import { signOut as firebaseSignOut } from 'firebase/auth'; // Renommer pour éviter le conflit
-import { useUser, UserProvider } from './UserContext'; // Importation du contexte utilisateur
+import { signOut as firebaseSignOut } from 'firebase/auth'; 
+import { useUser, UserProvider } from './UserContext'; 
+
+// Nom du fichier logo - assurez-vous que 'logo.png' est dans le dossier 'public' de votre projet
+const LOGO_FILENAME = 'logo.png'; 
 
 // Composant principal de l'application (contenu)
 function AppContent() {
@@ -42,8 +45,8 @@ function AppContent() {
   const [taches, setTaches] = useState([]);
   const [objectifs, setobjectifs] = useState([]);
   const [realisations, setRealisations] = useState([]);
-  const [users, setUsers] = useState([]); // Ajout de l'état pour les utilisateurs
-  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState([]); 
+  const [loading, setLoading] = useState(true); 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showConfirmActionModal, setShowConfirmActionModal] = useState(false);
@@ -71,6 +74,12 @@ function AppContent() {
   const [congratulatoryMessages, setCongratulatoryMessages] = useState([]);
   const [showCongratulatoryMessage, setShowCongratulatoryMessage] = useState(false);
   const [currentCongratulatoryMessage, setCurrentCongratulatoryMessage] = useState('');
+  const [showExportModal, setShowExportModal] = useState(false); // Ajout de l'état pour la modale d'exportation
+
+  // États pour l'Easter Egg (clics sur le logo)
+  const [logoClickCount, setLogoClickCount] = useState(0);
+  const logoClickTimerRef = useRef(null);
+  const [showChickEmoji, setShowChickEmoji] = useState(false);
 
   // Récupération des données initiales et écoute des changements
   useEffect(() => {
@@ -230,7 +239,7 @@ function AppContent() {
     };
 
     checkAndResetWeeklyPoints();
-  }, [db, isAuthReady, currentUser, isAdmin, congratulatoryMessages]); // Ajout de congratulatoryMessages
+  }, [db, isAuthReady, currentUser, isAdmin, congratulatoryMessages]); 
 
   // Fonction pour marquer une tâche comme réalisée
   const handleMarkTaskAsCompleted = useCallback(async (taskId, taskPoints) => {
@@ -616,28 +625,6 @@ function AppContent() {
     }))
     .sort((a, b) => b.Total_Points - a.Total_Points);
 
-  // Préparation des données pour le panneau admin (si AdminPanel était un composant séparé)
-  const adminPanelProps = {
-    onClose: () => setShowAdminPanel(false),
-    realisations: realisations,
-    allRawTaches: taches,
-    allObjectives: objectifs,
-    onUpdateTask: handleSaveTask, // Passer la fonction de sauvegarde de tâche
-    onUpdateObjective: handleSaveObjective, // Passer la fonction de sauvegarde d'objectif
-    onUpdateUser: async (uid, data) => { // Passer une fonction de mise à jour utilisateur
-      try {
-        await updateDoc(doc(db, 'users', uid), data);
-        toast.success("Utilisateur mis à jour avec succès !");
-      } catch (error) {
-        console.error("Erreur mise à jour utilisateur:", error);
-        toast.error("Erreur lors de la mise à jour de l'utilisateur.");
-      }
-    },
-    onDeleteTask: handleDeleteTask,
-    onDeleteObjective: handleDeleteObjective,
-    onDeleteUser: handleDeleteUser, // Vous devrez implémenter cette fonction si elle n'existe pas
-  };
-
   const handleDeleteUser = useCallback(async (userUid) => {
     if (!isAdmin) {
       toast.error("Accès refusé. Vous n'êtes pas administrateur.");
@@ -669,6 +656,38 @@ function AppContent() {
     });
   }, [db, isAdmin, currentUser]);
 
+  // Fonction de gestion des clics sur le logo pour l'Easter Egg
+  const handleLogoClick = () => {
+    setLogoClickCount(prevCount => {
+      const newCount = prevCount + 1;
+      
+      if (logoClickTimerRef.current) {
+        clearTimeout(logoClickTimerRef.current);
+      }
+      logoClickTimerRef.current = setTimeout(() => {
+        setLogoClickCount(0); // Réinitialise le compteur si pas de clic rapide
+      }, 500); // 500ms pour les clics rapides
+
+      if (newCount >= 5) { // Si 5 clics ou plus
+        setLogoClickCount(0); // Réinitialise le compteur
+        clearTimeout(logoClickTimerRef.current); // Arrête le timer
+
+        confetti({
+          particleCount: 150,
+          spread: 90,
+          origin: { y: 0.2, x: 0.5 }, 
+          colors: ['#a8e6cf', '#dcedc1', '#ffd3b6', '#ffaaa5', '#ff8b94', '#6a0dad', '#800080', '#ffc0cb', '#0000ff'] 
+        });
+
+        setShowChickEmoji(true); // Affiche l'emoji poussin
+        setTimeout(() => {
+          setShowChickEmoji(false); // Cache l'emoji après 20 secondes
+        }, 20000); 
+      }
+      return newCount;
+    });
+  };
+
 
   if (!isAuthReady) {
     return (
@@ -692,6 +711,11 @@ function AppContent() {
 
       {/* Header */}
       <header className="py-6 px-4 sm:px-6 bg-white bg-opacity-20 backdrop-filter backdrop-blur-lg shadow-lg text-white text-center rounded-b-3xl relative">
+        {showChickEmoji ? (
+            <span className="text-7xl sm:text-8xl mb-3 sm:mb-4 cursor-pointer" onClick={handleLogoClick}>🐣</span>
+          ) : (
+            <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-20 sm:h-28 md:h-36 w-auto drop-shadow-xl cursor-pointer" onClick={handleLogoClick} /> 
+          )}
         <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-2">CleanApp Challenge</h1>
         <p className="text-lg sm:text-xl font-medium opacity-90">Rendez le monde plus propre, gagnez des points !</p>
         {currentUser && (
