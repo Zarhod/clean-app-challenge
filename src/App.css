@@ -13,14 +13,73 @@
   background-color: #CD7F32; /* Bronze */
 }
 
-/* Background gradient colors - More intense */
-.bg-background-light {
-  background-color: #87CEEB; /* Light Sky Blue */
+/* Base colors for light theme */
+:root {
+  --color-primary: #4A90E2; /* Bleu vif */
+  --color-secondary: #50E3C2; /* Vert menthe */
+  --color-accent: #F5A623; /* Jaune orange */
+  --color-success: #7ED321; /* Vert clair */
+  --color-warning: #F8E71C; /* Jaune */
+  --color-error: #D0021B; /* Rouge */
+  --color-info: #17A2B8; /* Cyan pour info */
+  --color-text: #333333; /* Texte sombre */
+  --color-light-text: #666666; /* Texte gris clair */
+  --color-background-light: #E0F7FA; /* Bleu très clair */
+  --color-background-dark: #B2EBF2; /* Bleu clair */
+  --color-card: #FFFFFF; /* Fond de carte blanc */
+  --color-neutral-bg: #F0F2F5; /* Gris très clair pour les éléments neutres */
+
+  /* Variables RGB pour la transparence */
+  --color-primary-rgb: 74, 144, 226;
+  --color-card-rgb: 255, 255, 255;
+  --color-text-rgb: 51, 51, 51;
 }
 
-.bg-background-dark {
-  background-color: #4682B4; /* Steel Blue */
+/* Dark theme colors */
+.dark {
+  --color-primary: #64B5F6; /* Bleu clair pour le mode sombre */
+  --color-secondary: #81C784; /* Vert clair pour le mode sombre */
+  --color-accent: #FFD54F; /* Jaune plus doux */
+  --color-success: #A5D6A7; /* Vert clair doux */
+  --color-warning: #FFEB3B; /* Jaune vif */
+  --color-error: #EF5350; /* Rouge vif */
+  --color-info: #4DD0E1; /* Cyan plus clair pour info */
+  --color-text: #E0E0E0; /* Texte clair */
+  --color-light-text: #B0B0B0; /* Texte gris clair */
+  --color-background-light: #263238; /* Gris foncé */
+  --color-background-dark: #1C2326; /* Noir très foncé */
+  --color-card: #37474F; /* Fond de carte gris foncé */
+  --color-neutral-bg: #455A64; /* Gris moyen pour les éléments neutres */
+
+  /* Variables RGB pour la transparence en mode sombre */
+  --color-primary-rgb: 100, 181, 246;
+  --color-card-rgb: 55, 71, 79;
+  --color-text-rgb: 224, 224, 224;
 }
+
+/* Apply CSS variables to Tailwind classes */
+.bg-primary { background-color: var(--color-primary); }
+.hover\:bg-secondary:hover { background-color: var(--color-secondary); }
+.text-primary { color: var(--color-primary); }
+.text-secondary { color: var(--color-secondary); }
+.bg-accent { background-color: var(--color-accent); }
+.hover\:bg-yellow-600:hover { background-color: var(--color-accent); }
+.bg-success { background-color: var(--color-success); }
+.hover\:bg-green-700:hover { background-color: var(--color-success); }
+.bg-warning { background-color: var(--color-warning); }
+.hover\:bg-yellow-600:hover { background-color: var(--color-warning); }
+.bg-error { background-color: var(--color-error); }
+.hover\:bg-red-700:hover { background-color: var(--color-error); }
+.bg-info { background-color: var(--color-info); }
+.hover\:bg-blue-700:hover { background-color: var(--color-info); }
+.text-text { color: var(--color-text); }
+.text-lightText { color: var(--color-light-text); }
+.bg-background-light { background-color: var(--color-background-light); }
+.bg-background-dark { background-color: var(--color-background-dark); }
+.bg-card { background-color: var(--color-card); }
+.bg-neutralBg { background-color: var(--color-neutral-bg); }
+.border-primary\/10 { border-color: rgba(var(--color-primary-rgb), 0.1); }
+.border-primary\/20 { border-color: rgba(var(--color-primary-rgb), 0.2); }
 
 
 /* Base styles */
@@ -63,18 +122,44 @@ body {
 /* Custom scrollbar for modals */
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
+  height: 8px; /* For horizontal scrollbars if any */
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--color-neutral-bg); /* Track color */
   border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #888;
+  background: var(--color-primary); /* Thumb color */
   border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: var(--color-secondary); /* Thumb hover color */
+}
+
+/* General button styling */
+button {
+  transition: all 0.3s ease-in-out;
+}
+
+/* Chat message transparency */
+.chat-message-bubble {
+  background-color: rgba(var(--color-card-rgb), 0.9); /* Utilise une variable RGB pour la transparence */
+  color: var(--color-text); /* Assure la couleur du texte dans la bulle */
+  border: 1px solid rgba(var(--color-primary-rgb), 0.1); /* Bordure subtile */
+}
+
+/* Input focus styles */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.5); /* Anneau de focus avec couleur primaire */
+}
+
+/* Ensure font is Inter */
+body {
+  font-family: 'Inter', sans-serif;
 }

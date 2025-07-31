@@ -93,6 +93,7 @@ export const UserProvider = ({ children }) => {
             displayName: userData.displayName || user.displayName,
             isAdmin: userData.isAdmin || false,
             avatar: userData.avatar || '👤',
+            photoURL: userData.photoURL || null, // Ajout de photoURL
             weeklyPoints: userData.weeklyPoints || 0,
             totalCumulativePoints: userData.totalCumulativePoints || 0,
             previousWeeklyPoints: userData.previousWeeklyPoints || 0,
@@ -111,6 +112,7 @@ export const UserProvider = ({ children }) => {
             email: user.email,
             isAdmin: false,
             avatar: '👤',
+            photoURL: null, // Initialisation de photoURL
             weeklyPoints: 0,
             totalCumulativePoints: 0,
             previousWeeklyPoints: 0,
