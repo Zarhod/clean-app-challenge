@@ -1,37 +1,34 @@
 /* src/App.css */
 
-/* Custom colors for podium */
-.bg-podium-gold {
-  background-color: #FFD700; /* Or */
-}
-
-.bg-podium-silver {
-  background-color: #C0C0C0; /* Argent */
-}
-
-.bg-podium-bronze {
-  background-color: #CD7F32; /* Bronze */
-}
-
-/* Background gradient colors - More intense */
-.bg-background-light {
-  background-color: #87CEEB; /* Light Sky Blue */
-}
-
-.bg-background-dark {
-  background-color: #4682B4; /* Steel Blue */
-}
-
-
-/* Base styles */
+/* Base styles for the entire app */
 body {
   font-family: 'Inter', sans-serif;
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+  color: var(--color-text);
+  background-color: var(--color-background);
+  line-height: 1.6;
 }
 
-/* Custom animations */
+/* Custom scrollbar styles */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--color-neutralBg);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-secondary);
+}
+
+/* Animations */
 @keyframes spin-fast {
   from {
     transform: rotate(0deg);
@@ -45,99 +42,19 @@ body {
   animation: spin-fast 0.8s linear infinite;
 }
 
-@keyframes fade-in-scale {
-  from {
+@keyframes fadeInScale {
+  0% {
     opacity: 0;
     transform: scale(0.9);
   }
-  to {
+  100% {
     opacity: 1;
     transform: scale(1);
   }
 }
 
 .animate-fade-in-scale {
-  animation: fade-in-scale 0.3s ease-out forwards;
+  animation: fadeInScale 0.5s ease-out forwards;
 }
 
-/* Custom scrollbar for modals */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 10px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 10px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
-
-/* Pour Firefox */
-.custom-scrollbar {
-  scrollbar-width: thin; /* "auto" ou "thin" */
-  scrollbar-color: #888 #f1f1f1; /* thumb color track color */
-}
-
-/* Global styles for input fields to ensure consistency */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="number"],
-input[type="date"],
-textarea,
-select {
-  @apply w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm;
-  /* Ajoutez ici d'autres styles de base si nécessaire */
-}
-
-/* Styles pour les checkboxes */
-input[type="checkbox"] {
-  @apply form-checkbox h-5 w-5 text-primary rounded focus:ring-2 focus:ring-primary;
-}
-
-/* Styles pour les boutons */
-button {
-  @apply font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105;
-}
-
-/* Specific button styles if needed, e.g., for primary/secondary actions */
-.btn-primary {
-  @apply bg-primary text-white hover:bg-secondary;
-}
-
-.btn-secondary {
-  @apply bg-gray-500 text-white hover:bg-gray-600;
-}
-
-.btn-success {
-  @apply bg-success text-white hover:bg-green-700;
-}
-
-.btn-error {
-  @apply bg-error text-white hover:bg-red-700;
-}
-
-/* Ensure images are responsive by default */
-img {
-  max-width: 100%;
-  height: auto;
-  display: block; /* Empêche l'espace sous l'image */
-}
-
-/* Specific styles for ReactCrop component if needed */
-.ReactCrop__crop-selection {
-  border-color: #4A90E2 !important; /* Couleur de la bordure de recadrage */
-}
-
-/* Correct z-index for Toastify to ensure it's always on top */
-.Toastify__toast-container {
-  z-index: 9999 !important;
-}
+/* No other custom CSS or @apply directives here, rely on Tailwind classes */

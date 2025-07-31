@@ -1,56 +1,61 @@
+// src/RankingCard.js
+// Composant pour afficher une carte de classement d'un participant.
+// Mis à jour pour afficher correctement les avatars (emoji ou URL Supabase Storage).
+
 import React from 'react';
 
-const RankingCard = ({ user, rank, isCurrentUser, onClick }) => {
-  const getRankColorClass = (rank) => {
-    if (rank === 1) return 'bg-podium-gold';
-    if (rank === 2) return 'bg-podium-silver';
-    if (rank === 3) return 'bg-podium-bronze';
-    return 'bg-gray-200';
-  };
+const RankingCard = ({ participant, rank, type, onParticipantClick, getParticipantBadges }) => {
+  const isWeekly = type === 'weekly';
+  const points = isWeekly ? participant.Points_Total_Semaine_Courante : participant.Points_Total_Cumulatif;
+  const rankColors = ['bg-podium-gold', 'bg-podium-silver', 'bg-podium-bronze'];
+  const rankEmojis = ['🥇', '🥈', '🥉'];
 
-  const getRankTextColorClass = (rank) => {
-    if (rank <= 3) return 'text-white';
-    return 'text-text';
-  };
+  const badges = getParticipantBadges(participant);
 
   return (
     <div
-      className={`relative flex items-center p-4 rounded-xl shadow-md transition duration-300 ease-in-out transform hover:scale-105 cursor-pointer
-        ${isCurrentUser ? 'border-2 border-primary bg-primary/10' : 'border border-gray-200 bg-card'}
-      `}
-      onClick={onClick}
+      className={`bg-card rounded-2xl p-4 flex items-center justify-between w-full shadow-lg 
+                  transition duration-200 ease-in-out transform hover:scale-[1.02] hover:shadow-xl cursor-pointer 
+                  ${rank <= 3 && isWeekly ? rankColors[rank - 1] : 'border border-blue-100'}`}
+      onClick={() => onParticipantClick(participant)}
     >
-      {/* Rank Badge */}
-      <div className={`absolute -top-3 -left-3 w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-lg
-        ${getRankColorClass(rank)} ${getRankTextColorClass(rank)}`}
-      >
-        {rank}
+      <div className="flex items-center flex-1 min-w-0">
+        <div className="w-12 h-12 rounded-full bg-neutralBg flex items-center justify-center text-2xl flex-shrink-0 mr-3 overflow-hidden">
+          {participant.Avatar && participant.Avatar.startsWith('http') ? (
+            <img src={participant.Avatar} alt="Avatar" className="w-full h-full object-cover" />
+          ) : (
+            <span>{participant.Avatar || '👤'}</span>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-lg text-text truncate">
+            {rankEmojis[rank - 1] && isWeekly && rank <= 3 ? `${rankEmojis[rank - 1]} ` : `#${rank} `}
+            {participant.Nom_Participant}
+          </p>
+          <p className="text-sm text-lightText truncate">
+            Niveau: {participant.Level} (XP: {participant.XP})
+          </p>
+          {badges.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {badges.slice(0, 3).map((badge, index) => ( // Afficher max 3 badges ici
+                <span key={index} title={badge.description} className="text-xs px-1 py-0.5 rounded-full bg-primary/10 text-primary">
+                  {badge.icon}
+                </span>
+              ))}
+              {badges.length > 3 && (
+                <span className="text-xs px-1 py-0.5 rounded-full bg-primary/10 text-primary">
+                  +{badges.length - 3}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
-
-      {/* Avatar */}
-      <div className="flex-shrink-0 mr-4 ml-6"> {/* Added ml-6 to push content right due to rank badge */}
-        {user.photoURL ? (
-          <img
-            src={user.photoURL}
-            alt="Avatar"
-            className="w-12 h-12 rounded-full object-cover border-2 border-primary"
-          />
-        ) : (
-          <span className="text-4xl leading-none w-12 h-12 flex items-center justify-center rounded-full bg-gray-200 border-2 border-gray-300">
-            {user.avatar || '👤'}
-          </span>
-        )}
-      </div>
-
-      {/* User Info */}
-      <div className="flex-grow">
-        <p className="font-semibold text-lg text-text truncate">{user.displayName}</p>
-        <p className="text-lightText text-sm">Points: {user.totalCumulativePoints}</p>
-      </div>
-
-      {/* Points */}
-      <div className="flex-shrink-0 ml-4">
-        <p className="font-bold text-xl text-accent">{user.totalCumulativePoints}</p>
+      <div className="text-right flex-shrink-0 ml-4">
+        <p className="text-xl font-extrabold text-primary">{points} pts</p>
+        <p className="text-xs text-lightText">
+          {isWeekly ? 'cette semaine' : 'au total'}
+        </p>
       </div>
     </div>
   );
