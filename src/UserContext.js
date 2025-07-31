@@ -146,13 +146,16 @@ export const UserProvider = ({ children }) => {
   // Effet pour écouter les changements d'état d'authentification de Supabase.
   // C'est le point central pour maintenir l'état 'currentUser' et 'isAdmin' à jour.
   useEffect(() => {
-    // onAuthStateChange retourne une fonction de nettoyage pour désabonnement.
+    console.log("UserContext: useEffect for onAuthStateChange triggered.");
+    setLoadingUser(true); // Ensure loading state is true at the start of the effect
+
     const authListener = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("UserContext: onAuthStateChange event:", event, "session:", session);
+
       if (session) {
-        // L'utilisateur est connecté ou sa session a été rafraîchie.
         const user = session.user;
-        
-        // Tente de récupérer les données de l'utilisateur depuis la table 'public.users'.
+        console.log("UserContext: User session found, user ID:", user.id);
+
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('*')
@@ -160,21 +163,21 @@ export const UserProvider = ({ children }) => {
           .single();
 
         if (userError && userError.code !== 'PGRST116') { // PGRST116 = "Row not found" (c'est normal pour un nouvel inscrit)
-          console.error("Erreur lors de la récupération des données utilisateur depuis public.users:", userError.message);
-          // Gérer les erreurs inattendues en déconnectant l'utilisateur.
+          console.error("UserContext: Error fetching user data from public.users:", userError.message);
+          // If there's an unexpected error, log out the user to prevent stuck state
           setCurrentUser(null);
           setIsAdmin(false);
+          setLoadingUser(false); // Set loading to false on error
         } else if (userData) {
-          // Utilisateur trouvé dans public.users. Met à jour l'état local.
+          console.log("UserContext: User data found in public.users:", userData);
           setCurrentUser({ ...user, ...userData });
           setIsAdmin(userData.is_admin);
-          // Met à jour la date de dernière connexion.
           updateUserDataInDb(user.id, { last_login: new Date().toISOString() });
+          setLoadingUser(false); // User data loaded, set loading to false
         } else if (userError && userError.code === 'PGRST116') {
-          // L'utilisateur existe dans auth.users mais pas encore dans public.users (nouvel inscrit).
-          // Cela ne devrait pas arriver souvent si signUp gère déjà l'insertion,
-          // mais c'est une sécurité.
-          console.warn("Utilisateur authentifié mais pas trouvé dans public.users. Tentative de création.");
+          console.warn("UserContext: Authenticated user not found in public.users. Attempting to create profile.");
+          // This block handles cases where user is authenticated in auth.users but not in public.users
+          // This should ideally be handled by signUp, but this is a fallback.
           const { error: insertError } = await supabase.from('users').insert({
             id: user.id,
             email: user.email,
@@ -185,38 +188,39 @@ export const UserProvider = ({ children }) => {
             last_login: new Date().toISOString()
           });
           if (insertError) {
-            console.error("Erreur lors de la création du profil pour un nouvel utilisateur:", insertError.message);
-            await supabase.auth.signOut(); // Déconnecte si la création du profil échoue
+            console.error("UserContext: Error creating profile for new user in public.users:", insertError.message);
+            await supabase.auth.signOut(); // Log out if profile creation fails
             setCurrentUser(null);
             setIsAdmin(false);
           } else {
-            // Re-fetch pour obtenir les données complètes après insertion
+            console.log("UserContext: Profile created in public.users. Re-fetching data.");
             const { data: newUserData, error: newFetchError } = await supabase
               .from('users')
               .select('*')
               .eq('id', user.id)
               .single();
             if (newFetchError) {
-              console.error("Erreur lors du re-fetch des données du nouvel utilisateur:", newFetchError.message);
+              console.error("UserContext: Error re-fetching new user data:", newFetchError.message);
               setCurrentUser(null);
               setIsAdmin(false);
             } else {
+              console.log("UserContext: New user data re-fetched successfully.");
               setCurrentUser({ ...user, ...newUserData });
               setIsAdmin(newUserData.is_admin);
             }
           }
+          setLoadingUser(false); // New user profile handled, set loading to false
         }
       } else {
-        // L'utilisateur est déconnecté.
+        console.log("UserContext: No user session found. Setting currentUser to null and loadingUser to false.");
         setCurrentUser(null);
         setIsAdmin(false);
+        setLoadingUser(false); // No user, set loading to false
       }
-      setLoadingUser(false); // Le chargement initial est terminé
     });
 
-    // Fonction de nettoyage pour désabonner le listener lors du démontage du composant.
-    // Ajout d'une vérification pour s'assurer que 'data' et 'subscription' existent.
     return () => {
+      console.log("UserContext: Cleaning up auth listener.");
       // Supabase onAuthStateChange retourne un objet avec 'data' et 'error'.
       // La fonction de désabonnement est dans 'data.subscription'.
       if (authListener && authListener.data && authListener.data.subscription) {
