@@ -2,27 +2,27 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
-// IMPORTEZ useUser POUR ACCÉDER À DB DEPUIS LE CONTEXTE
-import { useUser } from './UserContext'; 
+import { useUser } from './UserContext'; // Importe useUser pour accéder à db et auth
 
 const AdminUserManagementModal = ({ onClose, realisations }) => {
-  // OBTENIR db DU CONTEXTE UTILISATEUR
-  const { db, auth } = useUser(); // Ajout de 'auth' pour la vérification de chargement si nécessaire
+  // Déstructure seulement 'db' car 'auth' n'est pas utilisé directement dans ce composant.
+  // Si 'auth' était nécessaire pour des opérations spécifiques (ex: supprimer un utilisateur via Auth),
+  // il faudrait le laisser et l'utiliser. Ici, seul Firestore est manipulé.
+  const { db } = useUser(); 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [taskCounts, setTaskCounts] = useState({});
 
-  // Utilisez useCallback pour mémoriser la fonction fetchUsers
   const fetchUsers = useCallback(async () => {
-    // Vérifiez si db est disponible avant de tenter de récupérer les données
-    if (!db) {
-      console.warn("Firestore est indisponible. Impossible de récupérer les utilisateurs.");
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     try {
+      // S'assurer que db est disponible avant de faire des appels Firestore
+      if (!db) {
+        console.error("Firestore DB non disponible dans AdminUserManagementModal.");
+        toast.error("Service de base de données non disponible.");
+        setLoading(false);
+        return;
+      }
       const usersCollectionRef = collection(db, "users");
       const usersSnapshot = await getDocs(usersCollectionRef);
       const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -43,76 +43,80 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
     } finally {
       setLoading(false);
     }
-  }, [db, realisations]); // Ajoutez 'db' aux dépendances de useCallback
+  }, [realisations, db]); // Ajout de db aux dépendances de useCallback
 
   useEffect(() => {
-    // Assurez-vous que 'db' est disponible avant d'appeler fetchUsers
-    if (db) {
-      fetchUsers();
-    }
-  }, [fetchUsers, db]); // Ajoutez 'db' aux dépendances de useEffect
+    fetchUsers();
+  }, [fetchUsers]);
 
-  const toggleAdminStatus = useCallback(async (userId, currentStatus) => {
-    // Vérifiez si db est disponible
-    if (!db) {
-      toast.error("Firestore est indisponible. Impossible de modifier le statut.");
-      return;
-    }
-
+  const toggleAdminStatus = async (userId, currentIsAdmin) => {
     setLoading(true);
     try {
-      const userRef = doc(db, "users", userId);
-      await updateDoc(userRef, {
-        isAdmin: !currentStatus
-      });
-      toast.success(`Statut administrateur mis à jour pour l'utilisateur ${userId}.`);
-      fetchUsers(); // Re-fetch users to update the list
+      if (!db) {
+        toast.error("Service de base de données non disponible.");
+        setLoading(false);
+        return;
+      }
+      const userDocRef = doc(db, "users", userId);
+      await updateDoc(userDocRef, { isAdmin: !currentIsAdmin });
+      toast.success(`Statut admin de l'utilisateur mis à jour !`);
+      // Re-fetch users to update the list
+      fetchUsers();
     } catch (error) {
-      toast.error("Erreur lors de la mise à jour du statut administrateur.");
+      toast.error("Erreur lors de la mise à jour du statut admin.");
       console.error("Erreur toggleAdminStatus:", error);
     } finally {
       setLoading(false);
     }
-  }, [db, fetchUsers]); // Ajoutez 'db' et 'fetchUsers' aux dépendances de useCallback
+  };
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
-      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-lg text-center animate-fade-in-scale border border-primary/20 mx-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
-        <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-6">Gestion des Utilisateurs</h2>
-
-        {loading ? (
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
+        <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto">
           <div className="flex justify-center items-center py-4">
             <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
             <p className="ml-3 text-lightText">Chargement des utilisateurs...</p>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
+      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl w-full max-w-xs sm:max-w-md md:max-w-lg text-center animate-fade-in-scale border border-primary/20 mx-auto">
+        <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4">
+          Gestion des Utilisateurs
+        </h3>
+
+        {users.length === 0 ? (
+          <p className="text-center text-lightText text-lg py-4">Aucun utilisateur enregistré.</p>
         ) : (
-          <div className="space-y-4 text-left">
-            {users.length === 0 ? (
-              <p className="text-center text-lightText text-lg">Aucun utilisateur enregistré.</p>
-            ) : (
-              users.map(user => (
-                <div key={user.id} className="bg-neutralBg rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm border border-neutralBg/50">
-                  <div className="flex-1 min-w-0 mb-2 sm:mb-0">
-                    <p className="font-bold text-text text-lg truncate">{user.displayName || user.email}</p>
-                    <p className="text-sm text-lightText">ID: {user.id}</p>
-                    <p className="text-sm text-lightText">Tâches complétées: {taskCounts[user.id] || 0}</p>
-                  </div>
-                  <div className="flex items-center gap-2 mt-2 sm:mt-0">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${user.isAdmin ? 'bg-success text-white' : 'bg-gray-300 text-gray-800'}`}>
-                      {user.isAdmin ? 'Admin' : 'Utilisateur'}
-                    </span>
-                    <button
-                      onClick={() => toggleAdminStatus(user.id, user.isAdmin)}
-                      className={`py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs font-semibold
-                        ${user.isAdmin ? 'bg-warning hover:bg-yellow-600 text-white' : 'bg-primary hover:bg-blue-600 text-white'}`}
-                      disabled={loading}
-                    >
-                      {user.isAdmin ? 'Rétrograder' : 'Promouvoir Admin'}
-                    </button>
-                  </div>
+          <div className="flex flex-col gap-3 mb-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+            {users.map((user) => (
+              <div key={user.id} className="bg-neutralBg rounded-lg p-3 flex flex-col sm:flex-row items-center justify-between shadow-sm border border-primary/10">
+                <div className="flex flex-col items-center sm:items-start mb-2 sm:mb-0">
+                  <span className="text-4xl mb-1">{user.avatar || '👤'}</span>
+                  <p className="font-semibold text-text text-lg">{user.displayName || user.email}</p>
+                  <p className="text-sm text-lightText">ID: {user.id}</p>
+                  <p className="text-sm text-lightText">Tâches complétées: {taskCounts[user.id] || 0}</p>
                 </div>
-              ))
-            )}
+                <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${user.isAdmin ? 'bg-success text-white' : 'bg-gray-300 text-gray-800'}`}>
+                    {user.isAdmin ? 'Admin' : 'Utilisateur'}
+                  </span>
+                  <button
+                    onClick={() => toggleAdminStatus(user.id, user.isAdmin)}
+                    className={`py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs font-semibold
+                      ${user.isAdmin ? 'bg-warning hover:bg-yellow-600 text-white' : 'bg-primary hover:bg-blue-600 text-white'}`}
+                    disabled={loading}
+                  >
+                    {user.isAdmin ? 'Rétrograder' : 'Promouvoir Admin'}
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
