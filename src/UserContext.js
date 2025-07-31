@@ -1,18 +1,21 @@
 /* global __initial_auth_token */
+// src/UserContext.js
 // Ce fichier est le SEUL responsable de l'initialisation de l'application Firebase
 // et de la gestion de l'état d'authentification de l'utilisateur.
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 // Importe la configuration Firebase depuis le fichier firebase.js
+// Ce fichier (./firebase) ne fait que fournir l'objet de configuration.
 import { firebaseConfig } from './firebase';
 
 const UserContext = createContext();
 
 // Variables pour stocker les instances Firebase
+// Elles seront initialisées une seule fois au niveau du module.
 let firebaseAppInstance = null;
 let firestoreDbInstance = null;
 let firebaseAuthInstance = null;
@@ -28,12 +31,13 @@ try {
     );
     console.error(firebaseInitializationError.message);
   } else {
-    // Initialise Firebase une seule fois
+    // Initialise Firebase App une seule fois
     if (!getApps().length) {
       firebaseAppInstance = initializeApp(firebaseConfig);
     } else {
       firebaseAppInstance = getApp();
     }
+    // Initialise Firestore et Auth une seule fois
     firestoreDbInstance = getFirestore(firebaseAppInstance);
     firebaseAuthInstance = getAuth(firebaseAppInstance);
   }
@@ -42,54 +46,58 @@ try {
   console.error("Erreur lors de l'initialisation de Firebase :", e);
 }
 
-export const useUser = () => useContext(UserContext);
+export function useUser() {
+  return useContext(UserContext);
+}
 
-export const UserProvider = ({ children }) => {
+export function UserProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [loadingUser, setLoadingUser] = useState(true); // Indique si l'utilisateur est en cours de chargement
+  const [loadingUser, setLoadingUser] = useState(true); // Indique si l'utilisateur est en cours de chargement/initialisation
 
+  // Expose les instances Firebase via le contexte
   const db = firestoreDbInstance;
   const auth = firebaseAuthInstance;
 
-  // Initialisation de l'authentification et chargement des données utilisateur
   useEffect(() => {
     if (firebaseInitializationError) {
+      console.error("Firebase n'a pas pu être initialisé. L'application ne fonctionnera pas correctement.", firebaseInitializationError);
       setLoadingUser(false);
-      console.error("L'application Firebase n'a pas pu être initialisée. Veuillez vérifier votre configuration.");
       return;
     }
 
     if (!auth || !db) {
-      setLoadingUser(false);
-      console.error("Firebase Auth ou Firestore ne sont pas disponibles.");
+      console.warn("Firebase Auth ou Firestore ne sont pas encore disponibles.");
+      setLoadingUser(true); // Garder loadingUser à true tant que les instances ne sont pas prêtes
       return;
     }
 
     const setupAuthAndUser = async () => {
       try {
-        // Tente de se connecter avec le jeton personnalisé fourni par l'environnement (Cloudflare Pages)
+        // Tente de se connecter avec le token personnalisé si disponible
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           try {
             await signInWithCustomToken(auth, __initial_auth_token);
-            console.log("Connecté avec jeton personnalisé.");
-          } catch (error) {
-            console.warn("Échec de la connexion avec jeton personnalisé, tentative de connexion anonyme:", error);
+            console.log("Connecté avec le token personnalisé.");
+          } catch (tokenError) {
+            console.warn("Échec de la connexion avec le token personnalisé, tentative de connexion anonyme:", tokenError);
             await signInAnonymously(auth);
+            console.log("Connecté anonymement.");
           }
         } else {
-          // Si pas de jeton, se connecter anonymement
+          // Si pas de token, se connecter anonymement
           await signInAnonymously(auth);
           console.log("Connecté anonymement.");
         }
 
+        // Écoute les changements d'état d'authentification
         const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
           if (user) {
             const userDocRef = doc(db, 'users', user.uid);
-            const userDocSnap = await getDoc(userDocRef);
+            const docSnap = await getDoc(userDocRef);
 
-            if (userDocSnap.exists()) {
-              const userData = userDocSnap.data();
+            if (docSnap.exists()) {
+              const userData = docSnap.data();
               setCurrentUser({
                 uid: user.uid,
                 email: user.email,
@@ -107,7 +115,7 @@ export const UserProvider = ({ children }) => {
               });
               setIsAdmin(userData.isAdmin || false);
             } else {
-              // Si l'utilisateur n'existe pas dans Firestore, le créer avec des valeurs par défaut
+              // Si l'utilisateur est authentifié mais n'a pas de document Firestore, le créer
               const defaultUserData = {
                 displayName: user.displayName || user.email.split('@')[0],
                 isAdmin: false,
@@ -151,7 +159,6 @@ export const UserProvider = ({ children }) => {
     };
   }, [auth, db]);
 
-  // Écouteur en temps réel pour les mises à jour du document utilisateur
   useEffect(() => {
     if (db && currentUser?.uid) {
       const userDocRef = doc(db, 'users', currentUser.uid);
@@ -164,7 +171,6 @@ export const UserProvider = ({ children }) => {
           }));
           setIsAdmin(updatedUserData.isAdmin || false);
         } else {
-          // Si le document utilisateur n'existe plus (supprimé par ex.), déconnecter
           setCurrentUser(null);
           setIsAdmin(false);
         }
@@ -189,4 +195,4 @@ export const UserProvider = ({ children }) => {
       {children}
     </UserContext.Provider>
   );
-};
+}

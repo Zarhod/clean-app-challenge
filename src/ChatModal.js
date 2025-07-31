@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from './UserContext';
-import { collection, query, orderBy, addDoc, onSnapshot, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, onSnapshot, doc, updateDoc } from 'firebase/firestore'; // serverTimestamp supprimé
 import { toast } from 'react-toastify';
 
 const ChatModal = ({ onClose }) => {
@@ -27,7 +27,7 @@ const ChatModal = ({ onClose }) => {
           console.error("Erreur lors de la mise à jour du timestamp de lecture:", error);
         });
     }
-  }, [currentUser, db, setCurrentUser]); // Ajout de setCurrentUser aux dépendances
+  }, [currentUser, db, setCurrentUser]);
 
   // Écouteur de messages en temps réel
   useEffect(() => {
