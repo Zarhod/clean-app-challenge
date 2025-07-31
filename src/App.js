@@ -24,8 +24,8 @@
 // Ajout de l'option pour ne pas fermer la modale d'ajout de tâche.
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useUser } from './UserContext';
-import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDoc } from 'firebase/firestore'; // Ajout de getDoc
+import { useUser, UserProvider } from './UserContext'; // <-- AJOUT DE USERPROVIDER ICI
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -51,6 +51,7 @@ import AvatarSelectionModal from './AvatarSelectionModal';
 import PasswordChangeModal from './PasswordChangeModal';
 import ChatFloatingButton from './ChatFloatingButton';
 import TaskStatisticsChart from './TaskStatisticsChart';
+import ExportSelectionModal from './ExportSelectionModal'; // <-- AJOUT DE CET IMPORT
 
 // Fonction utilitaire pour le téléchargement CSV
 const exportToCsv = (filename, rows) => {
@@ -465,7 +466,7 @@ function AppContent() {
   };
 
   // Fonction pour signaler une réalisation (admin seulement)
-  const handleReportRealization = async (realisation) => {
+  const handleReportRealization = async (realisation) => { // <-- CORRECTION DU NOM DE LA VARIABLE ICI
     if (!isAdmin) {
       toast.error("Accès refusé. Vous n'êtes pas administrateur.");
       return;
@@ -473,8 +474,8 @@ function AppContent() {
     setReportedTaskDetails({
       id: realisation.id,
       name: realisation.nomTache,
-      participant: real.userName, // Correction: utiliser real.userName
-      userId: real.userId, // Correction: utiliser real.userId
+      participant: realisation.userName, // <-- CORRECTION ICI
+      userId: realisation.userId, // <-- CORRECTION ICI
       points: parseFloat(realisation.pointsGagnes) || 0
     });
     setShowReportTaskModal(true);
@@ -982,16 +983,16 @@ function AppContent() {
           <AdminTaskFormModal
             taskData={taskToDelete || { Nom_Tache: '', Description: '', Points: 0, Frequence: 'Quotidien', Categorie: '', Parent_Task_ID: '' }}
             onFormChange={(e) => setTaskToDelete(prev => ({ ...prev, [e.target.name]: e.target.value }))}
-            onSubmit={async (keepOpen) => { // Ajout de keepOpen
+            onSubmit={async (keepOpen) => {
               const success = taskToDelete && taskToDelete.id
                 ? await handleUpdateTask(taskToDelete.id, taskToDelete)
                 : await handleAddTask(taskToDelete);
               
-              if (success && !keepOpen) { // Ferme seulement si succès et pas de "garder ouvert"
+              if (success && !keepOpen) {
                 setShowAddTaskModal(false);
                 setTaskToDelete(null);
               } else if (success && keepOpen) {
-                setTaskToDelete({ Nom_Tache: '', Description: '', Points: 0, Frequence: 'Quotidien', Categorie: '', Parent_Task_ID: '' }); // Réinitialise le formulaire
+                setTaskToDelete({ Nom_Tache: '', Description: '', Points: 0, Frequence: 'Quotidien', Categorie: '', Parent_Task_ID: '' });
               }
             }}
             onClose={() => { setShowAddTaskModal(false); setTaskToDelete(null); }}
@@ -1154,16 +1155,15 @@ function AppContent() {
         {showAvatarSelectionModal && currentUser && (
           <AvatarSelectionModal
             currentAvatar={currentUser.avatar || '👤'}
-            currentPhotoURL={currentUser.photoURL || null} // Passe l'URL de la photo actuelle
+            currentPhotoURL={currentUser.photoURL || null}
             onClose={() => setShowAvatarSelectionModal(false)}
-            onSave={async ({ newAvatar, newPhotoURL }) => { // Accepte un objet avec newAvatar et newPhotoURL
+            onSave={async ({ newAvatar, newPhotoURL }) => {
               try {
                 const updateData = {};
                 if (newAvatar !== undefined) updateData.avatar = newAvatar;
                 if (newPhotoURL !== undefined) updateData.photoURL = newPhotoURL;
 
                 await updateDoc(doc(db, "users", currentUser.uid), updateData);
-                // Mettre à jour le currentUser dans le contexte après la sauvegarde
                 setCurrentUser(prevUser => ({ ...prevUser, ...updateData }));
                 toast.success("Avatar mis à jour !");
               } catch (error) {
@@ -1204,7 +1204,7 @@ function AppContent() {
 
 function App() {
   return (
-    <UserProvider>
+    <UserProvider> {/* <-- USERPROVIDER EST BIEN ICI */}
       <AppContent />
     </UserProvider>
   );

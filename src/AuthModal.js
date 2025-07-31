@@ -1,8 +1,8 @@
 // src/AuthModal.js
 import React, { useState, useEffect } from 'react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Importe Firebase Storage
+import { doc, setDoc, getDoc } from 'firebase/firestore'; // <-- AJOUT DE GETDOC ICI
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'react-toastify';
 import ListAndInfoModal from './ListAndInfoModal';
 import { useUser } from './UserContext'; 
