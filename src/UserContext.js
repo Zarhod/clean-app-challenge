@@ -1,3 +1,5 @@
+/* global __initial_auth_token */
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from './supabase';
 
