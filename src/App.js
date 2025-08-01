@@ -87,8 +87,7 @@ const calculateLevelAndXP = (currentXP) => {
 function AppContent() { 
   // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
-  const { currentUser, isAdmin, loadingUser, db, auth, setCurrentUser } = useUser(); // Récupère db et auth du contexte
-
+  const { currentUser, isAdmin, loadingUser, setCurrentUser } = useUser();
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
   const [realisations, setRealisations] = useState([]); 

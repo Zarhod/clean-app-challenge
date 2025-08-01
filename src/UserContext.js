@@ -19,7 +19,7 @@ export const UserProvider = ({ children }) => {
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error) {
-          console.error('Erreur de récupération de l\'utilisateur :', error.message);
+          console.error("Erreur de récupération de l'utilisateur :", error.message);
           setLoadingUser(false);
           return;
         }
@@ -34,12 +34,11 @@ export const UserProvider = ({ children }) => {
               return;
             }
           } else {
-            const { data: anonUser, error: anonError } = await supabase.auth.signInWithOAuth({ provider: 'anonymous' });
-            if (anonError) {
-              console.error("Erreur de connexion anonyme :", anonError.message);
-              setLoadingUser(false);
-              return;
-            }
+            // Aucun utilisateur et aucun token : utilisateur non connecté
+            setCurrentUser(null);
+            setIsAdmin(false);
+            setLoadingUser(false);
+            return;
           }
         }
 
@@ -98,6 +97,7 @@ export const UserProvider = ({ children }) => {
 
     setupAuthAndUser();
   }, []);
+
 
   const value = {
     currentUser,
