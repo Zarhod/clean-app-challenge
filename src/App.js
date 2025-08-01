@@ -1,4 +1,25 @@
 // src/App.js
+// Version mise à jour pour utiliser Firebase Authentication et Firestore avec des écouteurs en temps réel.
+// Tous les chemins Firestore sont maintenant à la racine de la base de données.
+// Les boutons des modales sont centrés sur mobile.
+// Gestion améliorée des erreurs de permission pour éviter les toasts sur la page de connexion.
+// Correction de l'erreur "TypeError: null is not iterable" dans calculateWeeklyRecap.
+// Améliorations de l'affichage du profil utilisateur, des modales et suppression des logs.
+// Intégration d'une fonctionnalité de chat simple avec bouton flottant.
+// Correction des problèmes de z-index et d'affichage des modales.
+// Correction des dépendances manquantes dans useCallback pour résoudre les erreurs de compilation CI.
+// Amélioration du graphique de statistiques des tâches.
+// Correction des problèmes de boutons de profil et d'affichage d'avatar.
+// Correction des erreurs no-undef dans UserContext.js.
+// Correction des avertissements ESLint 'exhaustive-deps' et 'no-unused-vars'.
+// Correction de la duplication de l'écran de bienvenue lors de l'ouverture de la modale de connexion.
+// Correction du podium affichant des utilisateurs à 0 point.
+// Amélioration majeure de l'interface utilisateur du chat.
+// Correction de l'affichage du bouton de modification de profil.
+// Correction du chevauchement des boutons dans AuthModal.
+// Ajout de l'indicateur de messages non lus sur le bouton de chat.
+// Amélioration des messages d'erreur de connexion.
+// Correction de l'erreur de compilation 'no-undef' pour __firebase_config et __initial_auth_token.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -276,7 +297,7 @@ function AppContent() {
       setTaches(finalFilteredTaches);
       initialLoadStatus.current.tasks = true;
     }, (error) => {
-      if (supabase.auth.getUser()) { 
+      if (auth.currentUser) { 
         toast.error(`Erreur lors de la récupération des tâches: ${error.message}`); 
       }
     });
@@ -291,7 +312,7 @@ function AppContent() {
       setRealisations(data);
       initialLoadStatus.current.realizations = true;
     }, (error) => {
-      if (supabase.auth.getUser()) { 
+      if (auth.currentUser) { 
         toast.error(`Erreur lors de la récupération des réalisations: ${error.message}`);
       }
     });
@@ -366,12 +387,12 @@ function AppContent() {
         setTotalGlobalCumulativePoints(globalCumulative);
         initialLoadStatus.current.classement = true;
       }, (error) => {
-        if (supabase.auth.getUser()) {
+        if (auth.currentUser) {
           toast.error(`Erreur lors de la récupération des réalisations pour le classement: ${error.message}`);
         }
       });
     }, (error) => {
-      if (supabase.auth.getUser()) {
+      if (auth.currentUser) {
         toast.error(`Erreur lors de la récupération des utilisateurs pour le classement: ${error.message}`);
       }
     });
@@ -385,7 +406,7 @@ function AppContent() {
       setObjectives(data);
       initialLoadStatus.current.objectives = true;
     }, (error) => {
-      if (supabase.auth.getUser()) {
+      if (auth.currentUser) {
         toast.error(`Erreur lors de la récupération des objectifs: ${error.message}`);
       }
     });
@@ -399,7 +420,7 @@ function AppContent() {
       setCongratulatoryMessages(data);
       initialLoadStatus.current.congratulatoryMessages = true;
     }, (error) => {
-      if (supabase.auth.getUser()) {
+      if (auth.currentUser) {
         setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); 
         toast.error(`Erreur lors de la récupération des messages de félicitation: ${error.message}`);
       }
@@ -414,7 +435,7 @@ function AppContent() {
       setHistoricalPodiums(data);
       initialLoadStatus.current.historicalPodiums = true;
     }, (error) => {
-      if (supabase.auth.getUser()) {
+      if (auth.currentUser) {
         toast.error(`Erreur lors de la récupération des podiums historiques: ${error.message}`);
       }
     });
@@ -428,7 +449,7 @@ function AppContent() {
       setReports(data);
       initialLoadStatus.current.reports = true;
     }, (error) => {
-      if (supabase.auth.getUser()) {
+      if (auth.currentUser) {
         toast.error(`Erreur lors de la récupération des rapports: ${error.message}`);
       }
     });
