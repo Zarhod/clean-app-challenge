@@ -46,7 +46,7 @@ export const UserProvider = ({ children }) => {
         if (!user) throw new Error("Aucune session utilisateur valide trouvée.");
 
         // Étape 4 — Chargement ou création du profil utilisateur Supabase
-        const { data: userData, error: fetchError } = await supabase
+        const { data: userData } = await supabase
           .from('users')
           .select('*')
           .eq('id', user.id)
