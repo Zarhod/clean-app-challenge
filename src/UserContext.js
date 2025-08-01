@@ -16,81 +16,72 @@ export const UserProvider = ({ children }) => {
   useEffect(() => {
     const setupAuthAndUser = async () => {
       try {
-        const { data: { user }, error } = await supabase.auth.getUser();
+        // Étape 1 — Tente d'obtenir une session
+        let sessionResponse = await supabase.auth.getSession();
+        let user = sessionResponse.data?.session?.user;
 
-        if (error) {
-          console.error("Erreur de récupération de l'utilisateur :", error.message);
-          setLoadingUser(false);
-          return;
-        }
-
+        // Étape 2 — Si pas d'utilisateur, essaie via token initial
         if (!user) {
           const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
           if (token) {
-            const { error: signInError } = await supabase.auth.setSession({ access_token: token });
-            if (signInError) {
-              console.error("Erreur de connexion avec le token :", signInError.message);
-              setLoadingUser(false);
-              return;
-            }
-          } else {
-            // Aucun utilisateur et aucun token : utilisateur non connecté
-            setCurrentUser(null);
-            setIsAdmin(false);
-            setLoadingUser(false);
-            return;
+            const { error: tokenError } = await supabase.auth.setSession({ access_token: token });
+            if (tokenError) throw new Error("Token invalide");
+
+            sessionResponse = await supabase.auth.getSession();
+            user = sessionResponse.data?.session?.user;
           }
         }
 
-        const sessionUser = user || (await supabase.auth.getUser()).data.user;
+        // Étape 3 — Si toujours rien, utilise fallback OTP avec un email bidon
+        if (!user) {
+          const tempEmail = `anon_${crypto.randomUUID()}@example.com`;
+          const { error: anonError } = await supabase.auth.signInWithOtp({ email: tempEmail });
+          if (anonError) throw new Error("Connexion anonyme impossible");
 
-        if (sessionUser) {
-          const { data: userData, error: userFetchError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', sessionUser.id)
-            .single();
+          await new Promise(resolve => setTimeout(resolve, 2000)); // délai pour que la session se crée
+          sessionResponse = await supabase.auth.getSession();
+          user = sessionResponse.data?.session?.user;
+        }
 
-          if (userFetchError && userFetchError.code !== 'PGRST116') {
-            console.error("Erreur lors de la récupération de l'utilisateur :", userFetchError);
-          }
+        if (!user) throw new Error("Aucune session utilisateur valide trouvée.");
 
-          const defaultUserData = {
-            id: sessionUser.id,
-            email: sessionUser.email,
-            displayName: sessionUser.user_metadata?.displayName || sessionUser.email?.split('@')[0],
-            isAdmin: false,
-            avatar: '👤',
-            weeklyPoints: 0,
-            totalCumulativePoints: 0,
-            previousWeeklyPoints: 0,
-            xp: 0,
-            level: 1,
-            dateJoined: new Date().toISOString(),
-            lastReadTimestamp: new Date().toISOString()
-          };
+        // Étape 4 — Chargement ou création du profil utilisateur Supabase
+        const { data: userData, error: fetchError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', user.id)
+          .single();
 
-          if (!userData) {
-            const { error: insertError } = await supabase.from('users').insert(defaultUserData);
-            if (insertError) {
-              console.error("Erreur lors de l'insertion du nouvel utilisateur :", insertError.message);
-              setLoadingUser(false);
-              return;
-            }
-            setCurrentUser(defaultUserData);
-          } else {
-            setCurrentUser(userData);
-          }
+        const defaultUserData = {
+          id: user.id,
+          email: user.email,
+          displayName: user.user_metadata?.displayName || user.email?.split('@')[0],
+          isAdmin: false,
+          avatar: '👤',
+          weeklyPoints: 0,
+          totalCumulativePoints: 0,
+          previousWeeklyPoints: 0,
+          xp: 0,
+          level: 1,
+          dateJoined: new Date().toISOString(),
+          lastReadTimestamp: new Date().toISOString()
+        };
 
-          setIsAdmin(userData?.isAdmin || false);
-        } else {
-          setCurrentUser(null);
+        if (!userData) {
+          const { error: insertError } = await supabase.from('users').insert(defaultUserData);
+          if (insertError) throw new Error("Erreur lors de la création du profil utilisateur");
+          setCurrentUser(defaultUserData);
           setIsAdmin(false);
+        } else {
+          setCurrentUser(userData);
+          setIsAdmin(userData?.isAdmin || false);
         }
 
-        setLoadingUser(false);
-      } catch (error) {
-        console.error("Erreur de configuration de l'authentification Supabase :", error);
+      } catch (err) {
+        console.error("Erreur de configuration utilisateur :", err.message || err);
+        setCurrentUser(null);
+        setIsAdmin(false);
+      } finally {
         setLoadingUser(false);
       }
     };
@@ -98,16 +89,8 @@ export const UserProvider = ({ children }) => {
     setupAuthAndUser();
   }, []);
 
-
-  const value = {
-    currentUser,
-    isAdmin,
-    loadingUser,
-    setCurrentUser
-  };
-
   return (
-    <UserContext.Provider value={value}>
+    <UserContext.Provider value={{ currentUser, isAdmin, loadingUser, setCurrentUser }}>
       {children}
     </UserContext.Provider>
   );
