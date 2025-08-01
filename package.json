@@ -10,7 +10,6 @@
     "@testing-library/user-event": "^13.5.0",
     "bcryptjs": "^3.0.2",
     "canvas-confetti": "^1.9.3",
-    "firebase": "^12.0.0",
     "get-orientation": "^1.1.2",
     "jose": "^6.0.12",
     "react": "^19.1.0",

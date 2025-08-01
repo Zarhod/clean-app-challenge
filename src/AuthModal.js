@@ -2,105 +2,82 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from './UserContext';
 import { toast } from 'react-toastify';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { supabase } from './supabase';
 
 const AuthModal = ({ onClose }) => {
-  const { auth, db, setCurrentUser, loadingUser } = useUser(); // Ajout de loadingUser
+  const { setCurrentUser, loadingUser } = useUser();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [loading, setLoading] = useState(false); // État de chargement local pour les actions d'authentification
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // Réinitialiser les champs et erreurs quand la modale s'ouvre/ferme
     setEmail('');
     setPassword('');
     setDisplayName('');
     setError('');
     setLoading(false);
-  }, [isLogin]); // Réinitialise aussi si on bascule entre login/register
+  }, [isLogin]);
 
   const handleAuth = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    // Vérifie que Firebase Auth et Firestore sont disponibles
-    // loadingUser doit être false, et auth/db doivent être des objets non nuls
-    if (loadingUser || !auth || !db) {
-      setError("Le service d'authentification n'est pas encore prêt. Veuillez patienter et réessayer.");
-      setLoading(false);
-      return;
-    }
-
     try {
       if (isLogin) {
-        // Connexion
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
+        const { data: { user }, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
 
-        // Récupérer les données utilisateur de Firestore
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDocSnap = await getDoc(userDocRef);
+        if (signInError || !user) throw signInError;
 
-        if (userDocSnap.exists()) {
-          const userData = userDocSnap.data();
-          setCurrentUser({
-            uid: user.uid,
-            email: user.email,
-            displayName: userData.displayName || user.displayName,
-            isAdmin: userData.isAdmin || false,
-            avatar: userData.avatar || '👤',
-            weeklyPoints: userData.weeklyPoints || 0,
-            totalCumulativePoints: userData.totalCumulativePoints || 0,
-            previousWeeklyPoints: userData.previousWeeklyPoints || 0,
-            xp: userData.xp || 0,
-            level: userData.level || 1,
-            dateJoined: userData.dateJoined || new Date().toISOString(),
-            lastReadTimestamp: userData.lastReadTimestamp || null
-          });
-          toast.success(`Bienvenue, ${userData.displayName || user.email} !`);
-          onClose();
-        } else {
-          // Si l'utilisateur existe dans Auth mais pas dans Firestore (cas rare ou premier login après migration)
-          // Créer un document utilisateur par défaut dans Firestore
-          const defaultUserData = {
-            displayName: user.displayName || email.split('@')[0],
-            isAdmin: false,
-            avatar: '👤',
-            weeklyPoints: 0,
-            totalCumulativePoints: 0,
-            previousWeeklyPoints: 0,
-            xp: 0,
-            level: 1,
-            dateJoined: new Date().toISOString(),
-            lastReadTimestamp: new Date().toISOString()
-          };
-          await setDoc(userDocRef, defaultUserData);
-          setCurrentUser({ uid: user.uid, email: user.email, ...defaultUserData });
-          toast.success(`Bienvenue, ${defaultUserData.displayName} ! Votre compte a été initialisé.`);
-          onClose();
-        }
+        const { data: userData, error: fetchError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+
+        const finalUser = {
+          uid: user.id,
+          email: user.email,
+          displayName: userData?.displayName || email.split('@')[0],
+          isAdmin: userData?.isAdmin || false,
+          avatar: userData?.avatar || '👤',
+          weeklyPoints: userData?.weeklyPoints || 0,
+          totalCumulativePoints: userData?.totalCumulativePoints || 0,
+          previousWeeklyPoints: userData?.previousWeeklyPoints || 0,
+          xp: userData?.xp || 0,
+          level: userData?.level || 1,
+          dateJoined: userData?.dateJoined || new Date().toISOString(),
+          lastReadTimestamp: userData?.lastReadTimestamp || null
+        };
+
+        setCurrentUser(finalUser);
+        toast.success(`Bienvenue, ${finalUser.displayName} !`);
+        onClose();
 
       } else {
-        // Inscription
         if (!displayName.trim()) {
           setError("Le nom d'affichage est requis.");
           setLoading(false);
           return;
         }
 
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password
+        });
 
-        await updateProfile(user, { displayName: displayName.trim() });
+        if (signUpError || !signUpData.user) throw signUpError;
 
-        // Créer un document utilisateur dans Firestore
-        const userDocRef = doc(db, 'users', user.uid);
         const newUserData = {
+          id: signUpData.user.id,
           displayName: displayName.trim(),
           email: email.trim(),
           isAdmin: false,
@@ -113,50 +90,51 @@ const AuthModal = ({ onClose }) => {
           dateJoined: new Date().toISOString(),
           lastReadTimestamp: new Date().toISOString()
         };
-        await setDoc(userDocRef, newUserData);
 
-        setCurrentUser({ uid: user.uid, ...newUserData });
-        toast.success(`Compte créé avec succès pour ${displayName.trim()} !`);
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([newUserData]);
+
+        if (insertError) throw insertError;
+
+        setCurrentUser({ uid: signUpData.user.id, ...newUserData });
+        toast.success(`Compte créé avec succès pour ${newUserData.displayName} !`);
         onClose();
       }
+
     } catch (err) {
       console.error("Authentication error:", err);
       let errorMessage = "Une erreur est survenue lors de l'authentification.";
-      switch (err.code) {
-        case 'auth/invalid-email':
-          errorMessage = 'Adresse e-mail invalide.';
+
+      const code = err?.status || err?.code || '';
+      const msg = err?.message || '';
+
+      switch (true) {
+        case msg.includes("Invalid login credentials"):
+        case code === 'auth/wrong-password':
+        case code === 'auth/user-not-found':
+          errorMessage = "Adresse e-mail ou mot de passe incorrect.";
           break;
-        case 'auth/user-disabled':
-          errorMessage = 'Ce compte a été désactivé.';
+        case msg.includes("User already registered"):
+          errorMessage = "Cette adresse e-mail est déjà utilisée.";
           break;
-        case 'auth/user-not-found':
-          errorMessage = 'Adresse e-mail ou mot de passe incorrect.';
+        case msg.includes("Password should be at least"):
+          errorMessage = "Le mot de passe doit contenir au moins 6 caractères.";
           break;
-        case 'auth/wrong-password':
-          errorMessage = 'Adresse e-mail ou mot de passe incorrect.';
-          break;
-        case 'auth/email-already-in-use':
-          errorMessage = 'Cette adresse e-mail est déjà utilisée.';
-          break;
-        case 'auth/weak-password':
-          errorMessage = 'Le mot de passe doit contenir au moins 6 caractères.';
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = 'Erreur réseau. Veuillez vérifier votre connexion.';
+        case code === 'auth/network-request-failed':
+          errorMessage = "Erreur réseau. Veuillez vérifier votre connexion.";
           break;
         default:
-          errorMessage = "Une erreur inattendue est survenue. Veuillez réessayer.";
-          break;
+          errorMessage = msg || errorMessage;
       }
+
       setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  // Désactive le formulaire si le chargement global de l'utilisateur est en cours
-  // ou si les instances Firebase ne sont pas encore disponibles.
-  const isDisabled = loading || loadingUser || !auth || !db; 
+  const isDisabled = loading || loadingUser;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4">
@@ -206,7 +184,9 @@ const AuthModal = ({ onClose }) => {
               disabled={isDisabled}
             />
           </div>
-          {error && <p className="text-error text-sm mt-2">{error}</p>}
+          {error && (
+            <p className="text-error text-sm mt-2">{error}</p>
+          )}
           <button
             type="submit"
             className="w-full bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg
@@ -217,21 +197,21 @@ const AuthModal = ({ onClose }) => {
           </button>
         </form>
         <div className="flex flex-col gap-3 mt-4">
-            <button
+          <button
             onClick={() => setIsLogin(!isLogin)}
             className="text-primary hover:underline text-sm"
             disabled={isDisabled}
-            >
+          >
             {isLogin ? "Pas de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
-            </button>
-            <button
+          </button>
+          <button
             onClick={onClose}
             className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg
                         transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
             disabled={isDisabled}
-            >
+          >
             Fermer
-            </button>
+          </button>
         </div>
       </div>
     </div>

@@ -17,7 +17,7 @@ const AvatarSelectionModal = ({ currentAvatar, onClose, onSave }) => {
   ];
 
   const handleSave = () => {
-    onSave(selectedAvatar); // onSave est géré par App.js pour mettre à jour Firebase et le contexte
+    onSave(selectedAvatar); // onSave est géré par App.js pour mettre à jour Supabase et le contexte
   };
 
   return (
