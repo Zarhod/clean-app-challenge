@@ -1,282 +1,239 @@
 // src/AuthModal.js
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useUser } from './UserContext';
 import { toast } from 'react-toastify';
-import { useUser } from './UserContext'; // Importe le contexte utilisateur pour accéder à Supabase
-import ImageCropperModal, { readFile, getCroppedImg } from './ImageCropperModal'; // Importe le nouveau composant de recadrage
-
-// Liste d'emojis pour la sélection d'avatar
-const emojis = [
-  '😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😆', '😇', '😈', '😉', '😊', '😋', '😎', '🤩', '🥳',
-  '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐒', '🐔',
-  '🍎', '🍊', '🍋', '🍉', '🍇', '🍓', '🍒', '🍑', '🍍', '🥭', '🥝', '🍅', '🍆', '🥑', '🥦', '🥕',
-  '⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱', '🏓', '🏸', '🏒', '🏑', '🏏', '⛳', '🏹', '🎣',
-  '🚀', '🛸', '🛰️', '🚁', '🚂', '🚄', '🚅', '🚆', '🚇', '🚈', '🚉', '🚌', '🚍', '🚎', '🚐', '🚑',
-  '🏠', '🏢', '🏫', '🏪', '🏭', '🏯', '🏰', '🗽', '🗼', '⛩️', '🗾', '🗻', '🌋', '🏞️', '🛣️', '🛤️',
-];
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 const AuthModal = ({ onClose }) => {
-  const { signIn, signUp, loadingUser, supabase } = useUser();
+  const { auth, db, setCurrentUser, loadingUser } = useUser(); // Ajout de loadingUser
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState('👤');
-  const [loading, setLoading] = useState(false);
-  const [showImageCropper, setShowImageCropper] = useState(false);
-  const [imageToCropUrl, setImageToCropUrl] = useState(null);
+  const [loading, setLoading] = useState(false); // État de chargement local pour les actions d'authentification
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (loadingUser) {
-      setLoading(true);
-    } else {
-      setLoading(false);
-    }
-  }, [loadingUser]);
+    // Réinitialiser les champs et erreurs quand la modale s'ouvre/ferme
+    setEmail('');
+    setPassword('');
+    setDisplayName('');
+    setError('');
+    setLoading(false);
+  }, [isLogin]); // Réinitialise aussi si on bascule entre login/register
 
-  const handleFileChange = async (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      try {
-        const fileDataUrl = await readFile(file);
-        setImageToCropUrl(fileDataUrl);
-        setShowImageCropper(true);
-      } catch (error) {
-        toast.error("Erreur lors de la lecture du fichier image.");
-        console.error("Error reading file:", error);
-      }
-    }
-  };
-
-  const handleCancelCrop = () => {
-    setShowImageCropper(false);
-    setImageToCropUrl(null);
-    setSelectedAvatar('👤'); // Réinitialiser l'avatar si l'utilisateur annule le recadrage
-  };
-
-  const handleCropComplete = useCallback(async (croppedImageFile) => {
-    setLoading(true);
-    try {
-      if (!croppedImageFile) {
-        throw new Error("Aucune image recadrée n'a été retournée.");
-      }
-      
-      const userId = supabase.auth.currentUser?.id;
-      if (!userId) {
-        // Cette erreur est improbable si nous sommes dans le flow d'inscription, mais c'est une bonne pratique de la gérer.
-        throw new Error("ID d'utilisateur non disponible pour le téléchargement d'image.");
-      }
-
-      // Supabase Storage path: `avatars/user_id.png`
-      const filePath = `avatars/${userId}.png`;
-      const { data, error } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, croppedImageFile, {
-          cacheControl: '3600',
-          upsert: true,
-        });
-
-      if (error) {
-        throw error;
-      }
-      
-      const publicUrl = supabase.storage.from('avatars').getPublicUrl(filePath).data.publicUrl;
-
-      setSelectedAvatar(publicUrl);
-      toast.success("Image d'avatar recadrée et prête à être utilisée !");
-    } catch (error) {
-      toast.error("Erreur lors du téléchargement de l'avatar.");
-      console.error("Error uploading avatar:", error);
-      setSelectedAvatar('👤');
-    } finally {
-      setShowImageCropper(false);
-      setImageToCropUrl(null);
-      setLoading(false);
-    }
-  }, [supabase]);
-
-  const handleSubmit = async (e) => {
+  const handleAuth = async (e) => {
     e.preventDefault();
     setLoading(true);
-    
-    if (isLogin) {
-      const { success, error } = await signIn(email, password);
-      if (!success) {
-        toast.error(`Erreur de connexion: ${error}`);
-      } else {
-        // Le toast de succès est géré dans UserContext.js
-        onClose(); 
-      }
-    } else {
-      if (!displayName || !email || !password) {
-        toast.error("Veuillez remplir tous les champs.");
-        setLoading(false);
-        return;
-      }
+    setError('');
 
-      if (password.length < 6) {
-        toast.error("Le mot de passe doit contenir au moins 6 caractères.");
-        setLoading(false);
-        return;
-      }
-
-      // La fonction signUp de UserContext gère à la fois l'auth et l'insertion dans public.users
-      const { success, error } = await signUp(email, password, displayName);
-      if (!success) {
-        toast.error(`Erreur d'inscription: ${error}`);
-      } else {
-        // Le toast de succès est géré dans UserContext.js
-        onClose(); 
-      }
+    // Vérifie que Firebase Auth et Firestore sont disponibles
+    // loadingUser doit être false, et auth/db doivent être des objets non nuls
+    if (loadingUser || !auth || !db) {
+      setError("Le service d'authentification n'est pas encore prêt. Veuillez patienter et réessayer.");
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    try {
+      if (isLogin) {
+        // Connexion
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        // Récupérer les données utilisateur de Firestore
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+
+        if (userDocSnap.exists()) {
+          const userData = userDocSnap.data();
+          setCurrentUser({
+            uid: user.uid,
+            email: user.email,
+            displayName: userData.displayName || user.displayName,
+            isAdmin: userData.isAdmin || false,
+            avatar: userData.avatar || '👤',
+            weeklyPoints: userData.weeklyPoints || 0,
+            totalCumulativePoints: userData.totalCumulativePoints || 0,
+            previousWeeklyPoints: userData.previousWeeklyPoints || 0,
+            xp: userData.xp || 0,
+            level: userData.level || 1,
+            dateJoined: userData.dateJoined || new Date().toISOString(),
+            lastReadTimestamp: userData.lastReadTimestamp || null
+          });
+          toast.success(`Bienvenue, ${userData.displayName || user.email} !`);
+          onClose();
+        } else {
+          // Si l'utilisateur existe dans Auth mais pas dans Firestore (cas rare ou premier login après migration)
+          // Créer un document utilisateur par défaut dans Firestore
+          const defaultUserData = {
+            displayName: user.displayName || email.split('@')[0],
+            isAdmin: false,
+            avatar: '👤',
+            weeklyPoints: 0,
+            totalCumulativePoints: 0,
+            previousWeeklyPoints: 0,
+            xp: 0,
+            level: 1,
+            dateJoined: new Date().toISOString(),
+            lastReadTimestamp: new Date().toISOString()
+          };
+          await setDoc(userDocRef, defaultUserData);
+          setCurrentUser({ uid: user.uid, email: user.email, ...defaultUserData });
+          toast.success(`Bienvenue, ${defaultUserData.displayName} ! Votre compte a été initialisé.`);
+          onClose();
+        }
+
+      } else {
+        // Inscription
+        if (!displayName.trim()) {
+          setError("Le nom d'affichage est requis.");
+          setLoading(false);
+          return;
+        }
+
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        await updateProfile(user, { displayName: displayName.trim() });
+
+        // Créer un document utilisateur dans Firestore
+        const userDocRef = doc(db, 'users', user.uid);
+        const newUserData = {
+          displayName: displayName.trim(),
+          email: email.trim(),
+          isAdmin: false,
+          avatar: '👤',
+          weeklyPoints: 0,
+          totalCumulativePoints: 0,
+          previousWeeklyPoints: 0,
+          xp: 0,
+          level: 1,
+          dateJoined: new Date().toISOString(),
+          lastReadTimestamp: new Date().toISOString()
+        };
+        await setDoc(userDocRef, newUserData);
+
+        setCurrentUser({ uid: user.uid, ...newUserData });
+        toast.success(`Compte créé avec succès pour ${displayName.trim()} !`);
+        onClose();
+      }
+    } catch (err) {
+      console.error("Authentication error:", err);
+      let errorMessage = "Une erreur est survenue lors de l'authentification.";
+      switch (err.code) {
+        case 'auth/invalid-email':
+          errorMessage = 'Adresse e-mail invalide.';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'Ce compte a été désactivé.';
+          break;
+        case 'auth/user-not-found':
+          errorMessage = 'Adresse e-mail ou mot de passe incorrect.';
+          break;
+        case 'auth/wrong-password':
+          errorMessage = 'Adresse e-mail ou mot de passe incorrect.';
+          break;
+        case 'auth/email-already-in-use':
+          errorMessage = 'Cette adresse e-mail est déjà utilisée.';
+          break;
+        case 'auth/weak-password':
+          errorMessage = 'Le mot de passe doit contenir au moins 6 caractères.';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Erreur réseau. Veuillez vérifier votre connexion.';
+          break;
+        default:
+          errorMessage = "Une erreur inattendue est survenue. Veuillez réessayer.";
+          break;
+      }
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-lg w-full transform transition-all duration-300 ease-in-out scale-95 md:scale-100 opacity-0 animate-fade-in-up">
-        <h2 className="text-3xl font-bold text-center text-gray-900 mb-6">{isLogin ? 'Se connecter' : 'S\'inscrire'}</h2>
+  // Désactive le formulaire si le chargement global de l'utilisateur est en cours
+  // ou si les instances Firebase ne sont pas encore disponibles.
+  const isDisabled = loading || loadingUser || !auth || !db; 
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4">
+      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-sm text-center animate-fade-in-scale border border-primary/20 mx-auto">
+        <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-6">
+          {isLogin ? 'Connexion' : 'Inscription'}
+        </h2>
+        <form onSubmit={handleAuth} className="space-y-4">
           {!isLogin && (
             <div>
-              <label htmlFor="displayName" className="block text-sm font-medium text-gray-700">Nom d'affichage</label>
+              <label htmlFor="displayName" className="block text-text text-left font-medium mb-1 text-sm">Nom d'affichage</label>
               <input
                 type="text"
                 id="displayName"
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                placeholder="Votre nom ou pseudo"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary focus:border-primary text-base"
-                placeholder="Votre nom"
-                disabled={loading}
                 required={!isLogin}
+                disabled={isDisabled}
               />
             </div>
           )}
-
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Adresse Email</label>
+            <label htmlFor="email" className="block text-text text-left font-medium mb-1 text-sm">Email</label>
             <input
               type="email"
               id="email"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              placeholder="votre.email@exemple.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary focus:border-primary text-base"
-              placeholder="votre.email@example.com"
-              disabled={loading}
               required
+              disabled={isDisabled}
             />
           </div>
-
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Mot de Passe</label>
+            <label htmlFor="password" className="block text-text text-left font-medium mb-1 text-sm">Mot de passe</label>
             <input
               type="password"
               id="password"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              placeholder="Minimum 6 caractères"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-primary focus:border-primary text-base"
-              placeholder="Minimum 6 caractères"
-              disabled={loading}
               required
+              disabled={isDisabled}
             />
           </div>
-          
-          {!isLogin && (
-            <div className="pt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Avatar</label>
-              <div className="flex items-center space-x-4">
-                {/* Section Emojis */}
-                <div className="flex-1 overflow-x-auto whitespace-nowrap p-2 bg-gray-100 rounded-xl flex items-center space-x-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                  {emojis.map(emoji => (
-                    <span
-                      key={emoji}
-                      onClick={() => {
-                        setSelectedAvatar(emoji);
-                        const fileInput = document.getElementById('avatar-upload');
-                        if (fileInput) fileInput.value = ''; // Réinitialiser l'input fichier
-                      }}
-                      className={`text-2xl cursor-pointer p-1 rounded-full hover:bg-gray-200 transition-colors duration-200 
-                                  ${selectedAvatar === emoji ? 'ring-2 ring-primary bg-gray-200' : ''}`}
-                    >
-                      {emoji}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Séparateur */}
-                <div className="h-10 w-px bg-gray-300"></div>
-
-                {/* Section Upload */}
-                <div className="flex-shrink-0">
-                  <label htmlFor="avatar-upload" className="cursor-pointer">
-                    <span className="inline-flex items-center justify-center p-2 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 transition-colors duration-200">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-4l-4 4m0 0l4 4m0-4h4m-4-4v8m-4-4h4" />
-                      </svg>
-                    </span>
-                  </label>
-                  <input
-                    id="avatar-upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                    disabled={loading}
-                  />
-                </div>
-              </div>
-              <div className="mt-4 flex justify-center items-center">
-                <span className="text-5xl border-4 border-dashed border-gray-300 rounded-full w-24 h-24 flex items-center justify-center">
-                  {selectedAvatar.includes('http') ? (
-                    <img src={selectedAvatar} alt="Avatar" className="w-full h-full object-cover rounded-full" />
-                  ) : (
-                    selectedAvatar
-                  )}
-                </span>
-              </div>
-            </div>
-          )}
-
-          <div className="pt-4 space-y-3">
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary hover:bg-secondary text-white font-semibold py-3 px-4 rounded-full shadow-md 
-                       transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-base"
-            >
-              {loading ? 'Chargement...' : (isLogin ? 'Se connecter' : 'S\'inscrire')}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              disabled={loading}
-              className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-4 rounded-full shadow-md 
-                       transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-base"
-            >
-              {isLogin ? 'Pas de compte ? S\'inscrire' : 'Déjà un compte ? Se connecter'}
-            </button>
-          </div>
+          {error && <p className="text-error text-sm mt-2">{error}</p>}
+          <button
+            type="submit"
+            className="w-full bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                       transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+            disabled={isDisabled}
+          >
+            {loading ? 'Chargement...' : (isLogin ? 'Se connecter' : "S'inscrire")}
+          </button>
         </form>
-
-        <button
-          onClick={onClose}
-          disabled={loading}
-          className="mt-4 w-full bg-transparent hover:bg-gray-100 text-gray-600 font-semibold py-2 px-4 rounded-full 
-                     transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-        >
-          Annuler
-        </button>
+        <div className="flex flex-col gap-3 mt-4">
+            <button
+            onClick={() => setIsLogin(!isLogin)}
+            className="text-primary hover:underline text-sm"
+            disabled={isDisabled}
+            >
+            {isLogin ? "Pas de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
+            </button>
+            <button
+            onClick={onClose}
+            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                        transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
+            disabled={isDisabled}
+            >
+            Fermer
+            </button>
+        </div>
       </div>
-
-      {showImageCropper && imageToCropUrl && (
-        <ImageCropperModal
-          imageSrc={imageToCropUrl}
-          onClose={handleCancelCrop}
-          onCropComplete={handleCropComplete}
-        />
-      )}
     </div>
   );
 };

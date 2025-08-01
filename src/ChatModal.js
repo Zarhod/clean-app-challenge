@@ -1,187 +1,155 @@
 // src/ChatModal.js
-// Modale de chat en temps réel, mise à jour pour utiliser Supabase.
-
-import React, { useState, useEffect, useRef } from 'react'; // useCallback retiré
+import React, { useState, useEffect, useRef } from 'react';
+import { useUser } from './UserContext';
+import { collection, query, orderBy, addDoc, onSnapshot, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
-import { useUser } from './UserContext'; // Pour accéder à supabase et currentUser
 
 const ChatModal = ({ onClose }) => {
-  const { currentUser, supabase } = useUser();
+  const { currentUser, db, setCurrentUser } = useUser();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const messagesEndRef = useRef(null);
+  const messagesEndRef = useRef(null); // Pour le défilement automatique
 
-  // Fonction pour faire défiler vers le bas
+  // Fonction pour faire défiler vers le bas des messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Écoute les messages du chat en temps réel via Supabase
+  // Marque tous les messages comme lus lorsque le chat est ouvert
   useEffect(() => {
-    if (!supabase) return;
-
-    // Fonction de récupération initiale et de mise en place du listener
-    const setupChatListener = async () => {
-      setLoading(true);
-      try {
-        // Récupération des messages existants
-        const { data, error } = await supabase
-          .from('chat_messages')
-          .select('*')
-          .order('timestamp', { ascending: true })
-          .limit(100); // Limite le nombre de messages pour éviter des chargements trop lourds
-
-        if (error) throw error;
-
-        const mappedMessages = data.map(msg => ({
-          id: msg.id,
-          userId: msg.user_id,
-          userName: msg.user_name,
-          userAvatar: msg.user_avatar,
-          messageText: msg.message_text,
-          timestamp: msg.timestamp,
-        }));
-        setMessages(mappedMessages);
-        
-      } catch (err) {
-        console.error("Erreur lors du chargement des messages du chat Supabase:", err);
-        toast.error("Erreur lors du chargement des messages du chat.");
-      } finally {
-        setLoading(false);
-      }
-
-      // S'abonne aux nouveaux messages via Realtime
-      const channel = supabase
-        .channel('public:chat_messages')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, payload => {
-          const newMsg = payload.new;
-          setMessages(prevMessages => [...prevMessages, {
-            id: newMsg.id,
-            userId: newMsg.user_id,
-            userName: newMsg.user_name,
-            userAvatar: newMsg.user_avatar,
-            messageText: newMsg.message_text,
-            timestamp: newMsg.timestamp,
-          }]);
+    if (currentUser && db) {
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      const now = new Date().toISOString();
+      // Met à jour le timestamp de dernière lecture de l'utilisateur
+      updateDoc(userDocRef, { lastReadTimestamp: now })
+        .then(() => {
+          // Met à jour le currentUser dans le contexte après la mise à jour Firestore
+          setCurrentUser(prevUser => ({ ...prevUser, lastReadTimestamp: now }));
         })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    };
-
-    setupChatListener();
-
-  }, [supabase]);
-
-  // Fait défiler vers le bas à chaque nouveau message
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !currentUser) return;
-
-    setLoading(true);
-    try {
-      const { error } = await supabase
-        .from('chat_messages')
-        .insert({
-          user_id: currentUser.uid,
-          user_name: currentUser.displayName || currentUser.email,
-          user_avatar: currentUser.avatar || '👤',
-          message_text: newMessage.trim(),
-          timestamp: new Date().toISOString(),
+        .catch(error => {
+          console.error("Erreur lors de la mise à jour du timestamp de lecture:", error);
+          // toast.error("Erreur lors de la mise à jour du statut de lecture."); // Éviter de spammer les toasts
         });
+    }
+  }, [currentUser, db, setCurrentUser]); // Dépendances pour s'assurer que l'effet se déclenche quand l'utilisateur ou la base de données sont prêts
 
-      if (error) throw error;
+  useEffect(() => {
+    if (!db) return;
 
-      setNewMessage('');
-    } catch (error) {
-      console.error("Erreur lors de l'envoi du message Supabase:", error);
-      toast.error("Erreur lors de l'envoi du message.");
-    } finally {
+    // Requête pour obtenir les messages, triés par timestamp ascendant
+    const q = query(collection(db, 'chat_messages'), orderBy('timestamp', 'asc'));
+    
+    // Écouteur en temps réel pour les messages
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMessages(fetchedMessages);
       setLoading(false);
+      // Défilement vers le bas après le chargement/mise à jour des messages
+      // Utiliser un timeout pour s'assurer que le DOM est mis à jour
+      setTimeout(scrollToBottom, 100);
+    }, (error) => {
+      console.error("Erreur lors du chargement des messages du chat:", error);
+      toast.error("Erreur lors du chargement des messages du chat.");
+      setLoading(false);
+    });
+
+    // Nettoyage de l'écouteur lors du démontage du composant
+    return () => unsubscribe();
+  }, [db]); // Dépendance à 'db' pour re-configurer l'écouteur si 'db' change
+
+  // Gère l'envoi d'un nouveau message
+  const handleSendMessage = async (e) => {
+    e.preventDefault(); // Empêche le rechargement de la page
+    if (newMessage.trim() === '' || !currentUser || !db) return; // Ne rien faire si le message est vide ou l'utilisateur n'est pas connecté
+
+    const messageToSend = newMessage.trim();
+    setNewMessage(''); // Efface l'entrée immédiatement pour une meilleure expérience utilisateur
+
+    try {
+      await addDoc(collection(db, 'chat_messages'), {
+        senderId: currentUser.uid,
+        senderName: currentUser.displayName || currentUser.email,
+        senderAvatar: currentUser.avatar || '👤',
+        messageText: messageToSend,
+        timestamp: serverTimestamp(), // Utilise le timestamp du serveur pour la cohérence
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'envoi du message:", error);
+      toast.error("Erreur lors de l'envoi du message.");
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4">
-      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-lg h-[90vh] flex flex-col animate-fade-in-scale border border-primary/20 mx-auto">
-        <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-4 text-center">
-          Chat Communautaire
-        </h2>
+      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-lg h-[90vh] flex flex-col animate-fade-in-scale border border-primary/20 mx-auto relative">
+        <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-4 text-center">Chat Communautaire</h2>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 bg-neutralBg rounded-lg mb-4 space-y-3">
+        {/* Zone d'affichage des messages */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 mb-4 space-y-4 bg-neutralBg rounded-xl shadow-inner">
           {loading ? (
             <div className="flex justify-center items-center h-full">
               <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
               <p className="ml-3 text-lightText">Chargement des messages...</p>
             </div>
-          ) : messages.length === 0 ? (
-            <p className="text-center text-lightText">Aucun message pour le moment. Soyez le premier !</p>
           ) : (
-            messages.map((msg, index) => (
-              <div
-                key={msg.id || index}
-                className={`flex items-start gap-3 ${msg.userId === currentUser.uid ? 'justify-end' : 'justify-start'}`}
-              >
-                {msg.userId !== currentUser.uid && (
-                  <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-xl flex-shrink-0 overflow-hidden">
-                    {msg.userAvatar && msg.userAvatar.startsWith('http') ? (
-                        <img src={msg.userAvatar} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                        <span>{msg.userAvatar || '👤'}</span>
+            messages.length === 0 ? (
+              <p className="text-center text-lightText text-md mt-4">Soyez le premier à envoyer un message !</p>
+            ) : (
+              messages.map((msg, index) => {
+                const isMyMessage = msg.senderId === currentUser?.uid;
+                // Convertit le timestamp Firestore en objet Date si disponible, sinon utilise une chaîne de chargement
+                const messageTime = msg.timestamp?.toDate ? msg.timestamp.toDate().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'Chargement...';
+
+                return (
+                  <div 
+                    key={msg.id || index} 
+                    className={`flex items-end gap-2 ${isMyMessage ? 'justify-end' : 'justify-start'} animate-fade-in-up`}
+                  >
+                    {/* Avatar de l'expéditeur (pour les messages des autres) */}
+                    {!isMyMessage && (
+                      <span className="text-3xl flex-shrink-0">{msg.senderAvatar || '👤'}</span>
+                    )}
+                    {/* Bulle de message */}
+                    <div className={`flex flex-col max-w-[75%] p-3 rounded-xl shadow-md 
+                                     ${isMyMessage ? 'bg-primary text-white rounded-br-none' : 'bg-white text-text rounded-bl-none'}`}>
+                      <span className={`text-xs font-semibold mb-1 ${isMyMessage ? 'text-white/80' : 'text-primary'}`}>
+                        {msg.senderName}
+                      </span>
+                      <p className="text-sm break-words">
+                        {msg.messageText}
+                      </p>
+                      <span className={`text-xs mt-1 self-end ${isMyMessage ? 'text-white/60' : 'text-gray-500'}`}>
+                        {messageTime}
+                      </span>
+                    </div>
+                    {/* Avatar de l'expéditeur (pour mes propres messages) */}
+                    {isMyMessage && (
+                      <span className="text-3xl flex-shrink-0">{msg.senderAvatar || '👤'}</span>
                     )}
                   </div>
-                )}
-                <div
-                  className={`p-3 rounded-xl max-w-[80%] ${
-                    msg.userId === currentUser.uid
-                      ? 'bg-primary text-white rounded-br-none'
-                      : 'bg-accent text-text rounded-bl-none'
-                  }`}
-                >
-                  <p className="font-semibold text-sm mb-1">
-                    {msg.userId === currentUser.uid ? 'Vous' : msg.userName}
-                  </p>
-                  <p className="text-sm break-words">{msg.messageText}</p>
-                  <span className="text-xs opacity-75 block mt-1">
-                    {new Date(msg.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-                {msg.userId === currentUser.uid && (
-                  <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-xl flex-shrink-0 overflow-hidden">
-                    {msg.userAvatar && msg.userAvatar.startsWith('http') ? (
-                        <img src={msg.userAvatar} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                        <span>{msg.userAvatar || '👤'}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))
+                );
+              })
+            )
           )}
-          <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} /> {/* Élément factice pour le défilement automatique */}
         </div>
 
+        {/* Zone de saisie de message */}
         <form onSubmit={handleSendMessage} className="flex gap-2">
-          <input
-            type="text"
+          <textarea
+            className="flex-1 p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm resize-none custom-scrollbar"
+            rows="2"
+            placeholder="Écrivez votre message..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Écrivez votre message..."
-            className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            disabled={loading}
-          />
+            disabled={loading || !currentUser}
+          ></textarea>
           <button
             type="submit"
-            disabled={loading || !newMessage.trim()}
-            className="bg-primary hover:bg-secondary text-white font-semibold py-3 px-4 rounded-lg shadow-md 
-                       transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+            className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-xl shadow-lg
+                       transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm flex-shrink-0"
+            disabled={loading || newMessage.trim() === '' || !currentUser}
           >
             Envoyer
           </button>
@@ -189,10 +157,10 @@ const ChatModal = ({ onClose }) => {
 
         <button
           onClick={onClose}
-          className="mt-4 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-full shadow-md 
-                     transition duration-300 ease-in-out transform hover:scale-105 text-sm w-full"
+          className="mt-6 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm self-center"
         >
-          Fermer
+          Fermer le Chat
         </button>
       </div>
     </div>

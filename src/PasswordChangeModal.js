@@ -1,124 +1,112 @@
 // src/PasswordChangeModal.js
-// Ce composant permet à l'utilisateur de changer son mot de passe via Supabase Auth.
-
 import React, { useState } from 'react';
+import { getAuth, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { toast } from 'react-toastify';
-import { useUser } from './UserContext'; // Importe le contexte utilisateur pour accéder à Supabase
+import ListAndInfoModal from './ListAndInfoModal'; // Assuming this is a generic modal component
 
 const PasswordChangeModal = ({ onClose, currentUser }) => {
-  const { supabase } = useUser();
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const handleChangePassword = async () => {
-    if (!newPassword || !confirmPassword) {
-      toast.error("Veuillez remplir tous les champs.");
+  const auth = getAuth(); // Get auth instance
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmNewPassword) {
+      toast.error("Les nouveaux mots de passe ne correspondent pas.");
       return;
     }
-    if (newPassword !== confirmPassword) {
-      toast.error("Les mots de passe ne correspondent pas.");
-      return;
-    }
-    if (newPassword.length < 6) { // Supabase par défaut requiert 6 caractères minimum
+    if (newPassword.length < 6) {
       toast.error("Le nouveau mot de passe doit contenir au moins 6 caractères.");
       return;
     }
 
     setLoading(true);
     try {
-      // Supabase n'a pas de méthode pour "réauthentifier" avec l'ancien mot de passe côté client
-      // La méthode `updateUser` est utilisée pour changer le mot de passe de l'utilisateur actuellement connecté.
-      const { error } = await supabase.auth.updateUser({ // data retiré
-        password: newPassword,
-      });
+      const user = auth.currentUser;
+      if (!user) {
+        toast.error("Aucun utilisateur connecté.");
+        setLoading(false);
+        return;
+      }
 
-      if (error) throw error;
+      // Re-authenticate user
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
 
+      // Update password
+      await updatePassword(user, newPassword);
       toast.success("Mot de passe mis à jour avec succès !");
       onClose();
     } catch (error) {
-      console.error("Erreur lors du changement de mot de passe Supabase:", error);
-      let errorMessage = "Erreur lors de la mise à jour du mot de passe.";
-      if (error.message.includes("Password should be at least 6 characters")) {
-        errorMessage = "Le nouveau mot de passe doit contenir au moins 6 caractères.";
+      console.error("Erreur de mise à jour du mot de passe:", error);
+      if (error.code === 'auth/wrong-password') {
+        toast.error("Mot de passe actuel incorrect.");
+      } else if (error.code === 'auth/requires-recent-login') {
+        toast.error("Veuillez vous reconnecter pour changer votre mot de passe.");
+        // Optionally, force logout here to make them re-login
+      } else {
+        toast.error(`Erreur: ${error.message}`);
       }
-      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4">
-      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-sm text-center animate-fade-in-scale border border-primary/20 mx-auto">
-        <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-6">
-          Changer le Mot de Passe
-        </h2>
-
-        <div className="space-y-4 mb-6">
-          <div className="relative">
-            <label htmlFor="newPassword" className="block text-text text-left font-medium mb-2 text-sm">Nouveau Mot de Passe</label>
-            <input
-              id="newPassword"
-              type={showNewPassword ? 'text' : 'password'}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Nouveau mot de passe"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm pr-10"
-              required
-            />
-            <button
-              type="button"
-              onClick={() => setShowNewPassword(!showNewPassword)}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5 mt-7"
-            >
-              {showNewPassword ? '🙈' : '👁️'}
-            </button>
-          </div>
-          <div className="relative">
-            <label htmlFor="confirmPassword" className="block text-text text-left font-medium mb-2 text-sm">Confirmer le Nouveau Mot de Passe</label>
-            <input
-              id="confirmPassword"
-              type={showConfirmPassword ? 'text' : 'password'}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirmer le mot de passe"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm pr-10"
-              required
-            />
-            <button
-              type="button"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5 mt-7"
-            >
-              {showConfirmPassword ? '🙈' : '👁️'}
-            </button>
-          </div>
+    <ListAndInfoModal title="Changer le Mot de Passe" onClose={onClose} sizeClass="max-w-xs sm:max-w-md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Mot de passe actuel</label>
+          <input
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2"
+            required
+          />
         </div>
-
-        <div className="flex flex-col sm:flex-row justify-center gap-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Nouveau mot de passe</label>
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Confirmer le nouveau mot de passe</label>
+          <input
+            type="password"
+            value={confirmNewPassword}
+            onChange={(e) => setConfirmNewPassword(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2"
+            required
+          />
+        </div>
+        <div className="flex justify-end gap-3">
           <button
-            onClick={handleChangePassword}
-            disabled={loading}
-            className="w-full sm:w-auto bg-primary hover:bg-secondary text-white font-semibold py-3 px-4 rounded-full shadow-lg 
-                       transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-base"
-          >
-            {loading ? 'Mise à jour...' : 'Changer le Mot de Passe'}
-          </button>
-          <button
+            type="button"
             onClick={onClose}
+            className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300"
             disabled={loading}
-            className="w-full sm:w-auto bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-4 rounded-full shadow-md 
-                       transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-base"
           >
             Annuler
           </button>
+          <button
+            type="submit"
+            className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50"
+            disabled={loading}
+          >
+            {loading ? 'Mise à jour...' : 'Changer le mot de passe'}
+          </button>
         </div>
-      </div>
-    </div>
+      </form>
+    </ListAndInfoModal>
   );
 };
 

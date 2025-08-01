@@ -6,7 +6,7 @@ import React from 'react';
  * @param {function} onFormChange - Fonction de rappel pour gérer les changements dans le formulaire.
  * @param {function} onSubmit - Fonction de rappel pour soumettre le formulaire (ajouter/modifier).
  * @param {function} onClose - Fonction de rappel pour fermer le modal.
- * @param {boolean} loading - Indique si une opération est en cours (pour désactiver les boutons).
+ * @param {boolean} loading - Indique si une opération est en cours (pour désactiver les boutons).\
  * @param {Object|null} editingObjective - L'objectif en cours d'édition, null si c'est un nouvel objectif.
  */
 function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClose, loading, editingObjective }) {
@@ -18,114 +18,97 @@ function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClos
         </h3>
         <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }} className="space-y-3"> 
           <div>
-            <label htmlFor="ID_Objectif" className="block text-sm font-medium text-text text-left mb-0.5">ID Objectif</label>
+            <label htmlFor="ID_Objectif" className="block text-text text-sm font-medium mb-1 text-left">ID Objectif (Unique):</label>
             <input
-              id="ID_Objectif"
               type="text"
               name="ID_Objectif"
               value={objectiveData.ID_Objectif}
               onChange={onFormChange}
               placeholder="Ex: OBJ001"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" 
+              disabled={!!editingObjective} 
               required
-              disabled={editingObjective ? true : false} 
             />
           </div>
           <div>
-            <label htmlFor="Nom_Objectif" className="block text-sm font-medium text-text text-left mb-0.5">Nom de l'Objectif</label>
+            <label htmlFor="Nom_Objectif" className="block text-text text-sm font-medium mb-1 text-left">Nom de l'Objectif:</label>
             <input
-              id="Nom_Objectif"
               type="text"
               name="Nom_Objectif"
               value={objectiveData.Nom_Objectif}
               onChange={onFormChange}
-              placeholder="Ex: Réduire les déchets plastiques"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              placeholder="Ex: Atteindre 1000 points"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" 
               required
             />
           </div>
           <div>
-            <label htmlFor="Description" className="block text-sm font-medium text-text text-left mb-0.5">Description</label>
+            <label htmlFor="Description_Objectif" className="block text-text text-sm font-medium mb-1 text-left">Description:</label>
             <textarea
-              id="Description"
-              name="Description"
-              value={objectiveData.Description}
+              name="Description_Objectif"
+              value={objectiveData.Description_Objectif}
               onChange={onFormChange}
-              placeholder="Détaillez l'objectif à atteindre..."
-              rows="3"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm resize-y custom-scrollbar"
-              required
+              placeholder="Détails de l'objectif..."
+              rows="2" 
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" 
             ></textarea>
           </div>
           <div>
-            <label htmlFor="Points_Objectif" className="block text-sm font-medium text-text text-left mb-0.5">Points de l'Objectif</label>
+            <label htmlFor="Cible_Points" className="block text-text text-sm font-medium mb-1 text-left">Points Cible:</label>
             <input
-              id="Points_Objectif"
               type="number"
-              name="Points_Objectif"
-              value={objectiveData.Points_Objectif}
+              name="Cible_Points"
+              value={objectiveData.Cible_Points}
               onChange={onFormChange}
-              placeholder="Ex: 500"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+              placeholder="Ex: 1000"
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" 
               required
             />
           </div>
           <div>
-            <label htmlFor="Date_Debut" className="block text-sm font-medium text-text text-left mb-0.5">Date de Début</label>
-            <input
-              id="Date_Debut"
-              type="date"
-              name="Date_Debut"
-              value={objectiveData.Date_Debut}
+            <label htmlFor="Type_Cible" className="block text-text text-sm font-medium mb-1 text-left">Type de Cible:</label>
+            <select
+              name="Type_Cible"
+              value={objectiveData.Type_Cible}
               onChange={onFormChange}
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-              required
-            />
+              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" 
+            >
+              <option value="Cumulatif">Points Cumulatifs</option>
+              <option value="Par_Categorie">Par Catégorie de Tâche</option>
+            </select>
           </div>
-          <div>
-            <label htmlFor="Date_Fin" className="block text-sm font-medium text-text text-left mb-0.5">Date de Fin</label>
-            <input
-              id="Date_Fin"
-              type="date"
-              name="Date_Fin"
-              value={objectiveData.Date_Fin}
-              onChange={onFormChange}
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-              required
-            />
-          </div>
-          {editingObjective && (
+          {objectiveData.Type_Cible === 'Par_Categorie' && (
+            <div>
+              <label htmlFor="Categorie_Cible" className="block text-text text-sm font-medium mb-1 text-left">Catégorie Cible:</label>
+              <input
+                type="text"
+                name="Categorie_Cible"
+                value={objectiveData.Categorie_Cible}
+                onChange={onFormChange}
+                placeholder="Ex: Cuisine, Salle"
+                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" 
+                required={objectiveData.Type_Cible === 'Par_Categorie'}
+              />
+            </div>
+          )}
+
+          {editingObjective && ( 
             <>
               <div>
-                <label htmlFor="Progress_Current" className="block text-sm font-medium text-text text-left mb-0.5">Progression Actuelle</label>
+                <label htmlFor="Points_Actuels" className="block text-text text-sm font-medium mb-1 text-left">Points Actuels:</label>
                 <input
-                  id="Progress_Current"
                   type="number"
-                  name="Progress_Current"
-                  value={objectiveData.Progress_Current}
+                  name="Points_Actuels"
+                  value={objectiveData.Points_Actuels}
                   onChange={onFormChange}
-                  placeholder="Ex: 250"
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  required
+                  placeholder="Points actuels"
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" 
                 />
               </div>
-              <div>
-                <label htmlFor="Progress_Target" className="block text-sm font-medium text-text text-left mb-0.5">Cible de Progression</label>
+              <div className="flex items-center">
                 <input
-                  id="Progress_Target"
-                  type="number"
-                  name="Progress_Target"
-                  value={objectiveData.Progress_Target}
-                  onChange={onFormChange}
-                  placeholder="Ex: 500"
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  required
-                />
-              </div>
-              <div className="flex items-center justify-start mt-2">
-                <input
-                  id="Est_Atteint"
                   type="checkbox"
+                  id="Est_Atteint"
                   name="Est_Atteint"
                   checked={objectiveData.Est_Atteint === true || String(objectiveData.Est_Atteint).toLowerCase() === 'true'}
                   onChange={(e) => onFormChange({ target: { name: 'Est_Atteint', value: e.target.checked } })}

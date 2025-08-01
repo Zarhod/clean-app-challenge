@@ -1,263 +1,193 @@
+/* global __initial_auth_token */
 // src/UserContext.js
-// Ce fichier gère l'initialisation du client Supabase, l'authentification de l'utilisateur
-// et la gestion de son état global (currentUser, isAdmin, loadingUser).
-// Il assure qu'une seule instance de Supabase est créée et partagée.
+// Ce fichier est le SEUL responsable de l'initialisation de l'application Firebase
+// et de la gestion de l'état d'authentification de l'utilisateur.
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { toast } from 'react-toastify';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
-// Récupération des variables d'environnement Supabase.
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Erreur de configuration Supabase: REACT_APP_SUPABASE_URL ou REACT_APP_SUPABASE_ANON_KEY est manquant. Vérifiez votre fichier .env.");
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Importe la configuration Firebase depuis le fichier firebase.js
+// Ce fichier (./firebase) ne fait que fournir l'objet de configuration.
+import { firebaseConfig } from './firebase';
 
 const UserContext = createContext();
+
+// Variables pour stocker les instances Firebase
+// Elles seront initialisées une seule fois au niveau du module.
+let firebaseAppInstance = null;
+let firestoreDbInstance = null;
+let firebaseAuthInstance = null;
+let firebaseInitializationError = null; // Variable pour stocker l'erreur d'initialisation
+
+try {
+  // Vérifie si la configuration Firebase est valide avant d'initialiser
+  if (!firebaseConfig.projectId || !firebaseConfig.apiKey || !firebaseConfig.authDomain) {
+    firebaseInitializationError = new Error(
+      "CRITIQUE : La configuration Firebase est incomplète. " +
+      "Veuillez vous assurer que les secrets Cloudflare Pages (REACT_APP_FIREBASE_...) sont correctement définis " +
+      "pour construire la variable globale '__firebase_config' ou que les placeholders dans firebase.js sont remplis."
+    );
+    console.error(firebaseInitializationError.message);
+  } else {
+    // Procède à l'initialisation UNIQUEMENT si la configuration est valide
+    if (!getApps().length) { // Vérifie si aucune application Firebase n'a été initialisée
+      firebaseAppInstance = initializeApp(firebaseConfig);
+    } else {
+      firebaseAppInstance = getApp(); // Utilise l'application déjà initialisée
+    }
+    firestoreDbInstance = getFirestore(firebaseAppInstance);
+    firebaseAuthInstance = getAuth(firebaseAppInstance);
+    console.log("Firebase initialisé avec succès via UserContext.");
+  }
+
+} catch (error) {
+  firebaseInitializationError = new Error(`Erreur critique lors de l'initialisation de l'application Firebase : ${error.message}`);
+  console.error(firebaseInitializationError.message, error);
+  // S'assure que les instances sont nulles si une erreur se produit pendant cette étape critique
+  firebaseAppInstance = null;
+  firestoreDbInstance = null;
+  firebaseAuthInstance = null;
+}
+
+export const useUser = () => useContext(UserContext);
 
 export const UserProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
 
-  const unsubscribeRefs = useRef({});
-
-  const updateUserDataInDb = useCallback(async (userId, dataToUpdate) => {
-    try {
-      const { error } = await supabase.from('users').update(dataToUpdate).eq('id', userId);
-      if (error) {
-        console.error("UserContext: Erreur lors de la mise à jour des données utilisateur dans public.users (updateUserDataInDb):", error.message);
-      }
-    } catch (error) {
-      console.error("UserContext: Erreur inattendue lors de la mise à jour des données utilisateur (updateUserDataInDb):", error);
-    }
-  }, []);
-
-  const signIn = useCallback(async (email, password) => {
-    setLoadingUser(true);
-    console.log("UserContext: Attempting signIn...");
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        console.error("UserContext: signIn error:", error.message);
-        throw error;
-      }
-      console.log("UserContext: signIn successful, user:", data.user);
-      return { success: true, user: data.user };
-    } catch (error) {
-      console.error("UserContext: Erreur de connexion (catch):", error.message);
-      return { success: false, error: error.message };
-    } finally {
-      setLoadingUser(false);
-      console.log("UserContext: signIn process finished.");
-    }
-  }, []);
-
-  const signUp = useCallback(async (email, password, displayName) => {
-    setLoadingUser(true);
-    console.log("UserContext: DÉBOGAGE: Début de la fonction signUp.");
-    try {
-      console.log("UserContext: DÉBOGAGE: Appel à supabase.auth.signUp...");
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            display_name: displayName,
-            avatar_url: '👤'
-          }
-        }
-      });
-      console.log("UserContext: DÉBOGAGE: Réponse de supabase.auth.signUp reçue. Erreur:", error, "Données:", data);
-
-      if (error) {
-        console.error("UserContext: Erreur lors de l'inscription dans auth.users:", error.message);
-        throw error;
-      }
-
-      // Supabase 2.x ne crée pas automatiquement le user dans la table public.users
-      // Nous devons le faire manuellement ici.
-      if (data.user) {
-        console.log("UserContext: DÉBOGAGE: Utilisateur créé dans auth.users. Tentative d'insertion dans public.users avec l'ID:", data.user.id);
-        const { error: insertError } = await supabase.from('users').insert({
-          id: data.user.id,
-          email: data.user.email,
-          display_name: displayName,
-          avatar: '👤',
-          points: 0,
-          is_admin: false,
-          last_login: new Date().toISOString()
-        });
-        console.log("UserContext: DÉBOGAGE: Réponse de l'insertion dans public.users reçue. Erreur:", insertError);
-
-        if (insertError) {
-          console.error("UserContext: Erreur lors de l'insertion du nouvel utilisateur dans public.users (signUp):", insertError.message);
-          await supabase.auth.signOut();
-          return { success: false, error: "Impossible de créer le profil utilisateur." };
-        }
-        console.log("UserContext: DÉBOGAGE: Utilisateur inséré dans public.users avec succès.");
-      } else {
-        console.warn("UserContext: DÉBOGAGE: Pas de données utilisateur après l'inscription. L'email de confirmation a-t-il été envoyé ?");
-      }
-
-      console.log("UserContext: DÉBOGAGE: Le processus d'inscription est terminé avec succès.");
-      return { success: true, user: data.user };
-    } catch (error) {
-      console.error("UserContext: DÉBOGAGE: Erreur d'inscription (catch):", error.message);
-      return { success: false, error: error.message };
-    } finally {
-      setLoadingUser(false);
-      console.log("UserContext: DÉBOGAGE: Fin de la fonction signUp.");
-    }
-  }, []);
-
-  const signOut = useCallback(async () => {
-    setLoadingUser(true);
-    console.log("UserContext: Attempting signOut...");
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error("UserContext: signOut error:", error.message);
-        throw error;
-      }
-      setCurrentUser(null);
-      setIsAdmin(false);
-      Object.values(unsubscribeRefs.current).forEach(unsub => {
-        if (typeof unsub === 'function') {
-          unsub();
-        }
-      });
-      unsubscribeRefs.current = {};
-      console.log("UserContext: signOut successful.");
-    } catch (error) {
-      console.error("UserContext: Erreur de déconnexion (catch):", error.message);
-    } finally {
-      setLoadingUser(false);
-      console.log("UserContext: signOut process finished.");
-    }
-  }, []);
+  // Utilise directement les instances au niveau du module. Elles sont garanties d'être les mêmes
+  // entre les rendus et ne causeront pas de problèmes de réinitialisation.
+  const db = firestoreDbInstance;
+  const auth = firebaseAuthInstance;
 
   useEffect(() => {
-    console.log("UserContext: useEffect for onAuthStateChange triggered.");
-    setLoadingUser(true);
+    // Si Firebase n'a pas pu être initialisé au niveau du module, gère cela ici
+    if (firebaseInitializationError) {
+      console.error("Impossible de procéder à l'authentification :", firebaseInitializationError.message);
+      setLoadingUser(false);
+      return;
+    }
 
-    const authListener = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("UserContext: onAuthStateChange event:", event, "session:", session);
+    // Si les instances Firebase ne sont pas disponibles (en raison d'une erreur de configuration), arrête le chargement et retourne
+    if (!auth || !db) {
+      console.error("Firebase instances sont nulles. Impossible de procéder à l'authentification.");
+      setLoadingUser(false);
+      return;
+    }
 
-      if (session) {
-        const user = session.user;
-        console.log("UserContext: User session found, user ID:", user.id);
+    const setupAuthAndUser = async () => {
+      try {
+        const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        console.log("UserContext: Attempting to fetch user data from public.users for user ID:", user.id);
-        let userData = null;
-        let userError = null;
-        try {
-          const result = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', user.id)
-            .limit(1);
-
-          userData = result.data ? result.data[0] : null;
-          userError = result.error;
-          console.log("UserContext: Finished fetching user data from public.users. Result:", result);
-        } catch (e) {
-          console.error("UserContext: Exception during user data fetch from public.users:", e);
-          userError = e;
+        if (token) {
+          await signInWithCustomToken(auth, token);
+        } else {
+          await signInAnonymously(auth);
         }
 
-        // CORRECTION CLÉ: La condition vérifie si le profil n'existe pas,
-        // même s'il n'y a pas d'erreur de requête.
-        if (userError || !userData) {
-          console.warn("UserContext: Authenticated user not found in public.users. Attempting to create profile.");
-          const { error: insertError } = await supabase.from('users').insert({
-            id: user.id,
-            email: user.email,
-            display_name: user.user_metadata?.display_name || user.email.split('@')[0],
-            avatar: user.user_metadata?.avatar_url || '👤',
-            points: 0,
-            is_admin: false,
-            last_login: new Date().toISOString()
-          });
-          if (insertError) {
-            console.error("UserContext: Erreur lors de la création du profil pour un nouvel utilisateur dans public.users:", insertError.message);
-            await supabase.auth.signOut();
+        const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+          if (user) {
+            const userDocRef = doc(db, 'users', user.uid);
+            const userDocSnap = await getDoc(userDocRef);
+
+            if (userDocSnap.exists()) {
+              const userData = userDocSnap.data();
+              setCurrentUser({
+                uid: user.uid,
+                email: user.email,
+                displayName: userData.displayName || user.displayName,
+                isAdmin: userData.isAdmin || false,
+                avatar: userData.avatar || '👤',
+                weeklyPoints: userData.weeklyPoints || 0,
+                totalCumulativePoints: userData.totalCumulativePoints || 0,
+                previousWeeklyPoints: userData.previousWeeklyPoints || 0,
+                xp: userData.xp || 0,
+                level: userData.level || 1,
+                dateJoined: userData.dateJoined || new Date().toISOString(),
+                lastReadTimestamp: userData.lastReadTimestamp || null
+              });
+              setIsAdmin(userData.isAdmin || false);
+            } else {
+              const newUserData = {
+                displayName: user.displayName || user.email.split('@')[0],
+                email: user.email,
+                isAdmin: false,
+                avatar: '👤',
+                weeklyPoints: 0,
+                totalCumulativePoints: 0,
+                previousWeeklyPoints: 0,
+                xp: 0,
+                level: 1,
+                dateJoined: new Date().toISOString(),
+                lastReadTimestamp: new Date().toISOString()
+              };
+              await setDoc(userDocRef, newUserData);
+              setCurrentUser({ uid: user.uid, ...newUserData });
+              setIsAdmin(false);
+            }
+          } else {
             setCurrentUser(null);
             setIsAdmin(false);
-            toast.error("Erreur lors de la création du profil utilisateur.");
-          } else {
-            console.log("UserContext: Profile created in public.users. Re-fetching data to update state.");
-            const { data: newUserData, error: newFetchError } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', user.id)
-              .limit(1);
-
-            if (newFetchError || !newUserData || newUserData.length === 0) {
-              console.error("UserContext: Error re-fetching new user data after insert:", newFetchError ? newFetchError.message : "No data received.");
-              setCurrentUser(null);
-              setIsAdmin(false);
-              toast.error("Erreur de connexion.");
-            } else {
-              console.log("UserContext: New user data re-fetched successfully after insert:", newUserData[0]);
-              setCurrentUser({ ...user, ...newUserData[0] });
-              setIsAdmin(newUserData[0].is_admin);
-              toast.success(`Bonjour, ${newUserData[0].display_name} !`);
-            }
           }
-        } else if (userData) {
-          console.log("UserContext: User data successfully loaded from public.users:", userData);
-          setCurrentUser({ ...user, ...userData });
-          setIsAdmin(userData.is_admin);
-          updateUserDataInDb(user.id, { last_login: new Date().toISOString() });
           setLoadingUser(false);
-          toast.success(`Bonjour, ${userData.display_name} !`);
-        }
-      } else {
-        console.log("UserContext: No user session found. Setting currentUser to null and loadingUser to false.");
-        setCurrentUser(null);
-        setIsAdmin(false);
+        });
+
+        return unsubscribeAuth;
+      } catch (error) {
+        console.error("Erreur de configuration de l'authentification Firebase :", error);
         setLoadingUser(false);
       }
-    });
+    };
 
+    const cleanup = setupAuthAndUser();
     return () => {
-      console.log("UserContext: Cleaning up auth listener.");
-      if (authListener && authListener.data && authListener.data.subscription) {
-        authListener.data.subscription.unsubscribe();
-      } else {
-        console.warn("UserContext: authListener.data.subscription was not found during cleanup.");
+      if (typeof cleanup.then === 'function') {
+        cleanup.then(unsubscribe => {
+          if (unsubscribe) unsubscribe();
+        });
+      } else if (typeof cleanup === 'function') {
+        cleanup();
       }
     };
-  }, [updateUserDataInDb]);
+  }, [auth, db]);
 
-  const contextValue = {
+  useEffect(() => {
+    if (db && currentUser?.uid) {
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const updatedUserData = docSnap.data();
+          setCurrentUser(prevUser => ({
+            ...prevUser,
+            ...updatedUserData
+          }));
+          setIsAdmin(updatedUserData.isAdmin || false);
+        } else {
+          setCurrentUser(null);
+          setIsAdmin(false);
+        }
+      }, (error) => {
+        console.error("Erreur lors de l'écoute du document utilisateur :", error);
+      });
+      return () => unsubscribe();
+    }
+  }, [db, currentUser?.uid]);
+
+  const value = {
     currentUser,
     isAdmin,
     loadingUser,
-    supabase,
-    signIn,
-    signUp,
-    signOut,
-    setCurrentUser,
-    unsubscribeRefs
+    db,
+    auth,
+    setCurrentUser
   };
 
   return (
-    <UserContext.Provider value={contextValue}>
+    <UserContext.Provider value={value}>
       {children}
     </UserContext.Provider>
   );
-};
-
-export const useUser = () => {
-  const context = useContext(UserContext);
-  if (context === undefined) {
-    throw new Error('useUser doit être utilisé à l\'intérieur d\'un UserProvider');
-  }
-  return context;
 };

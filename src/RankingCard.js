@@ -1,64 +1,44 @@
 // src/RankingCard.js
-// Composant pour afficher une carte de classement d'un participant.
-// Mis à jour pour afficher correctement les avatars (emoji ou URL Supabase Storage).
-
 import React from 'react';
 
-const RankingCard = ({ participant, rank, type, onParticipantClick, getParticipantBadges }) => {
+function RankingCard({ participant, rank, type, onParticipantClick, getParticipantBadges }) {
   const isWeekly = type === 'weekly';
-  const points = isWeekly ? participant.Points_Total_Semaine_Courante : participant.Points_Total_Cumulatif;
-  const rankColors = ['bg-podium-gold', 'bg-podium-silver', 'bg-podium-bronze'];
-  const rankEmojis = ['🥇', '🥈', '🥉'];
+  const score = isWeekly ? participant.Points_Total_Semaine_Courante : participant.Points_Total_Cumulatif;
+  const rankColorClass = rank === 1 ? 'text-podium-gold' : rank === 2 ? 'text-podium-silver' : rank === 3 ? 'text-podium-bronze' : 'text-text';
+  const bgColorClass = rank === 1 ? 'bg-podium-gold/20' : rank === 2 ? 'bg-podium-silver/20' : rank === 3 ? 'bg-podium-bronze/20' : 'bg-neutralBg';
 
   const badges = getParticipantBadges(participant);
 
   return (
-    <div
-      className={`bg-card rounded-2xl p-4 flex items-center justify-between w-full shadow-lg 
-                  transition duration-200 ease-in-out transform hover:scale-[1.02] hover:shadow-xl cursor-pointer 
-                  ${rank <= 3 && isWeekly ? rankColors[rank - 1] : 'border border-blue-100'}`}
+    <div 
+      className={`w-full max-w-sm flex items-center p-4 rounded-2xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105 cursor-pointer border border-primary/10 ${bgColorClass}`}
       onClick={() => onParticipantClick(participant)}
     >
-      <div className="flex items-center flex-1 min-w-0">
-        <div className="w-12 h-12 rounded-full bg-neutralBg flex items-center justify-center text-2xl flex-shrink-0 mr-3 overflow-hidden">
-          {participant.Avatar && participant.Avatar.startsWith('http') ? (
-            <img src={participant.Avatar} alt="Avatar" className="w-full h-full object-cover" />
-          ) : (
-            <span>{participant.Avatar || '👤'}</span>
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-lg text-text truncate">
-            {rankEmojis[rank - 1] && isWeekly && rank <= 3 ? `${rankEmojis[rank - 1]} ` : `#${rank} `}
-            {participant.Nom_Participant}
-          </p>
-          <p className="text-sm text-lightText truncate">
-            Niveau: {participant.Level} (XP: {participant.XP})
-          </p>
-          {badges.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {badges.slice(0, 3).map((badge, index) => ( // Afficher max 3 badges ici
-                <span key={index} title={badge.description} className="text-xs px-1 py-0.5 rounded-full bg-primary/10 text-primary">
-                  {badge.icon}
-                </span>
-              ))}
-              {badges.length > 3 && (
-                <span className="text-xs px-1 py-0.5 rounded-full bg-primary/10 text-primary">
-                  +{badges.length - 3}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+      <div className="flex-shrink-0 mr-4">
+        <span className={`text-4xl font-extrabold ${rankColorClass}`}>{rank}.</span>
       </div>
-      <div className="text-right flex-shrink-0 ml-4">
-        <p className="text-xl font-extrabold text-primary">{points} pts</p>
-        <p className="text-xs text-lightText">
-          {isWeekly ? 'cette semaine' : 'au total'}
+      <div className="flex-shrink-0 mr-4">
+        <span className="text-5xl">{participant.Avatar || '👤'}</span> {/* Affichage de l'avatar */}
+      </div>
+      <div className="flex-grow">
+        <h3 className="text-xl font-bold text-secondary truncate">{participant.Nom_Participant}</h3>
+        <p className="text-text text-sm">
+          {isWeekly ? 'Points Semaine:' : 'Points Cumulatifs:'} <span className="font-semibold text-primary">{score}</span>
         </p>
+        <p className="text-text text-sm">
+          Niveau: <span className="font-semibold text-primary">{participant.Level || 1}</span> | XP: <span className="font-semibold text-primary">{participant.XP || 0}</span>
+        </p>
+        {badges.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {badges.slice(0, 3).map(badge => ( // Afficher un nombre limité de badges
+              <span key={badge.name} title={badge.description} className="text-xs">{badge.icon}</span>
+            ))}
+            {badges.length > 3 && <span className="text-xs text-lightText">+{badges.length - 3}</span>}
+          </div>
+        )}
       </div>
     </div>
   );
-};
+}
 
 export default RankingCard;

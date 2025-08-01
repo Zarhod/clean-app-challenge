@@ -1,41 +1,59 @@
+// src/TaskStatisticsChart.js
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-const TaskStatisticsChart = ({ data }) => {
-  // data should be an array of objects like:
-  // [{ name: 'Tâche A', 'Points Gagnés': 100, 'Tâches Réalisées': 5 }, ...]
+const TaskStatisticsChart = ({ realisations, allRawTaches }) => {
+  // Calculer les points gagnés par catégorie
+  const pointsByCategory = realisations.reduce((acc, real) => {
+    const category = real.categorieTache || 'Non catégorisé';
+    const points = parseFloat(real.pointsGagnes) || 0;
+    acc[category] = (acc[category] || 0) + points;
+    return acc;
+  }, {});
+
+  // Convertir en tableau pour Recharts
+  const chartData = Object.keys(pointsByCategory).map(category => ({
+    category: category,
+    points: pointsByCategory[category],
+  }));
+
+  // Trier par points décroissants
+  chartData.sort((a, b) => b.points - a.points);
+
+  if (chartData.length === 0) {
+    return (
+      <div className="text-center text-lightText py-4">
+        <p>Aucune donnée de réalisation pour afficher les statistiques.</p>
+        <p>Terminez des tâches pour voir votre progression !</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-card rounded-xl shadow-lg p-4 sm:p-6 border border-primary/10 mb-6">
-      <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-center">Statistiques des Tâches</h3>
-      {data && data.length > 0 ? (
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart
-            data={data}
-            margin={{
-              top: 20,
-              right: 30,
-              left: 20,
-              bottom: 5,
-            }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-            <XAxis dataKey="name" angle={-15} textAnchor="end" height={60} interval={0} style={{ fontSize: '0.75rem' }} />
-            <YAxis yAxisId="left" orientation="left" stroke="#4A90E2" label={{ value: 'Points Gagnés', angle: -90, position: 'insideLeft', fill: '#4A90E2', dy: 30 }} />
-            <YAxis yAxisId="right" orientation="right" stroke="#50E3C2" label={{ value: 'Tâches Réalisées', angle: 90, position: 'insideRight', fill: '#50E3C2', dy: -30 }} />
-            <Tooltip
-              contentStyle={{ backgroundColor: '#fff', border: '1px solid #ccc', borderRadius: '8px', padding: '10px' }}
-              labelStyle={{ fontWeight: 'bold', color: '#333' }}
-              itemStyle={{ color: '#555' }}
-            />
-            <Legend wrapperStyle={{ paddingTop: '20px' }} />
-            <Bar yAxisId="left" dataKey="Points Gagnés" fill="#4A90E2" name="Points Gagnés" barSize={20} radius={[10, 10, 0, 0]} />
-            <Bar yAxisId="right" dataKey="Tâches Réalisées" fill="#50E3C2" name="Tâches Réalisées" barSize={20} radius={[10, 10, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      ) : (
-        <p className="text-center text-lightText text-md py-4">Aucune donnée de tâche disponible pour le graphique.</p>
-      )}
+    <div className="w-full h-80 sm:h-96 bg-white rounded-lg p-4 shadow-inner border border-gray-100">
+      <h4 className="text-lg font-bold text-primary mb-4 text-center">Points Gagnés par Catégorie</h4>
+      <ResponsiveContainer width="100%" height="80%">
+        <BarChart
+          data={chartData}
+          margin={{
+            top: 5,
+            right: 0,
+            left: 0,
+            bottom: 5,
+          }}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+          <XAxis dataKey="category" angle={-15} textAnchor="end" height={50} tick={{ fill: '#4a5568', fontSize: 12 }} />
+          <YAxis tick={{ fill: '#4a5568', fontSize: 12 }} />
+          <Tooltip
+            formatter={(value) => [`${value} points`, 'Total']}
+            contentStyle={{ backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '8px' }}
+            labelStyle={{ color: '#2d3748', fontWeight: 'bold' }}
+          />
+          <Legend wrapperStyle={{ paddingTop: '10px' }} />
+          <Bar dataKey="points" fill="#6a0dad" name="Points" radius={[10, 10, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 };
