@@ -1,18 +1,9 @@
 import React, { useContext } from 'react';
+import { UserContext } from './UserContext'; // ✅ Corrigé : import nommé
 
-/**
- * Composant de modal pour l'ajout ou la modification d'une tâche.
- * @param {Object} taskData - Les données actuelles du formulaire de tâche.
- * @param {function} onFormChange - Fonction de rappel pour gérer les changements du formulaire.
- * @param {function} onSubmit - Fonction de rappel pour soumettre le formulaire.
- * @param {function} onClose - Fonction de rappel pour fermer le modal.
- * @param {boolean} loading - Indique si une opération est en cours (pour désactiver les boutons).
- * @param {Object|null} editingTask - L'objet tâche si nous sommes en mode édition, sinon null.
- */
 function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading, editingTask }) {
   const { currentUser } = useContext(UserContext);
 
-  // Wrappe la fonction pour injecter created_by s'il s'agit d'une création
   const handleSubmit = (e) => {
     e.preventDefault();
 
