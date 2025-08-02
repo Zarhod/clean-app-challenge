@@ -42,7 +42,10 @@ import AvatarSelectionModal from './AvatarSelectionModal';
 import PasswordChangeModal from './PasswordChangeModal'; 
 import ChatFloatingButton from './ChatFloatingButton'; 
 import ProfileEditOptionsModal from './ProfileEditOptionsModal'; 
-import confetti from 'canvas-confetti'; 
+import confetti from 'canvas-confetti';
+import UserBadgeDisplay from './UserBadgeDisplay'; 
+import AdminBadgeManager from './AdminBadgeManager';
+
 
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
@@ -145,6 +148,8 @@ function AppContent() {
   const [showOverallRankingModal, setShowOverallRankingModal] = useState(false); 
   const [showAdminUserManagementModal, setShowAdminUserManagementModal] = useState(false); 
   const [showAdminCongratulatoryMessagesModal, setShowAdminCongratulatoryMessagesModal] = useState(false);
+  const [showAdminBadgeManager, setShowAdminBadgeManager] = useState(false);
+
 
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportedTaskDetails, setReportedTaskDetails] = useState(null); 
@@ -2009,22 +2014,27 @@ function AppContent() {
   const renderParticipantProfile = () => {
     if (!selectedParticipantProfile) return null;
 
-    const participantCumulativePoints = selectedParticipantProfile.totalCumulativePoints || 0; 
-    const engagementPercentage = totalGlobalCumulativePoints > 0 
-      ? ((participantCumulativePoints / totalGlobalCumulativePoints) * 100).toFixed(2) 
-      : 0;
+    const participantCumulativePoints = selectedParticipantProfile.totalCumulativePoints || 0;
+    const engagementPercentage =
+      totalGlobalCumulativePoints > 0
+        ? ((participantCumulativePoints / totalGlobalCumulativePoints) * 100).toFixed(2)
+        : 0;
 
-    const participantBadges = getParticipantBadges(selectedParticipantProfile);
-    const { level, xpNeededForNextLevel } = calculateLevelAndXP(selectedParticipantProfile.xp || 0); // Utilise selectedParticipantProfile.xp
-    const xpProgress = xpNeededForNextLevel > 0 ? ((selectedParticipantProfile.xp || 0) / xpNeededForNextLevel) * 100 : 0;
-
+    const { level, xpNeededForNextLevel } = calculateLevelAndXP(selectedParticipantProfile.xp || 0);
+    const xpProgress =
+      xpNeededForNextLevel > 0
+        ? ((selectedParticipantProfile.xp || 0) / xpNeededForNextLevel) * 100
+        : 0;
 
     return (
-      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8"> 
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Profil de {selectedParticipantProfile.displayName || selectedParticipantProfile.email}</h2> 
-        <div className="mb-6 p-4 bg-neutralBg rounded-xl shadow-inner"> 
+      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8">
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">
+          Profil de {selectedParticipantProfile.displayName || selectedParticipantProfile.email}
+        </h2>
+
+        <div className="mb-6 p-4 bg-neutralBg rounded-xl shadow-inner">
           <div className="flex items-center justify-center mb-4">
-            <span className="text-6xl mr-4">{selectedParticipantProfile.avatar || '👤'}</span> {/* Utilise selectedParticipantProfile.avatar */}
+            <span className="text-6xl mr-4">{selectedParticipantProfile.avatar || '👤'}</span>
             <div className="text-left">
               <p className="text-lg sm:text-xl font-semibold text-text">
                 Niveau: <span className="text-primary font-bold">{level}</span>
@@ -2033,68 +2043,60 @@ function AppContent() {
                 XP: <span className="font-bold">{selectedParticipantProfile.xp || 0}</span> / {xpNeededForNextLevel}
               </p>
               <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                <div 
-                  className="h-2 rounded-full bg-primary" 
+                <div
+                  className="h-2 rounded-full bg-primary"
                   style={{ width: `${Math.min(xpProgress, 100)}%` }}
                 ></div>
               </div>
             </div>
           </div>
+
           <p className="text-lg sm:text-xl font-semibold text-text">
             Score d'Engagement Global: <span className="text-primary font-bold">{engagementPercentage}%</span>
           </p>
           <p className="text-base sm:text-lg text-lightText mt-2">
             Points Cumulatifs: <span className="font-bold">{participantCumulativePoints}</span>
           </p>
+
           {currentUser && selectedParticipantProfile.id === currentUser.uid && (
             <div className="flex justify-center mt-4">
               <button
-                onClick={() => setShowProfileEditOptionsModal(true)} 
+                onClick={() => setShowProfileEditOptionsModal(true)}
                 className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1 px-3 rounded-md transition duration-300 text-sm flex items-center gap-1"
               >
                 ✏️ Modifier le Profil
               </button>
             </div>
           )}
-          {participantBadges.length > 0 && (
-            <div className="mt-4">
-              <h4 className="text-lg font-semibold text-primary mb-2">Vos Badges:</h4>
-              <div className="flex flex-wrap justify-center gap-2">
-                {participantBadges.map(badge => (
-                  <span 
-                    key={badge.name} 
-                    title={badge.description} 
-                    className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 shadow-sm" 
-                  >
-                    {badge.icon} {badge.name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+
+          <UserBadgeDisplay badges={selectedParticipantProfile.badges} />
         </div>
 
         <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4">Tâches terminées cette semaine:</h3>
         {participantWeeklyTasks.length > 0 ? (
-          <div className="space-y-3 text-left"> 
+          <div className="space-y-3 text-left">
             {participantWeeklyTasks.map((task, index) => (
-              <div key={task.id || task.timestamp + task.userId + index} className="bg-card rounded-2xl p-3 sm:p-4 flex flex-row items-center justify-between 
-                         shadow-lg border border-blue-100"> 
-                <div className="flex-1 min-w-0"> 
-                    <h4 className="text-secondary text-base sm:text-xl font-extrabold leading-tight truncate"> 
-                        {task.nomTacheEffectuee}
-                    </h4> 
-                    <div className="flex items-center space-x-2 mt-1"> 
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(task.categorieTache)}`}>
-                            {task.categorieTache || 'Non catégorisé'}
-                        </span>
-                        <span className="text-sm text-lightText">
-                            {new Date(task.timestamp).toLocaleDateString('fr-FR')} 
-                        </span>
-                    </div>
+              <div
+                key={task.id || task.timestamp + task.userId + index}
+                className="bg-card rounded-2xl p-3 sm:p-4 flex flex-row items-center justify-between shadow-lg border border-blue-100"
+              >
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-secondary text-base sm:text-xl font-extrabold leading-tight truncate">
+                    {task.nomTacheEffectuee}
+                  </h4>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <span
+                      className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(task.categorieTache)}`}
+                    >
+                      {task.categorieTache || 'Non catégorisé'}
+                    </span>
+                    <span className="text-sm text-lightText">
+                      {new Date(task.timestamp).toLocaleDateString('fr-FR')}
+                    </span>
+                  </div>
                 </div>
-                <p className="text-primary font-bold text-sm sm:text-base flex-shrink-0 ml-2"> 
-                    {task.pointsGagnes} pts
+                <p className="text-primary font-bold text-sm sm:text-base flex-shrink-0 ml-2">
+                  {task.pointsGagnes} pts
                 </p>
               </div>
             ))}
@@ -2103,9 +2105,8 @@ function AppContent() {
           <p className="text-lightText text-md sm:text-lg">Aucune tâche terminée cette semaine.</p>
         )}
 
-        <button 
-          className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg 
-                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
+        <button
+          className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
           onClick={() => setActiveMainView('home')}
         >
           Retour à l'Accueil
@@ -2493,32 +2494,31 @@ function AppContent() {
 
   const renderAdminPanel = () => {
     if (!isAdmin) {
-      return null; 
+      return null;
     }
 
     const adminPurpleButtonClasses = "bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm";
     const adminBlueButtonClasses = "bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"; 
     const subtleAdminButtonClasses = "bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs";
 
-
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl mb-6 sm:mb-8">
         <h2 className="text-2xl sm:text-3xl font-bold text-secondary mb-6 text-center">Panneau d'Administration</h2>
-        
+
         <div className="flex flex-col gap-4 mb-6">
           <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
-                  onClick={() => setShowAdminObjectivesListModal(true)}
-                  className={`${adminPurpleButtonClasses} col-span-1`} 
+                onClick={() => setShowAdminObjectivesListModal(true)}
+                className={`${adminPurpleButtonClasses} col-span-1`}
               >
-                  Gérer les Objectifs
+                Gérer les Objectifs
               </button>
               <button
-                  onClick={() => setShowAdminTasksListModal(true)}
-                  className={`${adminPurpleButtonClasses} col-span-1`} 
+                onClick={() => setShowAdminTasksListModal(true)}
+                className={`${adminPurpleButtonClasses} col-span-1`}
               >
-                  Gérer les Tâches
+                Gérer les Tâches
               </button>
             </div>
           </div>
@@ -2526,25 +2526,36 @@ function AppContent() {
           <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
-                onClick={() => setShowAdminUserManagementModal(true)} 
-                className={`${adminBlueButtonClasses} col-span-1`} 
+                onClick={() => setShowAdminUserManagementModal(true)}
+                className={`${adminBlueButtonClasses} col-span-1`}
               >
                 Gérer les Utilisateurs
               </button>
               <button
-                onClick={() => setShowAdminCongratulatoryMessagesModal(true)} 
-                className={`${adminBlueButtonClasses} col-span-1`} 
+                onClick={() => setShowAdminCongratulatoryMessagesModal(true)}
+                className={`${adminBlueButtonClasses} col-span-1`}
               >
                 Gérer les Messages de Félicitation
               </button>
             </div>
           </div>
 
-          <div className="bg-neutralBg/50 rounded-xl p-3 shadow-inner border border-gray-200"> 
-            <h3 className="text-base font-bold text-primary mb-3 text-center">Outils Avancés</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2"> 
+          <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
-                onClick={() => setShowGlobalDataViewModal(true)} 
+                onClick={() => setShowAdminBadgeManager(true)}
+                className={`${adminPurpleButtonClasses} col-span-1`}
+              >
+                Gérer les Badges
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-neutralBg/50 rounded-xl p-3 shadow-inner border border-gray-200">
+            <h3 className="text-base font-bold text-primary mb-3 text-center">Outils Avancés</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                onClick={() => setShowGlobalDataViewModal(true)}
                 className={`${subtleAdminButtonClasses} col-span-1`}
               >
                 Vision Globale de la BDD
@@ -2557,13 +2568,13 @@ function AppContent() {
               </button>
               <button
                 onClick={() => setShowConfirmResetModal(true)}
-                className={`bg-error/80 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`} 
+                className={`bg-error/80 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`}
               >
                 Réinitialiser les Points Hebdomadaires
               </button>
               <button
-                onClick={() => setShowConfirmResetRealisationsModal(true)} 
-                className={`bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`} 
+                onClick={() => setShowConfirmResetRealisationsModal(true)}
+                className={`bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`}
               >
                 Réinitialiser les Réalisations
               </button>
@@ -2571,13 +2582,14 @@ function AppContent() {
           </div>
         </div>
 
-        <div className="mb-6 p-3 bg-neutralBg rounded-xl shadow-inner"> 
-            <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-center">Statistiques des Tâches</h3>
-            <TaskStatisticsChart realisations={realisations} allRawTaches={allRawTaches} />
+        <div className="mb-6 p-3 bg-neutralBg rounded-xl shadow-inner">
+          <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-center">Statistiques des Tâches</h3>
+          <TaskStatisticsChart realisations={realisations} allRawTaches={allRawTaches} />
         </div>
       </div>
     );
   };
+
 
   const renderFullRankingCards = () => {
     if (!Array.isArray(classement) || classement.length === 0) {
@@ -2929,6 +2941,11 @@ function AppContent() {
             realisations={realisations} 
           />
         )}
+
+        {showAdminBadgeManager && (
+          <AdminBadgeManager onClose={() => setShowAdminBadgeManager(false)} />
+        )}
+
 
         {showAdminCongratulatoryMessagesModal && isAdmin && (
           <AdminCongratulatoryMessagesModal

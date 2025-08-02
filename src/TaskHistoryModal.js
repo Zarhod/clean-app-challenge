@@ -1,7 +1,7 @@
 // src/TaskHistoryModal.js
 import React, { useEffect, useState } from 'react';
 import { useUser } from './UserContext';
-import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc, getDoc } from 'firebase/firestore';
 import ConfettiOverlay from './ConfettiOverlay';
 import { toast } from 'react-toastify';
 
@@ -21,6 +21,41 @@ const TaskHistoryModal = ({ onClose }) => {
 
     fetchTasks();
   }, [db, currentUser]);
+
+  const fetchAvailableBadges = async (db) => {
+    const badgeRef = collection(db, 'badges');
+    const snapshot = await getDocs(badgeRef);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  };
+
+  const checkAndAssignBadges = async (user, db) => {
+    const badges = await fetchAvailableBadges(db);
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+    const userData = userSnap.data();
+    const userBadges = userData.badges || [];
+
+    const newBadges = [];
+
+    for (const badge of badges) {
+      const alreadyHasBadge = userBadges.includes(badge.id);
+      const conditionMet =
+        (badge.rule === 'level_1' && (user.level || 1) >= 1) ||
+        (badge.rule === 'xp_100' && (user.xp || 0) >= 100) ||
+        (badge.rule === 'urgent_task_done' && user.totalCumulativePoints >= 1);
+
+      if (!alreadyHasBadge && conditionMet) {
+        newBadges.push(badge.id);
+      }
+    }
+
+    if (newBadges.length > 0) {
+      await updateDoc(userRef, {
+        badges: [...userBadges, ...newBadges],
+      });
+      toast.success(`🌺 Nouveau badge débloqué !`);
+    }
+  };
 
   const handleCompleteTask = async (task) => {
     if (!currentUser || !db) return;
@@ -52,6 +87,8 @@ const TaskHistoryModal = ({ onClose }) => {
       level: newLevel,
       lastReadTimestamp: new Date().toISOString()
     }));
+
+    await checkAndAssignBadges(currentUser, db);
 
     if (newLevel > previousLevel) {
       toast.success(`🎉 Bravo ! Vous avez atteint le niveau ${newLevel} !`);
