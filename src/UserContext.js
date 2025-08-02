@@ -67,13 +67,13 @@ export const UserProvider = ({ children }) => {
       try {
         const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        if (token) {
-          await signInWithCustomToken(auth, token);
-        } else {
+        if (!token) {
           console.warn("Aucun token fourni, utilisateur non connecté.");
           setLoadingUser(false);
           return;
         }
+
+        await signInWithCustomToken(auth, token);
 
         const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
           if (user) {
