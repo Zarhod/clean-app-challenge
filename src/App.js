@@ -391,7 +391,7 @@ function AppContent() {
       const participantScores = {};
       usersData.forEach(user => {
         participantScores[user.displayName] = {
-          Nom_Participant: user.displayName,
+          nomParticipant: user.displayName,
           Points_Total_Semaine_Courante: parseFloat(user.weeklyPoints || 0),
           Points_Total_Cumulatif: parseFloat(user.totalCumulativePoints || 0),
           Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0),
@@ -421,7 +421,7 @@ function AppContent() {
         const displayName = user.displayName;
         if (!participantScores[displayName]) {
           participantScores[displayName] = {
-            Nom_Participant: displayName,
+            nomParticipant: displayName,
             Points_Total_Semaine_Courante: 0,
             Points_Total_Cumulatif: 0,
             Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0),
@@ -729,7 +729,7 @@ function AppContent() {
       const { data, error } = await supabase
         .from('realisations')
         .select('*')
-        .eq('Nom_Participant', participantName);
+        .eq('nomParticipant', participantName);
 
       if (error) throw error;
 
@@ -1033,7 +1033,7 @@ function AppContent() {
       if (top3.length > 0) {
         const { error: insertError } = await supabase.from('historical_podiums').insert({
           Date_Podium: datePodium,
-          top3: top3.map(p => ({ name: p.Nom_Participant, points: p.Points_Total_Semaine_Courante }))
+          top3: top3.map(p => ({ name: p.nomParticipant, points: p.Points_Total_Semaine_Courante }))
         });
         if (insertError) throw insertError;
 
@@ -1470,7 +1470,7 @@ function AppContent() {
 
 
   const handleParticipantClick = useCallback(async (participant) => {
-    if (currentUser && String(participant.Nom_Participant || '').trim() === String(currentUser.displayName || currentUser.email).trim()) {
+    if (currentUser && String(participant.nomParticipant || '').trim() === String(currentUser.displayName || currentUser.email).trim()) {
       setSelectedParticipantProfile({ ...currentUser });
       setActiveMainView('participantProfile');
       await fetchParticipantWeeklyTasks(currentUser.displayName || currentUser.email);
@@ -1481,7 +1481,7 @@ function AppContent() {
       const { data, error } = await supabase
         .from('users')
         .select('*')
-        .eq('displayName', participant.Nom_Participant)
+        .eq('displayName', participant.nomParticipant)
         .limit(1)
         .single();
 
@@ -1492,7 +1492,7 @@ function AppContent() {
 
       setSelectedParticipantProfile(data);
       setActiveMainView('participantProfile');
-      await fetchParticipantWeeklyTasks(participant.Nom_Participant);
+      await fetchParticipantWeeklyTasks(participant.nomParticipant);
     } catch (err) {
       toast.error("Erreur lors de la récupération du profil utilisateur.");
       console.error(err);
@@ -1601,7 +1601,7 @@ function AppContent() {
 
   const getParticipantBadges = useCallback((participant) => {
     const badges = [];
-    const participantRealisations = realisations.filter(r => String(r.nomParticipant).trim() === String(participant.Nom_Participant).trim());
+    const participantRealisations = realisations.filter(r => String(r.nomParticipant).trim() === String(participant.nomParticipant).trim());
     
     const totalPoints = parseFloat(participant.Points_Total_Cumulatif) || 0;
 
@@ -1640,14 +1640,14 @@ function AppContent() {
     }
 
     const hasBeenWeeklyWinner = historicalPodiums.some(podium => 
-        podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.Nom_Participant).trim()
+        podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.nomParticipant).trim()
     );
     if (hasBeenWeeklyWinner && !badges.some(b => b.name === 'Vainqueur Hebdomadaire')) {
         badges.push({ name: 'Vainqueur Hebdomadaire', icon: '🥇', description: 'A été premier du podium hebdomadaire.' });
     }
 
     const weeklyWins = historicalPodiums.filter(podium => 
-        podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.Nom_Participant).trim()
+        podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.nomParticipant).trim()
     ).length;
     if (weeklyWins >= 3 && !badges.some(b => b.name === 'Triple Couronne')) {
         badges.push({ name: 'Triple Couronne', icon: '👑', description: 'A été premier 3 fois ou plus.' });
@@ -1753,13 +1753,13 @@ function AppContent() {
               {/* 2ème Place */}
               {top3WithPoints.length > 1 && (
                 <div 
-                  key={top3WithPoints[1].Nom_Participant || `anon-silver`} 
+                  key={top3WithPoints[1].nomParticipant || `anon-silver`} 
                   className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
                     ${podiumColors[1]} order-1 w-1/3 sm:w-auto min-w-[80px]`} 
                   onClick={() => handleParticipantClick(top3WithPoints[1])} 
                 >
                   <span className={`text-3xl sm:text-5xl mb-0.5 sm:mb-1`}>{medals[1]}</span> 
-                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[1].Nom_Participant}</p> 
+                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[1].nomParticipant}</p> 
                   <p className="text-xs sm:text-base text-lightText">{top3WithPoints[1].Points_Total_Semaine_Courante} pts</p> 
                 </div>
               )}
@@ -1767,13 +1767,13 @@ function AppContent() {
               {/* 1ère Place */}
               {top3WithPoints.length > 0 && (
                 <div 
-                  key={top3WithPoints[0].Nom_Participant || `anon-gold`} 
+                  key={top3WithPoints[0].nomParticipant || `anon-gold`} 
                   className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
                     ${podiumColors[0]} order-2 w-1/3 sm:w-auto -translate-y-2 min-w-[80px]`} 
                   onClick={() => handleParticipantClick(top3WithPoints[0])} 
                 >
                   <span className={`text-5xl sm:text-6xl mb-0.5 sm:mb-1`}>{medals[0]}</span> 
-                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[0].Nom_Participant}</p> 
+                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[0].nomParticipant}</p> 
                   <p className="text-xs sm:text-base text-lightText">{top3WithPoints[0].Points_Total_Semaine_Courante} pts</p> 
                 </div>
               )}
@@ -1781,13 +1781,13 @@ function AppContent() {
               {/* 3ème Place */}
               {top3WithPoints.length > 2 && (
                 <div 
-                  key={top3WithPoints[2].Nom_Participant || `anon-bronze`} 
+                  key={top3WithPoints[2].nomParticipant || `anon-bronze`} 
                   className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
                     ${podiumColors[2]} order-3 w-1/3 sm:w-auto min-w-[80px]`} 
                   onClick={() => handleParticipantClick(top3WithPoints[2])} 
                 >
                   <span className={`text-3xl sm:text-5xl mb-0.5 sm:mb-1`}>{medals[2]}</span> 
-                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[2].Nom_Participant}</p> 
+                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[2].nomParticipant}</p> 
                   <p className="text-xs sm:text-base text-lightText">{top3WithPoints[2].Points_Total_Semaine_Courante} pts</p> 
                 </div>
               )}
@@ -1863,7 +1863,7 @@ function AppContent() {
     tasksByParticipantThisWeek.forEach((count, name) => {
         if (count > maxTasksCompleted) {
             maxTasksCompleted = count;
-            mostActive = classement.find(p => String(p.Nom_Participant).trim() === name);
+            mostActive = classement.find(p => String(p.nomParticipant).trim() === name);
         }
     });
 
@@ -1876,14 +1876,14 @@ function AppContent() {
             {mostImproved && maxImprovement > 0 && (
               <div className="bg-white p-3 rounded-lg shadow-sm text-center border border-blue-50"> 
                 <h3 className="text-base font-bold text-primary mb-1">Le Plus Amélioré</h3>
-                <p className="text-text text-sm font-semibold">{mostImproved.Nom_Participant}</p>
+                <p className="text-text text-sm font-semibold">{mostImproved.nomParticipant}</p>
                 <p className="text-lightText text-xs">+{maxImprovement} pts cette semaine</p>
               </div>
             )}
             {mostActive && maxTasksCompleted > 0 && (
               <div className="bg-white p-3 rounded-lg shadow-sm text-center border border-blue-50">
                 <h3 className="text-base font-bold text-primary mb-1">Le Plus Actif</h3>
-                <p className="text-text text-sm font-semibold">{mostActive.Nom_Participant}</p>
+                <p className="text-text text-sm font-semibold">{mostActive.nomParticipant}</p>
                 <p className="text-lightText text-xs">{maxTasksCompleted} tâches terminées cette semaine</p>
               </div>
             )}
@@ -2525,9 +2525,9 @@ function AppContent() {
   };
 
   const handleExportClassement = useCallback(() => {
-    const headers = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Points_Total_Semaine_Precedente', 'Date_Mise_A_Jour', 'Avatar', 'Level', 'XP'];
+    const headers = ['nomParticipant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Points_Total_Semaine_Precedente', 'Date_Mise_A_Jour', 'Avatar', 'Level', 'XP'];
     const dataToExport = classement.map(p => ({
-        Nom_Participant: p.Nom_Participant,
+        nomParticipant: p.nomParticipant,
         Points_Total_Semaine_Courante: p.Points_Total_Semaine_Courante,
         Points_Total_Cumulatif: p.Points_Total_Cumulatif,
         Points_Total_Semaine_Precedente: p.Points_Total_Semaine_Precedente || 0,
@@ -2907,7 +2907,7 @@ function AppContent() {
         <div className="flex flex-col gap-3 mb-6 items-center"> 
           {sortedClassement.map((participant, index) => (
             <RankingCard
-              key={participant.Nom_Participant}
+              key={participant.nomParticipant}
               participant={participant}
               rank={index + 1}
               type="weekly" 
@@ -3072,7 +3072,7 @@ function AppContent() {
             </button> 
             {currentUser && (
               <button
-                onClick={() => handleParticipantClick({ Nom_Participant: currentUser.displayName || currentUser.email })}
+                onClick={() => handleParticipantClick({ nomParticipant: currentUser.displayName || currentUser.email })}
                 className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
                   ${activeMainView === 'participantProfile' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
               >

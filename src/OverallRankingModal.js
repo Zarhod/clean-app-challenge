@@ -24,7 +24,7 @@ function OverallRankingModal({ classement, onClose, onParticipantClick, getParti
           ) : (
             sortedClassement.map((participant, index) => (
               <RankingCard
-                key={participant.Nom_Participant}
+                key={participant.nomParticipant}
                 participant={participant}
                 rank={index + 1}
                 type="overall" 

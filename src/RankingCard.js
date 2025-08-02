@@ -21,7 +21,7 @@ function RankingCard({ participant, rank, type, onParticipantClick, getParticipa
         <span className="text-5xl">{participant.Avatar || '👤'}</span> {/* Affichage de l'avatar */}
       </div>
       <div className="flex-grow">
-        <h3 className="text-xl font-bold text-secondary truncate">{participant.Nom_Participant}</h3>
+        <h3 className="text-xl font-bold text-secondary truncate">{participant.nomParticipant}</h3>
         <p className="text-text text-sm">
           {isWeekly ? 'Points Semaine:' : 'Points Cumulatifs:'} <span className="font-semibold text-primary">{score}</span>
         </p>
