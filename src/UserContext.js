@@ -56,7 +56,10 @@ export const UserProvider = ({ children }) => {
 
         if (!userData) {
           console.log("🧪 Inserting user:", defaultUserData);
-          const { error: insertError } = await supabase.from('users').insert(defaultUserData);
+          const { error: insertError } = await supabase
+            .from('users')
+            .insert(defaultUserData, { returning: 'minimal' });
+
           if (insertError) throw new Error("Erreur création profil utilisateur");
           setCurrentUser(defaultUserData);
           setIsAdmin(false);
