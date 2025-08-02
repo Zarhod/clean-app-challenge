@@ -107,12 +107,17 @@ const AuthModal = ({ onClose }) => {
 
     } catch (err) {
       console.error("Erreur d'auth:", err);
-      let msg = err?.message || '';
+      const msg = err?.message || '';
+      const code = err?.code || err?.status || '';
       let errorMessage = "Une erreur est survenue.";
 
       switch (true) {
         case msg.includes("Invalid login credentials"):
-          errorMessage = "Adresse e-mail ou mot de passe incorrect.";
+        case msg.includes("Invalid login"):
+        case msg.includes("User not found"):
+        case code === 'auth/user-not-found':
+        case code === 'auth/wrong-password':
+          errorMessage = "Ce compte n'existe pas ou le mot de passe est incorrect.";
           break;
         case msg.includes("User already registered"):
           errorMessage = "Cette adresse e-mail est déjà utilisée.";
@@ -124,7 +129,7 @@ const AuthModal = ({ onClose }) => {
           errorMessage = "Erreur réseau. Vérifiez votre connexion.";
           break;
         default:
-          errorMessage = msg;
+          errorMessage = msg || errorMessage;
       }
 
       setError(errorMessage);

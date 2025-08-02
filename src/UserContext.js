@@ -19,6 +19,7 @@ export const UserProvider = ({ children }) => {
         let sessionResponse = await supabase.auth.getSession();
         let user = sessionResponse.data?.session?.user;
 
+        // Si pas de user, on essaie avec le token initial
         if (!user) {
           const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
           if (token) {
@@ -29,8 +30,10 @@ export const UserProvider = ({ children }) => {
           }
         }
 
+        // Et ici on vérifie proprement après les tentatives
         if (!user || !user.id) {
-          throw new Error("Impossible d'insérer un utilisateur sans ID valide.");
+          setLoadingUser(false);
+          return;
         }
 
         const { data: userData } = await supabase
@@ -79,6 +82,7 @@ export const UserProvider = ({ children }) => {
 
     setupAuthAndUser();
   }, []);
+
 
 
   return (
