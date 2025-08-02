@@ -6,18 +6,28 @@ function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading
     e.preventDefault();
 
     const dataToInsert = {
-      ID_Tache: taskData.ID_Tache || null,
-      Nom_Tache: taskData.Nom_Tache || null,
+      ID_Tache: taskData.ID_Tache?.trim() || null,
+      Nom_Tache: taskData.Nom_Tache?.trim() || null,
       Points: taskData.Points || null,
-      Frequence: taskData.Frequence || null,
-      Urgence: taskData.Urgence || null,
-      Categorie: taskData.Categorie || null,
+      Frequence: taskData.Frequence?.trim() || null,
+      Urgence: taskData.Urgence?.trim() || null,
+      Categorie: taskData.Categorie?.trim() || null,
       Sous_Taches_IDs: taskData.Sous_Taches_IDs
-        ? taskData.Sous_Taches_IDs.split(',').map(id => id.trim())
+        ? taskData.Sous_Taches_IDs.split(',').map(id => id.trim()).filter(Boolean)
         : null,
-
       Parent_Task_ID: taskData.Parent_Task_ID?.trim() || null,
     };
+
+// Supprimer les champs vides ou vides logiques (array vide)
+Object.keys(dataToInsert).forEach(key => {
+  if (
+    dataToInsert[key] === null ||
+    (Array.isArray(dataToInsert[key]) && dataToInsert[key].length === 0)
+  ) {
+    delete dataToInsert[key];
+  }
+});
+
 
     // Supprimer les valeurs vides qui poseraient problème (UUID vide notamment)
     if (!dataToInsert.Sous_Taches_IDs) delete dataToInsert.Sous_Taches_IDs;
