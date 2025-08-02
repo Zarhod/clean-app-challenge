@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { UserContext } from './UserContext';
+import UserContext from './UserContext'; // si export default
 
 /**
  * Composant de modal pour l'ajout ou la modification d'une tâche.
