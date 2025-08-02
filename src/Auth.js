@@ -1,4 +1,3 @@
-// src/Auth.js
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import ListAndInfoModal from './ListAndInfoModal';
@@ -8,7 +7,7 @@ import { supabase } from './supabase';
 const avatars = ['😀', '😂', '😎', '🤩', '🥳', '🤓', '🤖', '👻', '👽', '🐶', '🐱', '🐭', '🐹'];
 
 const AuthModal = ({ onClose }) => {
-  const { loadingUser, setCurrentUser } = useUser();
+  const { loadingUser, setCurrentUser, setIsAdmin } = useUser();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -63,6 +62,8 @@ const AuthModal = ({ onClose }) => {
         };
 
         setCurrentUser(finalUser);
+        setIsAdmin(userData?.isAdmin || false); // ✅ essentiel
+
         toast.success(`Bienvenue, ${finalUser.displayName} !`);
         onClose();
       } else {
@@ -101,6 +102,7 @@ const AuthModal = ({ onClose }) => {
         if (insertError) throw insertError;
 
         setCurrentUser({ uid: signUpData.user.id, ...newUserData });
+        setIsAdmin(false); // ✅ par défaut
         toast.success(`Compte créé pour ${displayName} !`);
         onClose();
       }
@@ -128,7 +130,7 @@ const AuthModal = ({ onClose }) => {
         case msg.includes("Password should be at least"):
           errorMessage = "Le mot de passe doit contenir au moins 6 caractères.";
           break;
-        case msg.includes("network"):
+        case code === 'auth/network-request-failed':
           errorMessage = "Erreur réseau. Vérifiez votre connexion.";
           break;
         default:
@@ -145,7 +147,7 @@ const AuthModal = ({ onClose }) => {
 
   return (
     <ListAndInfoModal title={isLogin ? "Connexion" : "Inscription"} onClose={onClose} sizeClass="max-w-xs sm:max-w-md">
-      {/* ... formulaire identique ... */}
+      {/* contenu du formulaire identique */}
     </ListAndInfoModal>
   );
 };

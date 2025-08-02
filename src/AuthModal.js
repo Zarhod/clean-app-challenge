@@ -1,11 +1,10 @@
-// src/AuthModal.js
 import React, { useState, useEffect } from 'react';
 import { useUser } from './UserContext';
 import { toast } from 'react-toastify';
 import { supabase } from './supabase';
 
 const AuthModal = ({ onClose }) => {
-  const { setCurrentUser, loadingUser } = useUser();
+  const { setCurrentUser, setIsAdmin, loadingUser } = useUser();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -59,6 +58,8 @@ const AuthModal = ({ onClose }) => {
         };
 
         setCurrentUser(finalUser);
+        setIsAdmin(userData?.isAdmin || false); // ✅ important ici
+
         toast.success(`Bienvenue, ${finalUser.displayName} !`);
         onClose();
 
@@ -98,6 +99,7 @@ const AuthModal = ({ onClose }) => {
         if (insertError) throw insertError;
 
         setCurrentUser({ uid: signUpData.user.id, ...newUserData });
+        setIsAdmin(false); // ✅ par défaut
         toast.success(`Compte créé avec succès pour ${newUserData.displayName} !`);
         onClose();
       }
