@@ -1,16 +1,23 @@
-import React from 'react';
-import { supabase } from './supabase'; // nécessaire si tu utilises supabase ici
+import React, { useContext } from 'react';
+import UserContext from './UserContext'; // ✅ Correct
+import { supabase } from './supabase';
 
-/**
- * Composant de modal pour l'ajout ou la modification d'une tâche.
- * @param {Object} taskData - Les données actuelles du formulaire de tâche.
- * @param {function} onFormChange - Fonction de rappel pour gérer les changements du formulaire.
- * @param {function} onSubmit - Fonction de rappel pour soumettre le formulaire.
- * @param {function} onClose - Fonction de rappel pour fermer le modal.
- * @param {boolean} loading - Indique si une opération est en cours (pour désactiver les boutons).
- * @param {Object|null} editingTask - L'objet tâche si nous sommes en mode édition, sinon null.
- */
 function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading, editingTask }) {
+  const { currentUser } = useContext(UserContext);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    const cleanedData = removeEmptyStrings(taskData);
+
+    const { error } = await supabase.from('objectives').insert(cleanedData);
+
+    if (error) {
+      console.error("Erreur Supabase :", error.message);
+      alert("Erreur : " + error.message);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-2">
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl w-full max-w-[95%] sm:max-w-md md:max-w-lg text-center animate-fade-in-scale border border-primary/20 mx-auto">
@@ -128,16 +135,18 @@ function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading
 
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6">
           <button
-            onClick={onSubmit}
+            onClick={handleSubmit}
             disabled={loading}
-            className="flex-1 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+            className="flex-1 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                       transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
           >
             {loading ? 'Soumission...' : (editingTask ? 'Modifier' : 'Ajouter')}
           </button>
           <button
             onClick={onClose}
             disabled={loading}
-            className="flex-1 bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+            className="flex-1 bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
+                       transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
           >
             Annuler
           </button>
