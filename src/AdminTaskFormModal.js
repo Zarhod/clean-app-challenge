@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../supabase';
+import { supabase } from './supabase'; // ✅ correction ici
 import { toast } from 'react-toastify';
 
 const AdminTaskFormModal = ({ onClose }) => {
