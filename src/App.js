@@ -192,6 +192,11 @@ function AppContent() {
     }
   }, [currentUser]);
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.reload();
+  };
+
   // Synchronise selectedParticipantProfile si c'est le profil de l'utilisateur actuel
   useEffect(() => {
     if (currentUser && selectedParticipantProfile && selectedParticipantProfile.id === currentUser.uid) {
@@ -3038,7 +3043,7 @@ function AppContent() {
           {currentUser && (
             <div className="absolute top-4 right-4 z-10">
               <button
-                onClick={handleAuthAction}
+                onClick={handleLogout}
                 className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-1.5 px-3 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-xs whitespace-nowrap"
               >
                 Déconnexion
