@@ -148,12 +148,9 @@ function AppContent() {
   const [showOverallRankingModal, setShowOverallRankingModal] = useState(false); 
   const [showAdminUserManagementModal, setShowAdminUserManagementModal] = useState(false); 
   const [showAdminCongratulatoryMessagesModal, setShowAdminCongratulatoryMessagesModal] = useState(false);
-  const [showAdminBadgeManager, setShowAdminBadgeManager] = useState(false);
-  const getBadgeDetails = (id) => badgeRules.find(b => b.id === id) || {};
 
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportedTaskDetails, setReportedTaskDetails] = useState(null); 
-  const [reports, setReports] = useState([]); 
 
   const [showChickEmoji, setShowChickEmoji] = useState(false);
   const logoClickTimerRef = useRef(null); 
