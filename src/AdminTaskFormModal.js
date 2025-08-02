@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import UserContext from './UserContext'; // ✅ Correct
+import UserContext from './UserContext';
 import { supabase } from './supabase';
 
 function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading, editingTask }) {
@@ -8,13 +8,29 @@ function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const cleanedData = removeEmptyStrings(taskData);
+    try {
+      const { error } = await supabase.from('objectives').insert({
+        ID_Tache: taskData.ID_Tache || null,
+        Nom_Tache: taskData.Nom_Tache || null,
+        Points: taskData.Points || null,
+        Frequence: taskData.Frequence || null,
+        Urgence: taskData.Urgence || null,
+        Categorie: taskData.Categorie || null,
+        Sous_Taches_IDs: taskData.Sous_Taches_IDs || null,
+        Parent_Task_ID: taskData.Parent_Task_ID || null,
+      });
 
-    const { error } = await supabase.from('objectives').insert(cleanedData);
+      if (error) {
+        console.error("Erreur Supabase :", error.message);
+        alert("Erreur : " + error.message);
+        return;
+      }
 
-    if (error) {
-      console.error("Erreur Supabase :", error.message);
-      alert("Erreur : " + error.message);
+      if (onSubmit) onSubmit();
+      onClose();
+    } catch (err) {
+      console.error("Erreur lors de la soumission :", err.message);
+      alert("Erreur : " + err.message);
     }
   };
 
