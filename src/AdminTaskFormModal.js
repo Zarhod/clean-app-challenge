@@ -4,14 +4,17 @@ import UserContext from './UserContext'; // ✅ Correct
 function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading, editingTask }) {
   const { currentUser } = useContext(UserContext);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!editingTask && currentUser?.id) {
-      taskData.created_by = currentUser.id;
-    }
+    const cleanedData = removeEmptyStrings(taskData);
 
-    onSubmit(e);
+    const { error } = await supabase.from('objectives').insert(cleanedData);
+
+    if (error) {
+      console.error("Erreur Supabase :", error.message);
+      alert("Erreur : " + error.message);
+    }
   };
 
   return (
