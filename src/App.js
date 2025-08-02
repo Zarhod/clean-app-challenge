@@ -44,7 +44,6 @@ import ChatFloatingButton from './ChatFloatingButton';
 import ProfileEditOptionsModal from './ProfileEditOptionsModal'; 
 import confetti from 'canvas-confetti';
 import UserBadgeDisplay from './UserBadgeDisplay'; 
-import badgeRules from './badgeRules';
 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -148,7 +147,7 @@ function AppContent() {
   const [showOverallRankingModal, setShowOverallRankingModal] = useState(false); 
   const [showAdminUserManagementModal, setShowAdminUserManagementModal] = useState(false); 
   const [showAdminCongratulatoryMessagesModal, setShowAdminCongratulatoryMessagesModal] = useState(false);
-  const [reports, setReports] = useState([]);
+  //const [reports, setReports] = useState([]);
 
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportedTaskDetails, setReportedTaskDetails] = useState(null); 
