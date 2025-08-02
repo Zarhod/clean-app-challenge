@@ -18,8 +18,7 @@ try {
   if (!firebaseConfig.projectId || !firebaseConfig.apiKey || !firebaseConfig.authDomain) {
     firebaseInitializationError = new Error(
       "CRITIQUE : La configuration Firebase est incomplète. " +
-      "Veuillez vous assurer que les secrets Cloudflare Pages (REACT_APP_FIREBASE_...) sont correctement définis " +
-      "pour construire la variable globale '__firebase_config' ou que les placeholders dans firebase.js sont remplis."
+      "Veuillez vous assurer que les secrets Cloudflare Pages (REACT_APP_FIREBASE_...) sont correctement définis."
     );
     console.error(firebaseInitializationError.message);
   } else {
@@ -33,7 +32,7 @@ try {
     console.log("Firebase initialisé avec succès via UserContext.");
   }
 } catch (error) {
-  firebaseInitializationError = new Error(`Erreur critique lors de l'initialisation de l'application Firebase : ${error.message}`);
+  firebaseInitializationError = new Error(`Erreur critique lors de l'initialisation de Firebase : ${error.message}`);
   console.error(firebaseInitializationError.message, error);
   firebaseAppInstance = null;
   firestoreDbInstance = null;
@@ -51,99 +50,77 @@ export const UserProvider = ({ children }) => {
   const auth = firebaseAuthInstance;
 
   useEffect(() => {
-    if (firebaseInitializationError) {
-      console.error("Impossible de procéder à l'authentification :", firebaseInitializationError.message);
+    if (firebaseInitializationError || !auth || !db) {
       setLoadingUser(false);
       return;
     }
 
-    if (!auth || !db) {
-      console.error("Firebase instances sont nulles. Impossible de procéder à l'authentification.");
-      setLoadingUser(false);
-      return;
-    }
+    const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-    const setupAuthAndUser = async () => {
-      try {
-        const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        if (!token) {
-          console.warn("Aucun token fourni, utilisateur non connecté.");
-          setLoadingUser(false);
-          return;
+    const attemptTokenLogin = async () => {
+      if (token) {
+        try {
+          await signInWithCustomToken(auth, token);
+        } catch (err) {
+          console.warn("Échec de connexion avec token custom :", err.message);
         }
-
-        await signInWithCustomToken(auth, token);
-
-        const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-          if (user) {
-            const userDocRef = doc(db, 'users', user.uid);
-            const userDocSnap = await getDoc(userDocRef);
-
-            if (userDocSnap.exists()) {
-              const userData = userDocSnap.data();
-              setCurrentUser({
-                uid: user.uid,
-                email: user.email,
-                displayName: userData.displayName || user.displayName,
-                isAdmin: userData.isAdmin || false,
-                avatar: userData.avatar || '👤',
-                weeklyPoints: userData.weeklyPoints || 0,
-                totalCumulativePoints: userData.totalCumulativePoints || 0,
-                previousWeeklyPoints: userData.previousWeeklyPoints || 0,
-                xp: userData.xp || 0,
-                level: userData.level || 1,
-                dateJoined: userData.dateJoined || new Date().toISOString(),
-                lastReadTimestamp: userData.lastReadTimestamp || null
-              });
-              setIsAdmin(userData.isAdmin || false);
-            } else {
-              const newUserData = {
-                displayName: user.displayName || user.email.split('@')[0],
-                email: user.email,
-                isAdmin: false,
-                avatar: '👤',
-                weeklyPoints: 0,
-                totalCumulativePoints: 0,
-                previousWeeklyPoints: 0,
-                xp: 0,
-                level: 1,
-                dateJoined: new Date().toISOString(),
-                lastReadTimestamp: new Date().toISOString()
-              };
-              await setDoc(userDocRef, newUserData);
-              setCurrentUser({ uid: user.uid, ...newUserData });
-              setIsAdmin(false);
-            }
-          } else {
-            setCurrentUser(null);
-            setIsAdmin(false);
-          }
-          setLoadingUser(false);
-        });
-
-        return unsubscribeAuth;
-      } catch (error) {
-        console.error("Erreur de configuration de l'authentification Firebase :", error);
-        setLoadingUser(false);
       }
     };
 
-    const cleanup = setupAuthAndUser();
-    return () => {
-      if (typeof cleanup.then === 'function') {
-        cleanup.then(unsubscribe => {
-          if (unsubscribe) unsubscribe();
-        });
-      } else if (typeof cleanup === 'function') {
-        cleanup();
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+
+        if (userDocSnap.exists()) {
+          const userData = userDocSnap.data();
+          setCurrentUser({
+            uid: user.uid,
+            email: user.email,
+            displayName: userData.displayName || user.displayName,
+            isAdmin: userData.isAdmin || false,
+            avatar: userData.avatar || '👤',
+            weeklyPoints: userData.weeklyPoints || 0,
+            totalCumulativePoints: userData.totalCumulativePoints || 0,
+            previousWeeklyPoints: userData.previousWeeklyPoints || 0,
+            xp: userData.xp || 0,
+            level: userData.level || 1,
+            dateJoined: userData.dateJoined || new Date().toISOString(),
+            lastReadTimestamp: userData.lastReadTimestamp || null
+          });
+          setIsAdmin(userData.isAdmin || false);
+        } else {
+          const newUserData = {
+            displayName: user.displayName || user.email.split('@')[0],
+            email: user.email,
+            isAdmin: false,
+            avatar: '👤',
+            weeklyPoints: 0,
+            totalCumulativePoints: 0,
+            previousWeeklyPoints: 0,
+            xp: 0,
+            level: 1,
+            dateJoined: new Date().toISOString(),
+            lastReadTimestamp: new Date().toISOString()
+          };
+          await setDoc(userDocRef, newUserData);
+          setCurrentUser({ uid: user.uid, ...newUserData });
+          setIsAdmin(false);
+        }
+      } else {
+        setCurrentUser(null);
+        setIsAdmin(false);
       }
-    };
+      setLoadingUser(false);
+    });
+
+    attemptTokenLogin();
+    return () => unsubscribe();
   }, [auth, db]);
 
   useEffect(() => {
-    if (db && currentUser?.uid) {
-      const userDocRef = doc(db, 'users', currentUser.uid);
+    if (db && auth?.currentUser) {
+      const userDocRef = doc(db, 'users', auth.currentUser.uid);
       const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
         if (docSnap.exists()) {
           const updatedUserData = docSnap.data();
@@ -152,16 +129,13 @@ export const UserProvider = ({ children }) => {
             ...updatedUserData
           }));
           setIsAdmin(updatedUserData.isAdmin || false);
-        } else {
-          setCurrentUser(null);
-          setIsAdmin(false);
         }
       }, (error) => {
-        console.error("Erreur lors de l'écoute du document utilisateur :", error);
+        console.warn("Erreur lors de l'écoute du document utilisateur :", error.message);
       });
       return () => unsubscribe();
     }
-  }, [db, currentUser?.uid]);
+  }, [db, auth?.currentUser]);
 
   const value = {
     currentUser,
