@@ -103,10 +103,13 @@ const AuthModal = ({ onClose }) => {
       }
 
     } catch (err) {
-      console.error("Authentication error:", err);
       const msg = err?.message || '';
       const code = err?.status || err?.code || '';
       let errorMessage = "Une erreur est survenue lors de l'authentification.";
+
+      if (process.env.NODE_ENV === 'development') {
+        console.warn("Auth error:", err);
+      }
 
       switch (true) {
         case msg.includes("Invalid login credentials"):
