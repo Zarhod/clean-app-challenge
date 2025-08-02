@@ -70,10 +70,8 @@ export const UserProvider = ({ children }) => {
         if (token) {
           await signInWithCustomToken(auth, token);
         } else {
-          console.warn("Aucun token fourni, utilisateur non connecté. Redirection vers /login.");
-          if (!window.location.pathname.includes("/login")) {
-            window.location.href = "/login";
-          }
+          console.warn("Aucun token fourni, utilisateur non connecté.");
+          setLoadingUser(false);
           return;
         }
 

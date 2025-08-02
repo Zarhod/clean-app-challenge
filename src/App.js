@@ -2671,6 +2671,17 @@ function AppContent() {
     );
   }
 
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+        <h2 className="text-xl sm:text-2xl font-semibold text-lightText text-center">
+          🔐 Veuillez vous connecter pour accéder à l'application.
+        </h2>
+      </div>
+    );
+  }
+
+
   // Rendu de l'écran de bienvenue si l'utilisateur n'est pas connecté
   if (!currentUser) {
     return (
