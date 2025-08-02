@@ -5,17 +5,23 @@ function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    const dataToInsert = {
+      ID_Tache: taskData.ID_Tache || null,
+      Nom_Tache: taskData.Nom_Tache || null,
+      Points: taskData.Points || null,
+      Frequence: taskData.Frequence || null,
+      Urgence: taskData.Urgence || null,
+      Categorie: taskData.Categorie || null,
+      Sous_Taches_IDs: taskData.Sous_Taches_IDs?.trim() || null,
+      Parent_Task_ID: taskData.Parent_Task_ID?.trim() || null,
+    };
+
+    // Supprimer les valeurs vides qui poseraient problème (UUID vide notamment)
+    if (!dataToInsert.Sous_Taches_IDs) delete dataToInsert.Sous_Taches_IDs;
+    if (!dataToInsert.Parent_Task_ID) delete dataToInsert.Parent_Task_ID;
+
     try {
-      const { error } = await supabase.from('tasks').insert({
-        ID_Tache: taskData.ID_Tache || null,
-        Nom_Tache: taskData.Nom_Tache || null,
-        Points: taskData.Points || null,
-        Frequence: taskData.Frequence || null,
-        Urgence: taskData.Urgence || null,
-        Categorie: taskData.Categorie || null,
-        Sous_Taches_IDs: taskData.Sous_Taches_IDs || null,
-        Parent_Task_ID: taskData.Parent_Task_ID || null,
-      });
+      const { error } = await supabase.from('tasks').insert(dataToInsert);
 
       if (error) {
         console.error("Erreur Supabase :", error.message);
@@ -30,6 +36,7 @@ function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading
       alert("Erreur : " + err.message);
     }
   };
+
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-2">
