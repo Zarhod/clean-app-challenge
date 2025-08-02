@@ -6,7 +6,7 @@ function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading
     e.preventDefault();
 
     try {
-      const { error } = await supabase.from('objectives').insert({
+      const { error } = await supabase.from('tasks').insert({
         ID_Tache: taskData.ID_Tache || null,
         Nom_Tache: taskData.Nom_Tache || null,
         Points: taskData.Points || null,
