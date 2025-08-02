@@ -14,6 +14,8 @@ export const UserProvider = ({ children }) => {
   useEffect(() => {
     const setupAuthAndUser = async () => {
       try {
+        await new Promise(resolve => setTimeout(resolve, 300)); // 👈 Attente importante
+
         let sessionResponse = await supabase.auth.getSession();
         let user = sessionResponse.data?.session?.user;
 
@@ -27,15 +29,10 @@ export const UserProvider = ({ children }) => {
           }
         }
 
-        if (!user) {
-          throw new Error("Utilisateur non connecté.");
-        }
-
         if (!user || !user.id) {
           throw new Error("Impossible d'insérer un utilisateur sans ID valide.");
         }
 
-        // Chargement du profil depuis la table 'users'
         const { data: userData } = await supabase
           .from('users')
           .select('*')
@@ -57,9 +54,8 @@ export const UserProvider = ({ children }) => {
           lastReadTimestamp: new Date().toISOString()
         };
 
-
         if (!userData) {
-          console.log("🧪 Inserting user:", defaultUserData); // <--- ajoute ça
+          console.log("🧪 Inserting user:", defaultUserData);
           const { error: insertError } = await supabase.from('users').insert(defaultUserData);
           if (insertError) throw new Error("Erreur création profil utilisateur");
           setCurrentUser(defaultUserData);
@@ -80,6 +76,7 @@ export const UserProvider = ({ children }) => {
 
     setupAuthAndUser();
   }, []);
+
 
   return (
     <UserContext.Provider value={{ currentUser, isAdmin, loadingUser, setCurrentUser }}>
