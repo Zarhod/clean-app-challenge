@@ -1131,20 +1131,6 @@ function AppContent() {
   };
 
 
-  const handleAuthAction = async () => {
-    if (currentUser) {
-      try {
-        await supabase.auth.signOut();
-        toast.info('Déconnecté.');
-        setActiveMainView('home');
-      } catch (error) {
-        toast.error('Erreur lors de la déconnexion.');
-      }
-    } else {
-      setShowAuthModal(true);
-    }
-  };
-
   const handleTaskFormChange = (e) => {
     const { name, value } = e.target;
     setNewTaskData(prev => ({
