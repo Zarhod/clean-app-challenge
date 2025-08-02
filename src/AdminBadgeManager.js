@@ -1,115 +1,125 @@
-// src/AdminBadgeManager.js
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { collection, getDocs, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import { useUser } from './UserContext';
-import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 
 const AdminBadgeManager = ({ onClose }) => {
   const { db } = useUser();
   const [badges, setBadges] = useState([]);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [icon, setIcon] = useState('');
+  const [newBadge, setNewBadge] = useState({ name: '', icon: '', description: '', rule: '' });
 
   useEffect(() => {
     const fetchBadges = async () => {
       if (!db) return;
-      const snapshot = await getDocs(collection(db, 'badges'));
-      const badgeList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setBadges(badgeList);
+      const badgeRef = collection(db, 'badges');
+      const snapshot = await getDocs(badgeRef);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setBadges(data);
     };
+
     fetchBadges();
   }, [db]);
 
-  const handleAddBadge = async (e) => {
-    e.preventDefault();
-    if (!name.trim() || !description.trim() || !icon.trim()) {
-      toast.error("Tous les champs sont requis.");
+  const handleAddBadge = async () => {
+    if (!newBadge.name || !newBadge.icon || !newBadge.description || !newBadge.rule) {
+      toast.error('Tous les champs sont requis.');
       return;
     }
 
     try {
-      await addDoc(collection(db, 'badges'), {
-        name: name.trim(),
-        description: description.trim(),
-        icon: icon.trim(),
-        createdAt: new Date().toISOString()
-      });
-      toast.success("Badge ajouté !");
-      setName('');
-      setDescription('');
-      setIcon('');
-    } catch (err) {
-      toast.error("Erreur lors de l'ajout du badge.");
-      console.error(err);
+      await addDoc(collection(db, 'badges'), newBadge);
+      toast.success('Badge ajouté avec succès');
+      setNewBadge({ name: '', icon: '', description: '', rule: '' });
+      const snapshot = await getDocs(collection(db, 'badges'));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setBadges(data);
+    } catch (error) {
+      toast.error("Erreur lors de l'ajout du badge");
+    }
+  };
+
+  const handleDeleteBadge = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'badges', id));
+      toast.success('Badge supprimé');
+      setBadges(prev => prev.filter(b => b.id !== id));
+    } catch (error) {
+      toast.error("Erreur lors de la suppression");
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4 overflow-auto">
-      <div className="bg-card rounded-2xl p-6 sm:p-8 w-full max-w-2xl relative shadow-2xl">
-        <h2 className="text-2xl font-bold text-center text-primary mb-4">Gestion des Badges</h2>
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-lg p-6 shadow-lg w-full max-w-2xl">
+        <h2 className="text-xl font-bold mb-4">Gestion des Badges</h2>
 
-        <form onSubmit={handleAddBadge} className="space-y-4 mb-6">
-          <div>
-            <label className="text-sm font-semibold">Nom du badge</label>
-            <input
-              type="text"
-              className="w-full border border-gray-300 p-2 rounded-lg text-sm"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ex: Premier Niveau"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-semibold">Description</label>
-            <input
-              type="text"
-              className="w-full border border-gray-300 p-2 rounded-lg text-sm"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ex: Atteindre le niveau 1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-semibold">Icône (emoji)</label>
-            <input
-              type="text"
-              className="w-full border border-gray-300 p-2 rounded-lg text-sm"
-              value={icon}
-              onChange={(e) => setIcon(e.target.value)}
-              placeholder="Ex: 🥇"
-            />
-          </div>
-          <button
-            type="submit"
-            className="w-full bg-primary hover:bg-secondary text-white py-2 rounded-full font-bold transition"
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <input
+            type="text"
+            placeholder="Nom"
+            value={newBadge.name}
+            onChange={(e) => setNewBadge({ ...newBadge, name: e.target.value })}
+            className="border p-2 rounded"
+          />
+          <input
+            type="text"
+            placeholder="Icone (ex: 🌟)"
+            value={newBadge.icon}
+            onChange={(e) => setNewBadge({ ...newBadge, icon: e.target.value })}
+            className="border p-2 rounded"
+          />
+          <input
+            type="text"
+            placeholder="Description"
+            value={newBadge.description}
+            onChange={(e) => setNewBadge({ ...newBadge, description: e.target.value })}
+            className="border p-2 rounded col-span-1 sm:col-span-2"
+          />
+          <select
+            value={newBadge.rule}
+            onChange={(e) => setNewBadge({ ...newBadge, rule: e.target.value })}
+            className="border p-2 rounded col-span-1 sm:col-span-2"
           >
-            Ajouter le badge
-          </button>
-        </form>
-
-        <div className="space-y-3">
-          <h3 className="text-lg font-bold text-secondary">Badges existants :</h3>
-          {badges.length === 0 ? (
-            <p className="text-sm text-lightText">Aucun badge enregistré.</p>
-          ) : (
-            <ul className="text-sm space-y-1">
-              {badges.map((badge) => (
-                <li key={badge.id} className="bg-background rounded p-2 shadow flex justify-between">
-                  <span>{badge.icon} <strong>{badge.name}</strong></span>
-                  <span className="text-xs text-gray-500">{badge.description}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+            <option value="">Choisir une règle d’attribution</option>
+            <option value="level_1">Atteindre le niveau 1</option>
+            <option value="xp_100">Atteindre 100 XP</option>
+            <option value="urgent_task_done">Compléter une tâche urgente</option>
+          </select>
         </div>
 
         <button
-          onClick={onClose}
-          className="absolute top-3 right-3 text-gray-400 hover:text-white text-xl"
+          onClick={handleAddBadge}
+          className="bg-primary hover:bg-secondary text-white px-4 py-2 rounded-full font-semibold transition"
         >
-          ✕
+          Ajouter le badge
+        </button>
+
+        <hr className="my-4" />
+
+        <h3 className="font-bold mb-2">Badges existants :</h3>
+        <ul className="space-y-2 max-h-60 overflow-y-auto">
+          {badges.map((badge) => (
+            <li key={badge.id} className="flex justify-between items-center border p-2 rounded">
+              <div>
+                <p className="font-semibold">{badge.icon} {badge.name}</p>
+                <p className="text-sm text-gray-600">{badge.description}</p>
+                <p className="text-xs text-gray-500 italic">Règle : {badge.rule}</p>
+              </div>
+              <button
+                onClick={() => handleDeleteBadge(badge.id)}
+                className="text-red-500 hover:text-red-700 font-bold text-sm"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        <button
+          onClick={onClose}
+          className="mt-6 bg-gray-600 hover:bg-gray-700 text-white font-semibold px-4 py-2 rounded-full transition"
+        >
+          Fermer
         </button>
       </div>
     </div>

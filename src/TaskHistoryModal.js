@@ -10,6 +10,7 @@ const TaskHistoryModal = ({ onClose }) => {
   const [tasks, setTasks] = useState([]);
   const [showConfetti, setShowConfetti] = useState(false);
 
+  // Récupère les tâches depuis Firestore
   useEffect(() => {
     const fetchTasks = async () => {
       if (!db || !currentUser) return;
@@ -22,14 +23,16 @@ const TaskHistoryModal = ({ onClose }) => {
     fetchTasks();
   }, [db, currentUser]);
 
-  const fetchAvailableBadges = async (db) => {
+  // Récupère tous les badges disponibles
+  const fetchAvailableBadges = async () => {
     const badgeRef = collection(db, 'badges');
     const snapshot = await getDocs(badgeRef);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   };
 
+  // Attribue les badges automatiquement si les conditions sont remplies
   const checkAndAssignBadges = async (user, db) => {
-    const badges = await fetchAvailableBadges(db);
+    const badges = await fetchAvailableBadges();
     const userRef = doc(db, 'users', user.uid);
     const userSnap = await getDoc(userRef);
     const userData = userSnap.data();
@@ -41,8 +44,9 @@ const TaskHistoryModal = ({ onClose }) => {
       const alreadyHasBadge = userBadges.includes(badge.id);
       const conditionMet =
         (badge.rule === 'level_1' && (user.level || 1) >= 1) ||
+        (badge.rule === 'level_2' && (user.level || 1) >= 2) ||
         (badge.rule === 'xp_100' && (user.xp || 0) >= 100) ||
-        (badge.rule === 'urgent_task_done' && user.totalCumulativePoints >= 1);
+        (badge.rule === 'urgent_task_done' && user.totalCumulativePoints >= 1); // Peut être raffiné
 
       if (!alreadyHasBadge && conditionMet) {
         newBadges.push(badge.id);
@@ -53,10 +57,11 @@ const TaskHistoryModal = ({ onClose }) => {
       await updateDoc(userRef, {
         badges: [...userBadges, ...newBadges],
       });
-      toast.success(`🌺 Nouveau badge débloqué !`);
+      toast.success(`🌟 Nouveau badge débloqué !`);
     }
   };
 
+  // Quand une tâche est validée
   const handleCompleteTask = async (task) => {
     if (!currentUser || !db) return;
 
