@@ -31,6 +31,10 @@ export const UserProvider = ({ children }) => {
           throw new Error("Utilisateur non connecté.");
         }
 
+        if (!user || !user.id) {
+          throw new Error("Impossible d'insérer un utilisateur sans ID valide.");
+        }
+
         // Chargement du profil depuis la table 'users'
         const { data: userData } = await supabase
           .from('users')
@@ -52,6 +56,7 @@ export const UserProvider = ({ children }) => {
           dateJoined: new Date().toISOString(),
           lastReadTimestamp: new Date().toISOString()
         };
+
 
         if (!userData) {
           const { error: insertError } = await supabase.from('users').insert(defaultUserData);
