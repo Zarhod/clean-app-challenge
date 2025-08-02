@@ -40,14 +40,16 @@ import WeeklyRecapModal from './WeeklyRecapModal';
 import TaskHistoryModal from './TaskHistoryModal'; 
 import AvatarSelectionModal from './AvatarSelectionModal'; 
 import PasswordChangeModal from './PasswordChangeModal'; 
+import ChatFloatingButton from './ChatFloatingButton'; 
 import ProfileEditOptionsModal from './ProfileEditOptionsModal'; 
 import confetti from 'canvas-confetti'; 
 
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
-// Importations Supabase
-import { supabase } from "./supabase";
+// Importations Firebase
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, getDoc, setDoc, writeBatch, onSnapshot } from 'firebase/firestore'; 
+import { signOut } from 'firebase/auth';
 
 // Importation du contexte utilisateur
 import { UserProvider, useUser } from './UserContext';
@@ -87,7 +89,8 @@ const calculateLevelAndXP = (currentXP) => {
 function AppContent() { 
   // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
-  const { currentUser, isAdmin, loadingUser, setCurrentUser } = useUser();
+  const { currentUser, isAdmin, loadingUser, db, auth, setCurrentUser } = useUser(); // Récupère db et auth du contexte
+
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
   const [realisations, setRealisations] = useState([]); 
@@ -175,7 +178,7 @@ function AppContent() {
   // Ref pour suivre l'état de chargement initial de chaque collection
   const initialLoadStatus = useRef({
     tasks: false,
-    realisations: false,
+    realizations: false,
     classement: false,
     objectives: false,
     congratulatoryMessages: false,
@@ -191,11 +194,6 @@ function AppContent() {
       setParticipantName('');
     }
   }, [currentUser]);
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.reload();
-  };
 
   // Synchronise selectedParticipantProfile si c'est le profil de l'utilisateur actuel
   useEffect(() => {
@@ -259,17 +257,11 @@ function AppContent() {
 
   // Fonctions de récupération de données utilisant onSnapshot (CHEMINS MIS À JOUR)
   const setupTasksListener = useCallback(() => {
-    const fetchAndProcessTasks = async () => {
-      const { data: rawData, error } = await supabase
-        .from('tasks')
-        .select('*');
+    const tasksCollectionPath = 'tasks'; 
 
-      if (error) {
-        if (supabase.auth.getUser()) {
-          toast.error(`Erreur lors de la récupération des tâches : ${error.message}`);
-        }
-        return;
-      }
+    const q = query(collection(db, tasksCollectionPath));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const rawData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
       const cleanedRawData = rawData.filter(tache => {
         const isValid = tache && tache.ID_Tache;
@@ -278,26 +270,24 @@ function AppContent() {
       setAllRawTaches(cleanedRawData); 
 
       const tachesMap = new Map(cleanedRawData.map(t => [String(t.ID_Tache), t]));
-
       const processedAndFilteredTaches = cleanedRawData
         .map(tache => {
-          if (!tache) return null;
-
+          if (!tache) return null; 
+          
           if (tache.Sous_Taches_IDs && String(tache.Sous_Taches_IDs).trim() !== '') {
             const subTaskIds = String(tache.Sous_Taches_IDs).split(',').map(id => id.trim());
             let totalSubTaskPoints = 0;
             subTaskIds.forEach(subId => {
               const subTask = tachesMap.get(subId);
-              if (subTask && subTask.Points) {
+              if (subTask && subTask.Points) { 
                 totalSubTaskPoints += parseFloat(subTask.Points);
               }
             });
-            return { ...tache, Calculated_Points: totalSubTaskPoints, isGroupTask: true };
+            return { ...tache, Calculated_Points: totalSubTaskPoints, isGroupTask: true }; 
           }
-
           return { ...tache, Calculated_Points: parseFloat(tache.Points) || 0, isGroupTask: false };
         })
-        .filter(tache => tache !== null);
+        .filter(tache => tache !== null); 
 
       const finalFilteredTaches = processedAndFilteredTaches.filter(tache => {
         const isTopLevel = tache.Parent_Task_ID === null || tache.Parent_Task_ID === undefined || String(tache.Parent_Task_ID).trim() === '';
@@ -306,292 +296,170 @@ function AppContent() {
 
       setTaches(finalFilteredTaches);
       initialLoadStatus.current.tasks = true;
-    };
-
-    fetchAndProcessTasks();
-
-    const channel = supabase
-      .channel('tasks-listener')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tasks' },
-        () => fetchAndProcessTasks()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
- 
+    }, (error) => {
+      if (auth.currentUser) { 
+        toast.error(`Erreur lors de la récupération des tâches: ${error.message}`); 
+      }
+    });
+    return unsubscribe;
+  }, [db, auth]); 
 
   const setupRealisationsListener = useCallback(() => {
-    const fetchRealisations = async () => {
-      const { data, error } = await supabase
-        .from('realisations')
-        .select('*');
-
-      if (error) {
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData) {
-          toast.error(`Erreur lors de la récupération des réalisations : ${error.message}`);
-        }
-        return;
-      }
-
+    const q = query(collection(db, 'realizations')); 
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       setRealisations(data);
-      initialLoadStatus.current.realisations = true;
-    };
-
-    fetchRealisations();
-
-    const channel = supabase
-      .channel('realisations-listener')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'realisations' },
-        fetchRealisations
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
+      initialLoadStatus.current.realizations = true;
+    }, (error) => {
+      if (auth.currentUser) { 
+        toast.error(`Erreur lors de la récupération des réalisations: ${error.message}`);
+      }
+    });
+    return unsubscribe;
+  }, [db, auth]); 
 
   const setupClassementListener = useCallback(() => {
-    const fetchClassement = async () => {
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('*');
+    const usersUnsubscribe = onSnapshot(collection(db, "users"), (usersSnapshot) => {
+      const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      onSnapshot(collection(db, 'realizations'), (realisationsSnapshot) => { 
+        const realisationsData = realisationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dayOfWeek = today.getDay(); 
+        const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
+        const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
+        startOfCurrentWeek.setHours(0, 0, 0, 0);
 
-      if (usersError) {
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData?.user) {
-          toast.error(`Erreur lors de la récupération des utilisateurs pour le classement: ${usersError.message}`);
-        }
-        return;
-      }
-
-      const { data: realisationsData, error: realisationsError } = await supabase
-        .from('realisations')
-        .select('*');
-
-      if (realisationsError) {
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData?.user) {
-          toast.error(`Erreur lors de la récupération des réalisations pour le classement: ${realisationsError.message}`);
-        }
-        return;
-      }
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const dayOfWeek = today.getDay();
-      const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-      const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
-      startOfCurrentWeek.setHours(0, 0, 0, 0);
-
-      const participantScores = {};
-      usersData.forEach(user => {
-        participantScores[user.displayName] = {
-          nomParticipant: user.displayName,
-          Points_Total_Semaine_Courante: parseFloat(user.weeklyPoints || 0),
-          Points_Total_Cumulatif: parseFloat(user.totalCumulativePoints || 0),
-          Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0),
-          Date_Mise_A_Jour: user.dateJoined || '',
-          Avatar: user.avatar || '👤',
-          Level: user.level || 1,
-          XP: user.xp || 0
-        };
-      });
-
-      const tempWeeklyPoints = {};
-      const tempCumulativePoints = {};
-
-      realisationsData.forEach(real => {
-        const participant = real.nomParticipant;
-        const points = parseFloat(real.pointsGagnes) || 0;
-        const realDate = new Date(real.timestamp);
-        realDate.setHours(0, 0, 0, 0);
-
-        if (realDate >= startOfCurrentWeek) {
-          tempWeeklyPoints[participant] = (tempWeeklyPoints[participant] || 0) + points;
-        }
-        tempCumulativePoints[participant] = (tempCumulativePoints[participant] || 0) + points;
-      });
-
-      usersData.forEach(user => {
-        const displayName = user.displayName;
-        if (!participantScores[displayName]) {
-          participantScores[displayName] = {
-            nomParticipant: displayName,
-            Points_Total_Semaine_Courante: 0,
-            Points_Total_Cumulatif: 0,
-            Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0),
+        const participantScores = {};
+        usersData.forEach(user => {
+          participantScores[user.displayName] = {
+            Nom_Participant: user.displayName,
+            Points_Total_Semaine_Courante: parseFloat(user.weeklyPoints || 0), 
+            Points_Total_Cumulatif: parseFloat(user.totalCumulativePoints || 0),
+            Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0), 
             Date_Mise_A_Jour: user.dateJoined || '',
-            Avatar: user.avatar || '👤',
-            Level: user.level || 1,
-            XP: user.xp || 0
+            Avatar: user.avatar || '👤', 
+            Level: user.level || 1, 
+            XP: user.xp || 0 
           };
+        });
+
+        const tempWeeklyPoints = {};
+        const tempCumulativePoints = {};
+
+        realisationsData.forEach(real => {
+          const participant = real.nomParticipant;
+          const points = parseFloat(real.pointsGagnes) || 0;
+          const realDate = new Date(real.timestamp);
+          realDate.setHours(0, 0, 0, 0);
+
+          if (realDate >= startOfCurrentWeek) {
+            tempWeeklyPoints[participant] = (tempWeeklyPoints[participant] || 0) + points;
+          }
+          tempCumulativePoints[participant] = (tempCumulativePoints[participant] || 0) + points;
+        });
+
+        usersData.forEach(user => {
+          const displayName = user.displayName;
+          if (!participantScores[displayName]) {
+            participantScores[displayName] = {
+              Nom_Participant: displayName,
+              Points_Total_Semaine_Courante: 0,
+              Points_Total_Cumulatif: 0,
+              Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0),
+              Date_Mise_A_Jour: user.dateJoined || '',
+              Avatar: user.avatar || '👤',
+              Level: user.level || 1,
+              XP: user.xp || 0
+            };
+          }
+          participantScores[displayName].Points_Total_Semaine_Courante = tempWeeklyPoints[displayName] || 0;
+          participantScores[displayName].Points_Total_Cumulatif = tempCumulativePoints[displayName] || 0;
+        });
+        
+        const currentClassement = Object.values(participantScores)
+          .sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
+        
+        setClassement(currentClassement); 
+        const globalCumulative = currentClassement.reduce((sum, p) => sum + (parseFloat(p.Points_Total_Cumulatif) || 0), 0); 
+        setTotalGlobalCumulativePoints(globalCumulative);
+        initialLoadStatus.current.classement = true;
+      }, (error) => {
+        if (auth.currentUser) {
+          toast.error(`Erreur lors de la récupération des réalisations pour le classement: ${error.message}`);
         }
-        participantScores[displayName].Points_Total_Semaine_Courante = tempWeeklyPoints[displayName] || 0;
-        participantScores[displayName].Points_Total_Cumulatif = tempCumulativePoints[displayName] || 0;
       });
-
-      const currentClassement = Object.values(participantScores)
-        .sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
-
-      setClassement(currentClassement);
-      const globalCumulative = currentClassement.reduce((sum, p) => sum + (parseFloat(p.Points_Total_Cumulatif) || 0), 0);
-      setTotalGlobalCumulativePoints(globalCumulative);
-      initialLoadStatus.current.classement = true;
-    };
-
-    fetchClassement();
-
-    const channel = supabase
-      .channel('classement-updates')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'users' },
-        fetchClassement
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'realisations' },
-        fetchClassement
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
- 
+    }, (error) => {
+      if (auth.currentUser) {
+        toast.error(`Erreur lors de la récupération des utilisateurs pour le classement: ${error.message}`);
+      }
+    });
+    return usersUnsubscribe; 
+  }, [db, auth]); 
 
   const setupObjectivesListener = useCallback(() => {
-    const fetchObjectives = async () => {
-      const { data, error } = await supabase
-        .from('objectives')
-        .select('*');
-
-      if (error) {
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData?.user) {
-          toast.error(`Erreur lors de la récupération des objectifs: ${error.message}`);
-        }
-        return;
-      }
-
+    const q = query(collection(db, 'objectives')); 
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setObjectives(data);
       initialLoadStatus.current.objectives = true;
-    };
-
-    fetchObjectives();
-
-    const channel = supabase
-      .channel('objectives-listener')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'objectives' },
-        fetchObjectives
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
- 
+    }, (error) => {
+      if (auth.currentUser) {
+        toast.error(`Erreur lors de la récupération des objectifs: ${error.message}`);
+      }
+    });
+    return unsubscribe;
+  }, [db, auth]); 
 
   const setupCongratulatoryMessagesListener = useCallback(() => {
-    const channel = supabase
-      .channel('congratulatory_messages_channel')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'congratulatory_messages' },
-        async () => {
-          const { data, error } = await supabase
-            .from('congratulatory_messages')
-            .select('*');
-
-          if (error) {
-            toast.error(`Erreur lors de la récupération des messages : ${error.message}`);
-            return;
-          }
-
-          setCongratulatoryMessages(data);
-          initialLoadStatus.current.congratulatoryMessages = true;
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
- 
+    const q = query(collection(db, 'congratulatory_messages')); 
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCongratulatoryMessages(data);
+      initialLoadStatus.current.congratulatoryMessages = true;
+    }, (error) => {
+      if (auth.currentUser) {
+        setCongratulatoryMessages([{ Texte_Message: "Bravo pour votre excellent travail !" }]); 
+        toast.error(`Erreur lors de la récupération des messages de félicitation: ${error.message}`);
+      }
+    });
+    return unsubscribe;
+  }, [db, auth]); 
 
   const setupHistoricalPodiumsListener = useCallback(() => {
-    const fetchHistoricalPodiums = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('historical_podiums')
-          .select('*');
-
-        if (error) throw error;
-
-        setHistoricalPodiums(data || []);
-        initialLoadStatus.current.historicalPodiums = true;
-      } catch (error) {
-        // Vérification simplifiée (ne déclenche pas d'effet secondaire inutile)
-        toast.error(`Erreur lors de la récupération des podiums historiques : ${error.message}`);
+    const q = query(collection(db, 'historical_podiums')); 
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setHistoricalPodiums(data);
+      initialLoadStatus.current.historicalPodiums = true;
+    }, (error) => {
+      if (auth.currentUser) {
+        toast.error(`Erreur lors de la récupération des podiums historiques: ${error.message}`);
       }
-    };
-
-    fetchHistoricalPodiums();
-
-    return () => {}; // Supabase ne fournit pas de méthode unsubscribe pour une requête simple
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
- 
+    });
+    return unsubscribe;
+  }, [db, auth]); 
 
   const setupReportsListener = useCallback(() => {
-    const channel = supabase
-      .channel('reports-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'reports' },
-        async () => {
-          const { data, error } = await supabase
-            .from('reports')
-            .select('*');
-
-          if (error) {
-            toast.error(`Erreur lors de la récupération des signalements : ${error.message}`);
-          } else {
-            setReports(data);
-            initialLoadStatus.current.reports = true;
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-
- 
+    const q = query(collection(db, 'reports')); 
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setReports(data);
+      initialLoadStatus.current.reports = true;
+    }, (error) => {
+      if (auth.currentUser) {
+        toast.error(`Erreur lors de la récupération des rapports: ${error.message}`);
+      }
+    });
+    return unsubscribe;
+  }, [db, auth]); 
 
   // Effet principal pour gérer les écouteurs en temps réel et l'état de chargement global
   useEffect(() => {
-    const currentInitialLoadStatusRef = initialLoadStatus.current;
+    const unsubscribes = [];
+    const currentInitialLoadStatusRef = initialLoadStatus.current; 
     let timeoutId;
 
     const checkInitialLoad = () => {
@@ -606,30 +474,19 @@ function AppContent() {
     };
 
     if (!loadingUser && currentUser) {
-      const unsubTasks = setupTasksListener();
-      const unsubRealisations = setupRealisationsListener();
-      const unsubClassement = setupClassementListener();
-      const unsubObjectives = setupObjectivesListener();
-      const unsubMessages = setupCongratulatoryMessagesListener();
-      const unsubPodiums = setupHistoricalPodiumsListener();
-      const unsubReports = setupReportsListener();
+      // S'assurer que db et auth sont disponibles avant de setup les listeners
+      if (db && auth) {
+        unsubscribes.push(setupTasksListener());
+        unsubscribes.push(setupRealisationsListener());
+        unsubscribes.push(setupClassementListener());
+        unsubscribes.push(setupObjectivesListener());
+        unsubscribes.push(setupCongratulatoryMessagesListener());
+        unsubscribes.push(setupHistoricalPodiumsListener());
+        unsubscribes.push(setupReportsListener());
+      }
 
-      setTimeout(checkInitialLoad, 500);
+      setTimeout(checkInitialLoad, 500); 
 
-      return () => {
-        if (timeoutId) clearTimeout(timeoutId);
-        unsubTasks?.();
-        unsubRealisations?.();
-        unsubClassement?.();
-        unsubObjectives?.();
-        unsubMessages?.();
-        unsubPodiums?.();
-        unsubReports?.();
-
-        Object.keys(currentInitialLoadStatusRef).forEach(
-          key => currentInitialLoadStatusRef[key] = false
-        );
-      };
     } else if (!loadingUser && !currentUser) {
       setTaches([]);
       setAllRawTaches([]);
@@ -644,99 +501,67 @@ function AppContent() {
     }
 
     return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-      Object.keys(currentInitialLoadStatusRef).forEach(
-        key => currentInitialLoadStatusRef[key] = false
-      );
+      unsubscribes.forEach(unsubscribe => unsubscribe());
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      Object.keys(currentInitialLoadStatusRef).forEach(key => currentInitialLoadStatusRef[key] = false);
     };
   }, [
-    currentUser, loadingUser,
+    currentUser, loadingUser, db, auth, 
     setupTasksListener, setupRealisationsListener, setupClassementListener,
     setupObjectivesListener, setupCongratulatoryMessagesListener, setupHistoricalPodiumsListener,
     setupReportsListener
   ]);
 
-
-
-
   // Deuxième useEffect: Calcul et affichage du récapitulatif hebdomadaire
   useEffect(() => {
     const handleRecapLogic = async () => {
-      if (currentUser && realisations.length > 0 && historicalPodiums.length > 0) {
+      if (currentUser && realisations.length > 0 && historicalPodiums.length > 0 && db) { 
         const today = new Date();
-        const currentDayOfWeek = today.getDay();
+        const currentDayOfWeek = today.getDay(); 
         const currentMonday = new Date(today);
         currentMonday.setDate(today.getDate() - (currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1));
         currentMonday.setHours(0, 0, 0, 0);
 
-        const { data: userData, error } = await supabase
-          .from("users")
-          .select("lastWeeklyRecapDisplayed")
-          .eq("id", currentUser.uid)
-          .single();
+        const userDocRef = doc(db, "users", currentUser.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        const userData = userDocSnap.exists() ? userDocSnap.data() : {};
+        const lastRecapDisplayed = userData.lastWeeklyRecapDisplayed ? new Date(userData.lastWeeklyRecapDisplayed) : null;
 
-        if (error) {
-          console.error("Erreur lors de la récupération des infos utilisateur :", error.message);
-          return;
-        }
-
-        const lastRecapDisplayed = userData?.lastWeeklyRecapDisplayed
-          ? new Date(userData.lastWeeklyRecapDisplayed)
-          : null;
-
-        if (
-          currentDayOfWeek === 1 &&
-          (!lastRecapDisplayed || lastRecapDisplayed.toDateString() !== currentMonday.toDateString())
-        ) {
-          const recap = calculateWeeklyRecap(
-            currentUser.uid,
-            currentUser.displayName || currentUser.email,
-            realisations,
-            historicalPodiums
-          );
+        if (currentDayOfWeek === 1 && (!lastRecapDisplayed || lastRecapDisplayed.toDateString() !== currentMonday.toDateString())) {
+          const recap = calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email, realisations, historicalPodiums);
           setWeeklyRecapData(recap);
           setShowWeeklyRecapModal(true);
-
-          const { error: updateError } = await supabase
-            .from("users")
-            .update({ lastWeeklyRecapDisplayed: currentMonday.toISOString() })
-            .eq("id", currentUser.uid);
-
-          if (updateError) {
-            console.error("Erreur lors de la mise à jour :", updateError.message);
-          }
-        } else if (
-          lastRecapDisplayed &&
-          lastRecapDisplayed.toDateString() === currentMonday.toDateString()
-        ) {
-          const recap = calculateWeeklyRecap(
-            currentUser.uid,
-            currentUser.displayName || currentUser.email,
-            realisations,
-            historicalPodiums
-          );
-          setWeeklyRecapData(recap);
+          await updateDoc(userDocRef, {
+            lastWeeklyRecapDisplayed: currentMonday.toISOString()
+          });
+        } else if (lastRecapDisplayed && lastRecapDisplayed.toDateString() === currentMonday.toDateString()) {
+            const recap = calculateWeeklyRecap(currentUser.uid, currentUser.displayName || currentUser.email, realisations, historicalPodiums);
+            setWeeklyRecapData(recap);
         } else {
-          setWeeklyRecapData(null);
+            setWeeklyRecapData(null); 
         }
       } else if (currentUser && (realisations.length === 0 || historicalPodiums.length === 0)) {
         setWeeklyRecapData(null);
       }
     };
     handleRecapLogic();
-  }, [currentUser, realisations, historicalPodiums, calculateWeeklyRecap]);
-
+  }, [
+    currentUser,
+    realisations, 
+    historicalPodiums, 
+    calculateWeeklyRecap,
+    db 
+  ]);
 
 
   const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
     setLoading(true); 
     try {
-      const { data, error } = await supabase
-        .from('realisations')
-        .select('*')
-        .eq('nomParticipant', participantName);
-
-      if (error) throw error;
+      const q = query(collection(db, 'realizations'), where("nomParticipant", "==", participantName)); 
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -750,7 +575,6 @@ function AppContent() {
         realDate.setHours(0, 0, 0, 0);
         return realDate >= startOfCurrentWeek;
       });
-
       setParticipantWeeklyTasks(weeklyTasks);
 
     } catch (err) {
@@ -758,21 +582,16 @@ function AppContent() {
     } finally {
       setLoading(false);
     }
-  }, [setParticipantWeeklyTasks, setLoading]);
-
+  }, [setParticipantWeeklyTasks, setLoading, db]); 
 
   const fetchSubTasks = useCallback(async (parentTaskId) => {
     setLoading(true); 
     try {
-      const { data: parentTaskData, error: parentError } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('id', parentTaskId)
-        .single();
-
-      if (parentError || !parentTaskData) {
+      const parentTaskDoc = await getDoc(doc(db, 'tasks', parentTaskId)); 
+      if (!parentTaskDoc.exists()) {
         throw new Error("Tâche parente introuvable.");
       }
+      const parentTaskData = parentTaskDoc.data();
 
       if (!parentTaskData.Sous_Taches_IDs || String(parentTaskData.Sous_Taches_IDs).trim() === '') {
         setSubTasks([]);
@@ -780,34 +599,29 @@ function AppContent() {
       }
 
       const subTaskIds = String(parentTaskData.Sous_Taches_IDs).split(',').map(id => id.trim());
+      
+      const subTasksPromises = subTaskIds.map(id => getDoc(doc(db, 'tasks', id))); 
+      const subTaskDocs = await Promise.all(subTasksPromises);
+      const sousTaches = subTaskDocs
+        .filter(docSnap => docSnap.exists())
+        .map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
 
-      const { data: sousTaches, error: subError } = await supabase
-        .from('tasks')
-        .select('*')
-        .in('id', subTaskIds);
-
-      if (subError) throw subError;
-
-      setSubTasks(sousTaches || []); 
+      setSubTasks(sousTaches); 
     } catch (err) {
       toast.error(`Erreur: ${err.message}`);
       setSubTasks([]); 
     } finally {
       setLoading(false);
     }
-  }, [setSubTasks, setLoading]);
- 
+  }, [setSubTasks, setLoading, db]); 
 
   const fetchGlobalCollectionDocs = useCallback(async (collectionName) => {
     setLoadingGlobalCollectionDocs(true);
     try {
-      const { data, error } = await supabase
-        .from(collectionName)
-        .select('*');
-
-      if (error) throw error;
-
-      const docs = data.map(row => ({ id: row.id, ...row }));
+      const collectionPath = collectionName; 
+      const q = query(collection(db, collectionPath));
+      const querySnapshot = await getDocs(q);
+      const docs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setGlobalCollectionDocs(docs);
     } catch (err) {
       toast.error(`Erreur lors du chargement des documents de ${collectionName}: ${err.message}`);
@@ -815,8 +629,7 @@ function AppContent() {
     } finally {
       setLoadingGlobalCollectionDocs(false);
     }
-  }, []);
-
+  }, [db]); 
 
   const recordTask = async (idTacheToRecord, isSubTask = false) => {
     if (!currentUser) {
@@ -835,84 +648,62 @@ function AppContent() {
       const pointsToSend = parseFloat(taskToRecord.Points) || 0;
       const categoryToSend = taskToRecord.Categorie || 'Non catégorisée';
 
-      // Enregistrer la réalisation
-      const { error: addError } = await supabase.from('realisations').insert([{
+      await addDoc(collection(db, 'realizations'), { 
         taskId: idTacheToRecord,
         userId: currentUser.uid,
-        nomParticipant: currentUser.displayName || currentUser.email,
+        nomParticipant: currentUser.displayName || currentUser.email, 
         nomTacheEffectuee: taskToRecord.Nom_Tache,
         categorieTache: categoryToSend,
         pointsGagnes: pointsToSend,
         timestamp: new Date().toISOString()
-      }]);
-      if (addError) throw addError;
+      });
 
-      // Récupérer les infos de l'utilisateur
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', currentUser.uid)
-        .single();
-      if (userError) throw userError;
+      const userDocRef = doc(db, "users", currentUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + pointsToSend;
+        const newWeeklyPoints = (userData.weeklyPoints || 0) + pointsToSend;
+        const newXP = (userData.xp || 0) + pointsToSend; 
+        const { level: newLevel } = calculateLevelAndXP(newXP); 
 
-      const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + pointsToSend;
-      const newWeeklyPoints = (userData.weeklyPoints || 0) + pointsToSend;
-      const newXP = (userData.xp || 0) + pointsToSend;
-      const { level: newLevel } = calculateLevelAndXP(newXP);
+        await updateDoc(userDocRef, {
+          totalCumulativePoints: newTotalCumulativePoints,
+          weeklyPoints: newWeeklyPoints,
+          xp: newXP, 
+          level: newLevel 
+        });
 
-      // Mettre à jour les points de l'utilisateur
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({
+        // Mettre à jour le currentUser dans le contexte pour refléter les changements
+        setCurrentUser(prevUser => ({
+          ...prevUser,
           totalCumulativePoints: newTotalCumulativePoints,
           weeklyPoints: newWeeklyPoints,
           xp: newXP,
           level: newLevel
-        })
-        .eq('id', currentUser.uid);
-      if (updateError) throw updateError;
+        }));
 
-      // Mettre à jour le contexte utilisateur
-      setCurrentUser(prevUser => ({
-        ...prevUser,
-        totalCumulativePoints: newTotalCumulativePoints,
-        weeklyPoints: newWeeklyPoints,
-        xp: newXP,
-        level: newLevel
-      }));
+      }
 
-      // Supprimer si tâche ponctuelle
       if (String(taskToRecord.Frequence || '').toLowerCase() === 'ponctuel') {
-        const { error: deleteError } = await supabase
-          .from('tasks')
-          .delete()
-          .eq('id', taskToRecord.id);
-        if (deleteError) throw deleteError;
-
-        toast.success(`Tâche ponctuelle "${taskToRecord.Nom_Tache}" enregistrée et supprimée.`);
+          await deleteDoc(doc(db, 'tasks', taskToRecord.id)); 
+          toast.success(`Tâche ponctuelle "${taskToRecord.Nom_Tache}" enregistrée et supprimée.`);
       } else {
-        toast.success(`Tâche "${taskToRecord.Nom_Tache}" enregistrée avec succès.`);
+          toast.success(`Tâche "${taskToRecord.Nom_Tache}" enregistrée avec succès.`);
       }
 
-      // Afficher le message de félicitation
-      if (!isSubTask) {
+      if (!isSubTask) { 
         const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
-        setShowThankYouPopup({
-          name: currentUser.displayName || currentUser.email,
-          task: taskToRecord.Nom_Tache,
-          message: randomMessage
-        });
-        setShowConfetti(true);
-        setSelectedTask(null);
+        setShowThankYouPopup({ name: currentUser.displayName || currentUser.email, task: taskToRecord.Nom_Tache, message: randomMessage }); 
+        setShowConfetti(true); 
+        setSelectedTask(null); 
       }
-
     } catch (err) {
-      toast.error(`Une erreur est survenue: ${err.message}`);
+      toast.error(`Une erreur est survenue: ${err.message}`); 
     } finally {
       setLoading(false);
     }
   };
-
 
   const recordMultipleTasks = async () => {
     if (!currentUser) {
@@ -922,6 +713,7 @@ function AppContent() {
     }
 
     const availableSelectedSubTasks = selectedSubTasks.filter(subTask => isSubTaskAvailable(subTask));
+
     if (availableSelectedSubTasks.length === 0) {
       toast.warn('Veuillez sélectionner au moins une sous-tâche disponible.');
       return;
@@ -930,8 +722,9 @@ function AppContent() {
     setLoading(true);
     try {
       let totalPointsGained = 0;
-      const tasksToDelete = [];
-      const realizationsToInsert = [];
+      const tasksToDelete = []; 
+
+      const batch = writeBatch(db); 
 
       availableSelectedSubTasks.forEach(subTask => {
         const points = parseFloat(subTask.Points) || 0;
@@ -939,10 +732,10 @@ function AppContent() {
         totalPointsGained += points;
 
         if (String(subTask.Frequence || '').toLowerCase() === 'ponctuel') {
-          tasksToDelete.push(subTask.id);
+          tasksToDelete.push(subTask.id); 
         }
 
-        realizationsToInsert.push({
+        batch.set(doc(collection(db, 'realizations')), { 
           taskId: subTask.ID_Tache,
           userId: currentUser.uid,
           nomParticipant: currentUser.displayName || currentUser.email,
@@ -952,65 +745,47 @@ function AppContent() {
           timestamp: new Date().toISOString()
         });
       });
+      
+      tasksToDelete.forEach(taskId => {
+        batch.delete(doc(db, 'tasks', taskId)); 
+      });
 
-      // Insertion multiple
-      const { error: insertError } = await supabase.from('realisations').insert(realizationsToInsert);
-      if (insertError) throw insertError;
+      const userDocRef = doc(db, "users", currentUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + totalPointsGained;
+        const newWeeklyPoints = (userData.weeklyPoints || 0) + totalPointsGained;
+        const newXP = (userData.xp || 0) + totalPointsGained; 
+        const { level: newLevel } = calculateLevelAndXP(newXP); 
 
-      // Suppression des tâches ponctuelles
-      if (tasksToDelete.length > 0) {
-        const { error: deleteError } = await supabase
-          .from('tasks')
-          .delete()
-          .in('id', tasksToDelete);
-        if (deleteError) throw deleteError;
-      }
+        batch.update(userDocRef, {
+          totalCumulativePoints: newTotalCumulativePoints,
+          weeklyPoints: newWeeklyPoints,
+          xp: newXP, 
+          level: newLevel 
+        });
 
-      // Mise à jour des points utilisateur
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', currentUser.uid)
-        .single();
-      if (userError) throw userError;
-
-      const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + totalPointsGained;
-      const newWeeklyPoints = (userData.weeklyPoints || 0) + totalPointsGained;
-      const newXP = (userData.xp || 0) + totalPointsGained;
-      const { level: newLevel } = calculateLevelAndXP(newXP);
-
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({
+        // Mettre à jour le currentUser dans le contexte pour refléter les changements
+        setCurrentUser(prevUser => ({
+          ...prevUser,
           totalCumulativePoints: newTotalCumulativePoints,
           weeklyPoints: newWeeklyPoints,
           xp: newXP,
           level: newLevel
-        })
-        .eq('id', currentUser.uid);
-      if (updateError) throw updateError;
-
-      setCurrentUser(prevUser => ({
-        ...prevUser,
-        totalCumulativePoints: newTotalCumulativePoints,
-        weeklyPoints: newWeeklyPoints,
-        xp: newXP,
-        level: newLevel
-      }));
+        }));
+      }
+      await batch.commit(); 
 
       const completedTaskNames = availableSelectedSubTasks.map(st => st.Nom_Tache).join(', ');
       const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
+      setShowThankYouPopup({ name: currentUser.displayName || currentUser.email, task: completedTaskNames, message: randomMessage });
+      setShowConfetti(true); 
 
-      setShowThankYouPopup({
-        name: currentUser.displayName || currentUser.email,
-        task: completedTaskNames,
-        message: randomMessage
-      });
-      setShowConfetti(true);
       toast.success(`Tâches enregistrées avec succès.`);
 
       setSelectedTask(null);
-      setShowSplitTaskDialog(false);
+      setShowSplitTaskDialog(false); 
       setSelectedSubTasks([]);
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
@@ -1019,107 +794,83 @@ function AppContent() {
     }
   };
 
-
   const resetWeeklyPoints = async () => {
     if (!isAdmin) {
       toast.error("Accès refusé. Vous n'êtes pas administrateur.");
       return;
     }
-
     setLoading(true);
     try {
       const sortedClassementForPodium = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
-      const top3 = sortedClassementForPodium
-        .filter(p => parseFloat(p.Points_Total_Semaine_Courante) > 0)
-        .slice(0, 3);
-      const datePodium = new Date().toISOString().split('T')[0];
+      // Filtrer pour n'inclure que les participants avec des points > 0 pour le podium
+      const top3 = sortedClassementForPodium.filter(p => parseFloat(p.Points_Total_Semaine_Courante) > 0).slice(0, 3);
+      const datePodium = new Date().toISOString().split('T')[0]; 
 
-      // Enregistrement du podium
+      // Enregistrer le podium uniquement s'il y a des participants avec des points
       if (top3.length > 0) {
-        const { error: insertError } = await supabase.from('historical_podiums').insert({
+        await addDoc(collection(db, 'historical_podiums'), { 
           Date_Podium: datePodium,
-          top3: top3.map(p => ({ name: p.nomParticipant, points: p.Points_Total_Semaine_Courante }))
+          top3: top3.map(p => ({ name: p.Nom_Participant, points: p.Points_Total_Semaine_Courante }))
         });
-        if (insertError) throw insertError;
-
         toast.success('Points hebdomadaires réinitialisés et podium enregistré.');
       } else {
         toast.info('Aucun participant n\'a marqué de points cette semaine, le podium n\'a pas été enregistré.');
       }
 
-      // Mise à jour des utilisateurs
-      const { data: users, error: usersError } = await supabase.from('users').select('id, weeklyPoints');
-      if (usersError) throw usersError;
 
-      const updates = users.map(user => ({
-        id: user.id,
-        weeklyPoints: 0,
-        previousWeeklyPoints: user.weeklyPoints || 0
-      }));
+      const usersQuery = query(collection(db, "users"));
+      const usersSnapshot = await getDocs(usersQuery);
+      const batch = writeBatch(db); 
 
-      for (const user of updates) {
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({
-            weeklyPoints: user.weeklyPoints,
-            previousWeeklyPoints: user.previousWeeklyPoints
-          })
-          .eq('id', user.id);
-        if (updateError) throw updateError;
-      }
+      usersSnapshot.docs.forEach(userDoc => {
+        const userRef = doc(db, "users", userDoc.id);
+        const userData = userDoc.data();
+        batch.update(userRef, {
+          weeklyPoints: 0,
+          previousWeeklyPoints: userData.weeklyPoints || 0 
+        });
+      });
+      await batch.commit(); 
 
     } catch (err) {
       toast.error(`Une erreur est survenue lors de la réinitialisation des points hebdomadaires: ${err.message}`);
     } finally {
       setLoading(false);
-      setShowConfirmResetModal(false);
+      setShowConfirmResetModal(false); 
     }
   };
-
 
   const resetRealisations = async () => {
     if (!isAdmin) {
       toast.error("Accès refusé. Vous n'êtes pas administrateur.");
       return;
     }
-
     setLoading(true);
     try {
-      // Supprimer toutes les réalisations
-      const { data: realisations, error: realisationsError } = await supabase
-        .from('realisations')
-        .select('id');
+      const realisationsQuery = query(collection(db, 'realizations')); 
+      const realisationsSnapshot = await getDocs(realisationsQuery);
+      const batchDeleteRealisations = writeBatch(db);
 
-      if (realisationsError) throw realisationsError;
+      realisationsSnapshot.docs.forEach(realDoc => {
+        batchDeleteRealisations.delete(doc(db, 'realizations', realDoc.id)); 
+      });
+      await batchDeleteRealisations.commit();
 
-      for (const real of realisations) {
-        const { error: deleteError } = await supabase
-          .from('realisations')
-          .delete()
-          .eq('id', real.id);
-        if (deleteError) throw deleteError;
-      }
+      const usersQuery = query(collection(db, "users"));
+      const usersSnapshot = await getDocs(usersQuery);
+      const batchResetUsers = writeBatch(db);
 
-      // Réinitialiser les données des utilisateurs
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select('id');
-
-      if (usersError) throw usersError;
-
-      for (const user of users) {
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({
-            weeklyPoints: 0,
-            totalCumulativePoints: 0,
-            previousWeeklyPoints: 0,
-            xp: 0,
-            level: 1
-          })
-          .eq('id', user.id);
-        if (updateError) throw updateError;
-      }
+      usersSnapshot.docs.forEach(userDoc => {
+        const userRef = doc(db, "users", userDoc.id);
+        batchResetUsers.update(userRef, {
+          weeklyPoints: 0,
+          totalCumulativePoints: 0,
+          previousWeeklyPoints: 0, 
+          xp: 0, 
+          level: 1 
+        });
+      });
+      await batchResetUsers.commit();
 
       toast.success('Toutes les réalisations et les points des utilisateurs ont été réinitialisés.');
     } catch (err) {
@@ -1130,6 +881,19 @@ function AppContent() {
     }
   };
 
+  const handleAuthAction = async () => {
+    if (currentUser) {
+      try {
+        await signOut(auth);
+        toast.info('Déconnecté.');
+        setActiveMainView('home');
+      } catch (error) {
+        toast.error('Erreur lors de la déconnexion.');
+      }
+    } else {
+      setShowAuthModal(true);
+    }
+  };
 
   const handleTaskFormChange = (e) => {
     const { name, value } = e.target;
@@ -1157,12 +921,12 @@ function AppContent() {
       return;
     }
     if (newTaskData.Parent_Task_ID.trim() !== '' && newTaskData.Sous_Taches_IDs.trim() !== '') {
-      toast.error('Une tâche ne peut pas être à la fois une sous-tâche et un groupe de tâches.');
-      return;
+        toast.error('Une tâche ne peut pas être à la fois une sous-tâche et un groupe de tâches.');
+        return;
     }
     if (newTaskData.Sous_Taches_IDs.trim() !== '' && newTaskData.Parent_Task_ID.trim() !== '') {
-      toast.error('Une tâche ne peut pas être à la fois un groupe de tâches et une sous-tâche.');
-      return;
+        toast.error('Une tâche ne peut pas être à la fois un groupe de tâches et une sous-tâche.');
+        return;
     }
 
     setLoading(true);
@@ -1170,28 +934,23 @@ function AppContent() {
       const pointsToSave = parseFloat(newTaskData.Points);
 
       if (editingTask) {
-        const { error } = await supabase
-          .from('tasks')
-          .update({ ...newTaskData, Points: pointsToSave })
-          .eq('id', editingTask.id);
-
-        if (error) throw error;
-
+        await updateDoc(doc(db, 'tasks', editingTask.id), { 
+          ...newTaskData,
+          Points: pointsToSave 
+        });
         toast.success('Tâche mise à jour avec succès.');
       } else {
-        const { error } = await supabase
-          .from('tasks')
-          .insert([{ id: newTaskData.ID_Tache, ...newTaskData, Points: pointsToSave }]);
-
-        if (error) throw error;
-
+        await setDoc(doc(db, 'tasks', newTaskData.ID_Tache), { 
+          ...newTaskData,
+          Points: pointsToSave 
+        });
         toast.success('Tâche ajoutée avec succès.');
       }
-
-      setShowAdminTaskFormModal(false);
+      
+      setShowAdminTaskFormModal(false); 
       setEditingTask(null);
-      setNewTaskData({
-        ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire',
+      setNewTaskData({ 
+        ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
         Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
       });
     } catch (err) {
@@ -1200,7 +959,6 @@ function AppContent() {
       setLoading(false);
     }
   };
-
 
   const handleDeleteTask = useCallback(async (taskId, skipConfirmation = false) => {
     if (!isAdmin) {
@@ -1216,23 +974,16 @@ function AppContent() {
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', taskId);
-
-      if (error) throw error;
-
+      await deleteDoc(doc(db, 'tasks', taskId)); 
       toast.success('Tâche supprimée avec succès.');
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
-      setShowDeleteConfirmModal(false);
+      setShowDeleteConfirmModal(false); 
       setTaskToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete]);
-
+  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete, db]);
 
   const handleObjectiveFormChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -1247,67 +998,48 @@ function AppContent() {
       toast.error("Accès refusé. Vous n'êtes pas administrateur.");
       return;
     }
-
     if (!newObjectiveData.ID_Objectif.trim()) {
-      toast.error("L'ID de l'objectif est requis.");
+      toast.error('L\'ID de l\'objectif est requis.');
       return;
     }
-
     if (!newObjectiveData.Nom_Objectif.trim()) {
-      toast.error("Le nom de l'objectif est requis.");
+      toast.error('Le nom de l\'objectif est requis.');
       return;
     }
-
     if (isNaN(parseFloat(newObjectiveData.Cible_Points))) {
-      toast.error("Les points cible doivent être un nombre valide.");
+      toast.error('Les points cible doivent être un nombre valide.');
       return;
     }
-
-    if (
-      newObjectiveData.Type_Cible === "Par_Categorie" &&
-      !newObjectiveData.Categorie_Cible.trim()
-    ) {
-      toast.error(
-        'La catégorie cible est requise pour le type "Par Catégorie".'
-      );
+    if (newObjectiveData.Type_Cible === 'Par_Categorie' && !newObjectiveData.Categorie_Cible.trim()) {
+      toast.error('La catégorie cible est requise pour le type "Par Catégorie".');
       return;
     }
 
     setLoading(true);
     try {
-      const dataToSave = {
-        ...newObjectiveData,
-        Cible_Points: parseFloat(newObjectiveData.Cible_Points),
-        Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
-        Est_Atteint: newObjectiveData.Est_Atteint,
-      };
-
       if (editingObjective) {
-        const { error } = await supabase
-          .from("objectives")
-          .update(dataToSave)
-          .eq("id", editingObjective.id);
-        if (error) throw error;
-        toast.success("Objectif mis à jour avec succès.");
+        await updateDoc(doc(db, 'objectives', editingObjective.id), { 
+          ...newObjectiveData,
+          Cible_Points: parseFloat(newObjectiveData.Cible_Points),
+          Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
+          Est_Atteint: newObjectiveData.Est_Atteint
+        });
+        toast.success('Objectif mis à jour avec succès.');
       } else {
-        const { error } = await supabase
-          .from("objectives")
-          .insert([{ id: newObjectiveData.ID_Objectif, ...dataToSave }]);
-        if (error) throw error;
-        toast.success("Objectif ajouté avec succès.");
+        await setDoc(doc(db, 'objectives', newObjectiveData.ID_Objectif), { 
+          ...newObjectiveData,
+          Cible_Points: parseFloat(newObjectiveData.Cible_Points),
+          Points_Actuels: parseFloat(newObjectiveData.Points_Actuels),
+          Est_Atteint: newObjectiveData.Est_Atteint
+        });
+        toast.success('Objectif ajouté avec succès.');
       }
-
-      setShowAdminObjectiveFormModal(false);
+      
+      setShowAdminObjectiveFormModal(false); 
       setEditingObjective(null);
-      setNewObjectiveData({
-        ID_Objectif: "",
-        Nom_Objectif: "",
-        Description_Objectif: "",
-        Cible_Points: "",
-        Type_Cible: "Cumulatif",
-        Categorie_Cible: "",
-        Points_Actuels: 0,
-        Est_Atteint: false,
+      setNewObjectiveData({ 
+        ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '', 
+        Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
       });
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
@@ -1316,7 +1048,6 @@ function AppContent() {
     }
   };
 
-
   const handleDeleteObjective = useCallback(async (objectiveId, skipConfirmation = false) => {
     if (!isAdmin) {
       toast.error("Accès refusé. Vous n'êtes pas administrateur.");
@@ -1324,29 +1055,23 @@ function AppContent() {
     }
     if (!skipConfirmation) {
       setObjectiveToDelete(objectiveId);
+      // Ne ferme pas la modale de liste ici
       setShowDeleteObjectiveConfirmModal(true);
       return;
     }
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from("objectives")
-        .delete()
-        .eq("id", objectiveId);
-
-      if (error) throw error;
-
-      toast.success("Objectif supprimé avec succès.");
+      await deleteDoc(doc(db, 'objectives', objectiveId)); 
+      toast.success('Objectif supprimé avec succès.');
     } catch (err) {
       toast.error(`Une erreur est survenue: ${err.message}`);
     } finally {
       setLoading(false);
-      setShowDeleteObjectiveConfirmModal(false);
+      setShowDeleteObjectiveConfirmModal(false); 
       setObjectiveToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete]);
-
+  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete, db]);
 
   const handleReportClick = (taskRealisation) => {
     if (!currentUser) {
@@ -1374,81 +1099,71 @@ function AppContent() {
 
     setLoading(true);
     try {
-      // 1. Vérifier s'il y a déjà un rapport pour cette réalisation
-      const { data: existingReports, error: reportError } = await supabase
-        .from('reports')
-        .select('id')
-        .eq('realizationId', reportedTaskDetails.realizationId);
+      // Vérifier si un rapport existe déjà pour cette réalisation spécifique pour éviter les doublons
+      const existingReportsQuery = query(
+        collection(db, 'reports'),
+        where('realizationId', '==', reportedTaskDetails.realizationId)
+      );
+      const existingReportsSnap = await getDocs(existingReportsQuery);
 
-      if (reportError) throw reportError;
-
-      if (existingReports.length > 0) {
+      if (!existingReportsSnap.empty) {
         toast.info("Cette tâche a déjà été signalée.");
         setShowReportModal(false);
         setReportedTaskDetails(null);
+        setLoading(false);
         return;
       }
 
-      // 2. Ajouter un nouveau rapport
-      const { error: insertError } = await supabase.from('reports').insert({
+      // Ajouter le rapport
+      await addDoc(collection(db, 'reports'), { 
         reportedTaskId: reportedTaskDetails.id,
         reportedUserId: reportedTaskDetails.reportedUserId,
         reportedParticipantName: reportedTaskDetails.participant,
         reporterUserId: currentUser.uid,
-        reporterName: currentUser.displayName || currentUser.email,
-        realizationId: reportedTaskDetails.realizationId,
+        reporterName: currentUser.displayName || currentUser.email, 
+        realizationId: reportedTaskDetails.realizationId, // Ajout de l'ID de la réalisation pour un suivi précis
         timestamp: new Date().toISOString(),
-        status: 'pending'
+        status: 'pending' 
       });
-      if (insertError) throw insertError;
 
-      // 3. Supprimer la réalisation signalée
-      const { error: deleteError } = await supabase
-        .from('realisations')
-        .delete()
-        .eq('id', reportedTaskDetails.realizationId);
-      if (deleteError) throw deleteError;
-
+      // Supprimer la réalisation (une seule suppression)
+      await deleteDoc(doc(db, 'realizations', reportedTaskDetails.realizationId)); 
       toast.success(`Tâche signalée et réalisation supprimée.`);
 
-      // 4. Réduction des points de l'utilisateur signalé
       const DEDUCTION_POINTS = 5;
-      const { data: reportedUserData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', reportedTaskDetails.reportedUserId)
-        .single();
-      if (userError) throw userError;
+      const reportedUserRef = doc(db, "users", reportedTaskDetails.reportedUserId);
+      const reportedUserSnap = await getDoc(reportedUserRef);
 
-      const newTotalCumulativePoints = Math.max(0, (reportedUserData.totalCumulativePoints || 0) - DEDUCTION_POINTS);
-      const newWeeklyPoints = Math.max(0, (reportedUserData.weeklyPoints || 0) - DEDUCTION_POINTS);
-      const newXP = Math.max(0, (reportedUserData.xp || 0) - DEDUCTION_POINTS);
-      const { level: newLevel } = calculateLevelAndXP(newXP);
+      if (reportedUserSnap.exists()) {
+        const reportedUserData = reportedUserSnap.data();
+        const newTotalCumulativePoints = Math.max(0, (reportedUserData.totalCumulativePoints || 0) - DEDUCTION_POINTS);
+        const newWeeklyPoints = Math.max(0, (reportedUserData.weeklyPoints || 0) - DEDUCTION_POINTS);
+        
+        const newXP = Math.max(0, (reportedUserData.xp || 0) - DEDUCTION_POINTS);
+        const { level: newLevel } = calculateLevelAndXP(newXP);
 
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({
+        await updateDoc(reportedUserRef, {
           totalCumulativePoints: newTotalCumulativePoints,
           weeklyPoints: newWeeklyPoints,
           xp: newXP,
           level: newLevel
-        })
-        .eq('id', reportedTaskDetails.reportedUserId);
-      if (updateError) throw updateError;
+        });
 
-      // 5. Mise à jour éventuelle du currentUser si concerné
-      if (currentUser.uid === reportedTaskDetails.reportedUserId) {
-        setCurrentUser(prevUser => ({
-          ...prevUser,
-          totalCumulativePoints: newTotalCumulativePoints,
-          weeklyPoints: newWeeklyPoints,
-          xp: newXP,
-          level: newLevel
-        }));
+        // Mettre à jour le currentUser si c'est l'utilisateur qui a été signalé
+        if (currentUser.uid === reportedTaskDetails.reportedUserId) {
+          setCurrentUser(prevUser => ({
+            ...prevUser,
+            totalCumulativePoints: newTotalCumulativePoints,
+            weeklyPoints: newWeeklyPoints,
+            xp: newXP,
+            level: newLevel
+          }));
+        }
+
+        toast.info(`${reportedTaskDetails.participant} a perdu ${DEDUCTION_POINTS} points.`);
+      } else {
+        console.warn(`Utilisateur signalé (${reportedTaskDetails.reportedUserId}) non trouvé dans la collection 'users'.`);
       }
-
-      toast.info(`${reportedTaskDetails.participant} a perdu ${DEDUCTION_POINTS} points.`);
-
     } catch (err) {
       toast.error(`Une erreur est survenue lors du signalement: ${err.message}`);
     } finally {
@@ -1459,37 +1174,28 @@ function AppContent() {
   };
 
 
-
   const handleParticipantClick = useCallback(async (participant) => {
-    if (currentUser && String(participant.nomParticipant || '').trim() === String(currentUser.displayName || currentUser.email).trim()) {
-      setSelectedParticipantProfile({ ...currentUser });
+    // Si le participant cliqué est l'utilisateur actuellement connecté
+    if (currentUser && String(participant.Nom_Participant || '').trim() === String(currentUser.displayName || currentUser.email).trim()) {
+      // Utilisez l'objet currentUser du contexte qui est toujours à jour
+      setSelectedParticipantProfile({ ...currentUser }); 
       setActiveMainView('participantProfile');
       await fetchParticipantWeeklyTasks(currentUser.displayName || currentUser.email);
       return;
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('displayName', participant.nomParticipant)
-        .limit(1)
-        .single();
-
-      if (error || !data) {
-        toast.error("Profil utilisateur introuvable.");
-        return;
-      }
-
-      setSelectedParticipantProfile(data);
+    // Sinon, chercher le profil d'un autre participant
+    const usersQuery = query(collection(db, "users"), where("displayName", "==", participant.Nom_Participant));
+    const usersSnapshot = await getDocs(usersQuery);
+    if (!usersSnapshot.empty) {
+      const userDoc = usersSnapshot.docs[0];
+      setSelectedParticipantProfile({ id: userDoc.id, ...userDoc.data() });
       setActiveMainView('participantProfile');
-      await fetchParticipantWeeklyTasks(participant.nomParticipant);
-    } catch (err) {
-      toast.error("Erreur lors de la récupération du profil utilisateur.");
-      console.error(err);
+      await fetchParticipantWeeklyTasks(participant.Nom_Participant);
+    } else {
+      toast.error("Profil utilisateur introuvable.");
     }
-  }, [fetchParticipantWeeklyTasks, currentUser]);
-
+  }, [fetchParticipantWeeklyTasks, db, currentUser]); // Ajout de currentUser aux dépendances
 
   const isSubTaskAvailable = useCallback((subTask) => {
     const frequence = subTask.Frequence ? String(subTask.Frequence).toLowerCase() : 'hebdomadaire';
@@ -1592,7 +1298,7 @@ function AppContent() {
 
   const getParticipantBadges = useCallback((participant) => {
     const badges = [];
-    const participantRealisations = realisations.filter(r => String(r.nomParticipant).trim() === String(participant.nomParticipant).trim());
+    const participantRealisations = realisations.filter(r => String(r.nomParticipant).trim() === String(participant.Nom_Participant).trim());
     
     const totalPoints = parseFloat(participant.Points_Total_Cumulatif) || 0;
 
@@ -1631,14 +1337,14 @@ function AppContent() {
     }
 
     const hasBeenWeeklyWinner = historicalPodiums.some(podium => 
-        podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.nomParticipant).trim()
+        podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.Nom_Participant).trim()
     );
     if (hasBeenWeeklyWinner && !badges.some(b => b.name === 'Vainqueur Hebdomadaire')) {
         badges.push({ name: 'Vainqueur Hebdomadaire', icon: '🥇', description: 'A été premier du podium hebdomadaire.' });
     }
 
     const weeklyWins = historicalPodiums.filter(podium => 
-        podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.nomParticipant).trim()
+        podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.Nom_Participant).trim()
     ).length;
     if (weeklyWins >= 3 && !badges.some(b => b.name === 'Triple Couronne')) {
         badges.push({ name: 'Triple Couronne', icon: '👑', description: 'A été premier 3 fois ou plus.' });
@@ -1744,13 +1450,13 @@ function AppContent() {
               {/* 2ème Place */}
               {top3WithPoints.length > 1 && (
                 <div 
-                  key={top3WithPoints[1].nomParticipant || `anon-silver`} 
+                  key={top3WithPoints[1].Nom_Participant || `anon-silver`} 
                   className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
                     ${podiumColors[1]} order-1 w-1/3 sm:w-auto min-w-[80px]`} 
                   onClick={() => handleParticipantClick(top3WithPoints[1])} 
                 >
                   <span className={`text-3xl sm:text-5xl mb-0.5 sm:mb-1`}>{medals[1]}</span> 
-                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[1].nomParticipant}</p> 
+                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[1].Nom_Participant}</p> 
                   <p className="text-xs sm:text-base text-lightText">{top3WithPoints[1].Points_Total_Semaine_Courante} pts</p> 
                 </div>
               )}
@@ -1758,13 +1464,13 @@ function AppContent() {
               {/* 1ère Place */}
               {top3WithPoints.length > 0 && (
                 <div 
-                  key={top3WithPoints[0].nomParticipant || `anon-gold`} 
+                  key={top3WithPoints[0].Nom_Participant || `anon-gold`} 
                   className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
                     ${podiumColors[0]} order-2 w-1/3 sm:w-auto -translate-y-2 min-w-[80px]`} 
                   onClick={() => handleParticipantClick(top3WithPoints[0])} 
                 >
                   <span className={`text-5xl sm:text-6xl mb-0.5 sm:mb-1`}>{medals[0]}</span> 
-                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[0].nomParticipant}</p> 
+                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[0].Nom_Participant}</p> 
                   <p className="text-xs sm:text-base text-lightText">{top3WithPoints[0].Points_Total_Semaine_Courante} pts</p> 
                 </div>
               )}
@@ -1772,13 +1478,13 @@ function AppContent() {
               {/* 3ème Place */}
               {top3WithPoints.length > 2 && (
                 <div 
-                  key={top3WithPoints[2].nomParticipant || `anon-bronze`} 
+                  key={top3WithPoints[2].Nom_Participant || `anon-bronze`} 
                   className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
                     ${podiumColors[2]} order-3 w-1/3 sm:w-auto min-w-[80px]`} 
                   onClick={() => handleParticipantClick(top3WithPoints[2])} 
                 >
                   <span className={`text-3xl sm:text-5xl mb-0.5 sm:mb-1`}>{medals[2]}</span> 
-                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[2].nomParticipant}</p> 
+                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[2].Nom_Participant}</p> 
                   <p className="text-xs sm:text-base text-lightText">{top3WithPoints[2].Points_Total_Semaine_Courante} pts</p> 
                 </div>
               )}
@@ -1854,7 +1560,7 @@ function AppContent() {
     tasksByParticipantThisWeek.forEach((count, name) => {
         if (count > maxTasksCompleted) {
             maxTasksCompleted = count;
-            mostActive = classement.find(p => String(p.nomParticipant).trim() === name);
+            mostActive = classement.find(p => String(p.Nom_Participant).trim() === name);
         }
     });
 
@@ -1867,14 +1573,14 @@ function AppContent() {
             {mostImproved && maxImprovement > 0 && (
               <div className="bg-white p-3 rounded-lg shadow-sm text-center border border-blue-50"> 
                 <h3 className="text-base font-bold text-primary mb-1">Le Plus Amélioré</h3>
-                <p className="text-text text-sm font-semibold">{mostImproved.nomParticipant}</p>
+                <p className="text-text text-sm font-semibold">{mostImproved.Nom_Participant}</p>
                 <p className="text-lightText text-xs">+{maxImprovement} pts cette semaine</p>
               </div>
             )}
             {mostActive && maxTasksCompleted > 0 && (
               <div className="bg-white p-3 rounded-lg shadow-sm text-center border border-blue-50">
                 <h3 className="text-base font-bold text-primary mb-1">Le Plus Actif</h3>
-                <p className="text-text text-sm font-semibold">{mostActive.nomParticipant}</p>
+                <p className="text-text text-sm font-semibold">{mostActive.Nom_Participant}</p>
                 <p className="text-lightText text-xs">{maxTasksCompleted} tâches terminées cette semaine</p>
               </div>
             )}
@@ -2516,9 +2222,9 @@ function AppContent() {
   };
 
   const handleExportClassement = useCallback(() => {
-    const headers = ['nomParticipant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Points_Total_Semaine_Precedente', 'Date_Mise_A_Jour', 'Avatar', 'Level', 'XP'];
+    const headers = ['Nom_Participant', 'Points_Total_Semaine_Courante', 'Points_Total_Cumulatif', 'Points_Total_Semaine_Precedente', 'Date_Mise_A_Jour', 'Avatar', 'Level', 'XP'];
     const dataToExport = classement.map(p => ({
-        nomParticipant: p.nomParticipant,
+        Nom_Participant: p.Nom_Participant,
         Points_Total_Semaine_Courante: p.Points_Total_Semaine_Courante,
         Points_Total_Cumulatif: p.Points_Total_Cumulatif,
         Points_Total_Semaine_Precedente: p.Points_Total_Semaine_Precedente || 0,
@@ -2687,7 +2393,7 @@ function AppContent() {
     const collectionsList = [
       { name: 'users', label: 'Utilisateurs' },
       { name: 'tasks', label: 'Tâches' },
-      { name: 'realisations', label: 'Réalisations' },
+      { name: 'realizations', label: 'Réalisations' },
       { name: 'objectives', label: 'Objectifs' },
       { name: 'historical_podiums', label: 'Podiums Historiques' },
       { name: 'congratulatory_messages', label: 'Messages de Félicitations' },
@@ -2898,7 +2604,7 @@ function AppContent() {
         <div className="flex flex-col gap-3 mb-6 items-center"> 
           {sortedClassement.map((participant, index) => (
             <RankingCard
-              key={participant.nomParticipant}
+              key={participant.Nom_Participant}
               participant={participant}
               rank={index + 1}
               type="weekly" 
@@ -3029,7 +2735,7 @@ function AppContent() {
           {currentUser && (
             <div className="absolute top-4 right-4 z-10">
               <button
-                onClick={handleLogout}
+                onClick={handleAuthAction}
                 className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-1.5 px-3 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-xs whitespace-nowrap"
               >
                 Déconnexion
@@ -3063,7 +2769,7 @@ function AppContent() {
             </button> 
             {currentUser && (
               <button
-                onClick={() => handleParticipantClick({ nomParticipant: currentUser.displayName || currentUser.email })}
+                onClick={() => handleParticipantClick({ Nom_Participant: currentUser.displayName || currentUser.email })}
                 className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
                   ${activeMainView === 'participantProfile' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
               >
@@ -3266,13 +2972,8 @@ function AppContent() {
             onClose={() => setShowAvatarSelectionModal(false)}
             onSave={async (newAvatar) => {
               try {
-                const { error } = await supabase
-                  .from('users')
-                  .update({ avatar: newAvatar })
-                  .eq('id', currentUser.uid); // ou 'user_id' selon ta table
-
-                if (error) throw error;
-
+                await updateDoc(doc(db, "users", currentUser.uid), { avatar: newAvatar });
+                // Mettre à jour le currentUser dans le contexte après la sauvegarde
                 setCurrentUser(prevUser => ({ ...prevUser, avatar: newAvatar }));
                 toast.success("Avatar mis à jour !");
               } catch (error) {
@@ -3285,15 +2986,15 @@ function AppContent() {
           />
         )}
 
-
         {showPasswordChangeModal && currentUser && (
           <PasswordChangeModal
             onClose={() => setShowPasswordChangeModal(false)}
             currentUser={currentUser}
-            supabase={supabase} // on transmet supabase pour changer le mot de passe
           />
         )}
-
+        
+        {/* Le bouton flottant du chat est rendu ici */}
+        <ChatFloatingButton currentUser={currentUser} db={db} />
 
       </div>
       <ToastContainer 

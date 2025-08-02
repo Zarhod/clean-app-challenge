@@ -1,65 +1,25 @@
 import React from 'react';
-import { supabase } from './supabase';
 
+/**
+ * Composant de modal pour l'ajout ou la modification d'une tâche.
+ * @param {Object} taskData - Les données actuelles du formulaire de tâche.
+ * @param {function} onFormChange - Fonction de rappel pour gérer les changements du formulaire.
+ * @param {function} onSubmit - Fonction de rappel pour soumettre le formulaire.
+ * @param {function} onClose - Fonction de rappel pour fermer le modal.
+ * @param {boolean} loading - Indique si une opération est en cours (pour désactiver les boutons).
+ * @param {Object|null} editingTask - L'objet tâche si nous sommes en mode édition, sinon null.
+ */
 function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading, editingTask }) {
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const dataToInsert = {
-      ID_Tache: taskData.ID_Tache?.trim() || null,
-      Nom_Tache: taskData.Nom_Tache?.trim() || null,
-      Points: taskData.Points || null,
-      Frequence: taskData.Frequence?.trim() || null,
-      Urgence: taskData.Urgence?.trim() || null,
-      Categorie: taskData.Categorie?.trim() || null,
-      Sous_Taches_IDs: taskData.Sous_Taches_IDs
-        ? taskData.Sous_Taches_IDs.split(',').map(id => id.trim()).filter(Boolean)
-        : null,
-      Parent_Task_ID: taskData.Parent_Task_ID?.trim() || null,
-    };
-
-// Supprimer les champs vides ou vides logiques (array vide)
-Object.keys(dataToInsert).forEach(key => {
-  if (
-    dataToInsert[key] === null ||
-    (Array.isArray(dataToInsert[key]) && dataToInsert[key].length === 0)
-  ) {
-    delete dataToInsert[key];
-  }
-});
-
-
-    // Supprimer les valeurs vides qui poseraient problème (UUID vide notamment)
-    if (!dataToInsert.Sous_Taches_IDs) delete dataToInsert.Sous_Taches_IDs;
-    if (!dataToInsert.Parent_Task_ID) delete dataToInsert.Parent_Task_ID;
-
-    try {
-      const { error } = await supabase.from('tasks').insert(dataToInsert);
-
-      if (error) {
-        console.error("Erreur Supabase :", error.message);
-        alert("Erreur : " + error.message);
-        return;
-      }
-
-      if (onSubmit) onSubmit();
-      onClose();
-    } catch (err) {
-      console.error("Erreur lors de la soumission :", err.message);
-      alert("Erreur : " + err.message);
-    }
-  };
-
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-2">
-      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl w-full max-w-[95%] sm:max-w-md md:max-w-lg text-center animate-fade-in-scale border border-primary/20 mx-auto">
-        <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4">
+    <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-2"> {/* Reduced overall padding */}
+      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl w-full max-w-[95%] sm:max-w-md md:max-w-lg text-center animate-fade-in-scale border border-primary/20 mx-auto"> {/* Adjusted max-w for smaller screens, reduced padding */}
+        <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4"> {/* Reduced heading size */}
           {editingTask ? 'Modifier la Tâche' : 'Ajouter une Nouvelle Tâche'}
         </h3>
 
-        <div className="max-h-[55vh] overflow-y-auto custom-scrollbar pr-2">
-          <div className="space-y-3 text-left">
+        {/* Conteneur du formulaire avec défilement pour les petits écrans */}
+        <div className="max-h-[55vh] overflow-y-auto custom-scrollbar pr-2"> {/* Reduced max-h */}
+          <div className="space-y-3 text-left"> {/* Slightly reduced vertical spacing */}
             <div>
               <label htmlFor="ID_Tache" className="block text-text font-medium mb-1 text-sm">ID Tâche:</label>
               <input
@@ -70,7 +30,7 @@ Object.keys(dataToInsert).forEach(key => {
                 onChange={onFormChange}
                 placeholder="Ex: TACHE001"
                 className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                disabled={!!editingTask}
+                disabled={!!editingTask} // Désactive l'édition de l'ID pour les tâches existantes
               />
             </div>
             <div>
@@ -85,6 +45,7 @@ Object.keys(dataToInsert).forEach(key => {
                 className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
               />
             </div>
+            {/* Description est intentionnellement omise ici si elle a été retirée du frontend */}
             <div>
               <label htmlFor="Points" className="block text-text font-medium mb-1 text-sm">Points:</label>
               <input
@@ -164,11 +125,11 @@ Object.keys(dataToInsert).forEach(key => {
               />
             </div>
           </div>
-        </div>
+        </div> {/* Fin du conteneur scrollable */}
 
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6"> {/* Responsive buttons */}
           <button
-            onClick={handleSubmit}
+            onClick={onSubmit}
             disabled={loading}
             className="flex-1 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
                        transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"

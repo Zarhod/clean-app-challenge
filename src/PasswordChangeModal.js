@@ -1,14 +1,16 @@
 // src/PasswordChangeModal.js
 import React, { useState } from 'react';
+import { getAuth, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { toast } from 'react-toastify';
-import ListAndInfoModal from './ListAndInfoModal';
-import { supabase } from './supabase';
+import ListAndInfoModal from './ListAndInfoModal'; // Assuming this is a generic modal component
 
-const PasswordChangeModal = ({ onClose }) => {
+const PasswordChangeModal = ({ onClose, currentUser }) => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const auth = getAuth(); // Get auth instance
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,20 +25,30 @@ const PasswordChangeModal = ({ onClose }) => {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-
-      if (error) {
-        throw error;
+      const user = auth.currentUser;
+      if (!user) {
+        toast.error("Aucun utilisateur connecté.");
+        setLoading(false);
+        return;
       }
 
+      // Re-authenticate user
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+
+      // Update password
+      await updatePassword(user, newPassword);
       toast.success("Mot de passe mis à jour avec succès !");
       onClose();
     } catch (error) {
       console.error("Erreur de mise à jour du mot de passe:", error);
-      if (error.message.includes('JWT')) {
+      if (error.code === 'auth/wrong-password') {
+        toast.error("Mot de passe actuel incorrect.");
+      } else if (error.code === 'auth/requires-recent-login') {
         toast.error("Veuillez vous reconnecter pour changer votre mot de passe.");
+        // Optionally, force logout here to make them re-login
       } else {
-        toast.error(`Erreur : ${error.message}`);
+        toast.error(`Erreur: ${error.message}`);
       }
     } finally {
       setLoading(false);

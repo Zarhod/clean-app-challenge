@@ -1,7 +1,8 @@
 // src/AdminUserManagementModal.js
 import React, { useState, useEffect, useCallback } from 'react';
+import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { db } from './firebase'; // Assurez-vous que votre instance db est exportée de firebase.js
 import { toast } from 'react-toastify';
-import { supabase } from './supabase';
 
 const AdminUserManagementModal = ({ onClose, realisations }) => {
   const [users, setUsers] = useState([]);
@@ -11,16 +12,12 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: usersData, error } = await supabase
-        .from("users")
-        .select("*");
+      const usersCollectionRef = collection(db, "users");
+      const usersSnapshot = await getDocs(usersCollectionRef);
+      const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setUsers(usersData);
 
-      if (error) {
-        throw error;
-      }
-
-      setUsers(usersData || []);
-
+      // Calculer le nombre de tâches par utilisateur
       const counts = {};
       realisations.forEach(real => {
         if (real.userId) {
@@ -28,6 +25,7 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
         }
       });
       setTaskCounts(counts);
+
     } catch (error) {
       toast.error("Erreur lors du chargement des utilisateurs.");
       console.error("Erreur fetchUsers:", error);
@@ -43,17 +41,12 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
   const toggleAdminStatus = async (userId, currentStatus) => {
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from("users")
-        .update({ isAdmin: !currentStatus })
-        .eq("id", userId);
-
-      if (error) {
-        throw error;
-      }
-
+      const userRef = doc(db, "users", userId);
+      await updateDoc(userRef, {
+        isAdmin: !currentStatus
+      });
       toast.success(`Statut administrateur mis à jour pour l'utilisateur ${userId}.`);
-      fetchUsers();
+      fetchUsers(); // Re-fetch users to update the list
     } catch (error) {
       toast.error("Erreur lors de la mise à jour du statut administrateur.");
       console.error("Erreur toggleAdminStatus:", error);

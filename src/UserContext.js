@@ -1,75 +1,193 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from './supabase';
+/* global __initial_auth_token */
+// src/UserContext.js
+// Ce fichier est le SEUL responsable de l'initialisation de l'application Firebase
+// et de la gestion de l'état d'authentification de l'utilisateur.
+
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+
+// Importe la configuration Firebase depuis le fichier firebase.js
+// Ce fichier (./firebase) ne fait que fournir l'objet de configuration.
+import { firebaseConfig } from './firebase';
 
 const UserContext = createContext();
+
+// Variables pour stocker les instances Firebase
+// Elles seront initialisées une seule fois au niveau du module.
+let firebaseAppInstance = null;
+let firestoreDbInstance = null;
+let firebaseAuthInstance = null;
+let firebaseInitializationError = null; // Variable pour stocker l'erreur d'initialisation
+
+try {
+  // Vérifie si la configuration Firebase est valide avant d'initialiser
+  if (!firebaseConfig.projectId || !firebaseConfig.apiKey || !firebaseConfig.authDomain) {
+    firebaseInitializationError = new Error(
+      "CRITIQUE : La configuration Firebase est incomplète. " +
+      "Veuillez vous assurer que les secrets Cloudflare Pages (REACT_APP_FIREBASE_...) sont correctement définis " +
+      "pour construire la variable globale '__firebase_config' ou que les placeholders dans firebase.js sont remplis."
+    );
+    console.error(firebaseInitializationError.message);
+  } else {
+    // Procède à l'initialisation UNIQUEMENT si la configuration est valide
+    if (!getApps().length) { // Vérifie si aucune application Firebase n'a été initialisée
+      firebaseAppInstance = initializeApp(firebaseConfig);
+    } else {
+      firebaseAppInstance = getApp(); // Utilise l'application déjà initialisée
+    }
+    firestoreDbInstance = getFirestore(firebaseAppInstance);
+    firebaseAuthInstance = getAuth(firebaseAppInstance);
+    console.log("Firebase initialisé avec succès via UserContext.");
+  }
+
+} catch (error) {
+  firebaseInitializationError = new Error(`Erreur critique lors de l'initialisation de l'application Firebase : ${error.message}`);
+  console.error(firebaseInitializationError.message, error);
+  // S'assure que les instances sont nulles si une erreur se produit pendant cette étape critique
+  firebaseAppInstance = null;
+  firestoreDbInstance = null;
+  firebaseAuthInstance = null;
+}
+
+export const useUser = () => useContext(UserContext);
 
 export const UserProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
 
+  // Utilise directement les instances au niveau du module. Elles sont garanties d'être les mêmes
+  // entre les rendus et ne causeront pas de problèmes de réinitialisation.
+  const db = firestoreDbInstance;
+  const auth = firebaseAuthInstance;
+
   useEffect(() => {
+    // Si Firebase n'a pas pu être initialisé au niveau du module, gère cela ici
+    if (firebaseInitializationError) {
+      console.error("Impossible de procéder à l'authentification :", firebaseInitializationError.message);
+      setLoadingUser(false);
+      return;
+    }
+
+    // Si les instances Firebase ne sont pas disponibles (en raison d'une erreur de configuration), arrête le chargement et retourne
+    if (!auth || !db) {
+      console.error("Firebase instances sont nulles. Impossible de procéder à l'authentification.");
+      setLoadingUser(false);
+      return;
+    }
+
     const setupAuthAndUser = async () => {
       try {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        let sessionResponse = await supabase.auth.getSession();
-        let user = sessionResponse.data?.session?.user;
-        if (!user || !user.id) {
-          setLoadingUser(false);
-          return;
-        }
-
-        const { data: userData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-
-        const defaultUserData = {
-          id: user.id,
-          email: user.email,
-          displayName: user.user_metadata?.displayName || user.email?.split('@')[0],
-          isAdmin: false,
-          avatar: '👤',
-          weeklyPoints: 0,
-          totalCumulativePoints: 0,
-          previousWeeklyPoints: 0,
-          xp: 0,
-          level: 1,
-          dateJoined: new Date().toISOString(),
-          lastReadTimestamp: new Date().toISOString()
-        };
-
-        if (!userData) {
-          await supabase
-            .from('users')
-            .insert(defaultUserData, { returning: 'minimal' });
-          setCurrentUser(defaultUserData);
-          setIsAdmin(false);
+        if (token) {
+          await signInWithCustomToken(auth, token);
         } else {
-          setCurrentUser(userData);
-          setIsAdmin(userData?.isAdmin || false);
+          await signInAnonymously(auth);
         }
 
-      } catch (err) {
-        console.error("Erreur de configuration utilisateur :", err.message || err);
-        setCurrentUser(null);
-        setIsAdmin(false);
-      } finally {
+        const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+          if (user) {
+            const userDocRef = doc(db, 'users', user.uid);
+            const userDocSnap = await getDoc(userDocRef);
+
+            if (userDocSnap.exists()) {
+              const userData = userDocSnap.data();
+              setCurrentUser({
+                uid: user.uid,
+                email: user.email,
+                displayName: userData.displayName || user.displayName,
+                isAdmin: userData.isAdmin || false,
+                avatar: userData.avatar || '👤',
+                weeklyPoints: userData.weeklyPoints || 0,
+                totalCumulativePoints: userData.totalCumulativePoints || 0,
+                previousWeeklyPoints: userData.previousWeeklyPoints || 0,
+                xp: userData.xp || 0,
+                level: userData.level || 1,
+                dateJoined: userData.dateJoined || new Date().toISOString(),
+                lastReadTimestamp: userData.lastReadTimestamp || null
+              });
+              setIsAdmin(userData.isAdmin || false);
+            } else {
+              const newUserData = {
+                displayName: user.displayName || user.email.split('@')[0],
+                email: user.email,
+                isAdmin: false,
+                avatar: '👤',
+                weeklyPoints: 0,
+                totalCumulativePoints: 0,
+                previousWeeklyPoints: 0,
+                xp: 0,
+                level: 1,
+                dateJoined: new Date().toISOString(),
+                lastReadTimestamp: new Date().toISOString()
+              };
+              await setDoc(userDocRef, newUserData);
+              setCurrentUser({ uid: user.uid, ...newUserData });
+              setIsAdmin(false);
+            }
+          } else {
+            setCurrentUser(null);
+            setIsAdmin(false);
+          }
+          setLoadingUser(false);
+        });
+
+        return unsubscribeAuth;
+      } catch (error) {
+        console.error("Erreur de configuration de l'authentification Firebase :", error);
         setLoadingUser(false);
       }
     };
 
-    setupAuthAndUser();
-  }, []);
+    const cleanup = setupAuthAndUser();
+    return () => {
+      if (typeof cleanup.then === 'function') {
+        cleanup.then(unsubscribe => {
+          if (unsubscribe) unsubscribe();
+        });
+      } else if (typeof cleanup === 'function') {
+        cleanup();
+      }
+    };
+  }, [auth, db]);
+
+  useEffect(() => {
+    if (db && currentUser?.uid) {
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const updatedUserData = docSnap.data();
+          setCurrentUser(prevUser => ({
+            ...prevUser,
+            ...updatedUserData
+          }));
+          setIsAdmin(updatedUserData.isAdmin || false);
+        } else {
+          setCurrentUser(null);
+          setIsAdmin(false);
+        }
+      }, (error) => {
+        console.error("Erreur lors de l'écoute du document utilisateur :", error);
+      });
+      return () => unsubscribe();
+    }
+  }, [db, currentUser?.uid]);
+
+  const value = {
+    currentUser,
+    isAdmin,
+    loadingUser,
+    db,
+    auth,
+    setCurrentUser
+  };
 
   return (
-    <UserContext.Provider value={{ currentUser, isAdmin, loadingUser, setCurrentUser, setIsAdmin }}>
+    <UserContext.Provider value={value}>
       {children}
     </UserContext.Provider>
   );
 };
-
-export const useUser = () => useContext(UserContext);
-export default UserContext;
