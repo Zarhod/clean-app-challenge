@@ -4,13 +4,13 @@ import { useUser } from './UserContext';
 import { collection, getDocs, updateDoc, doc, getDoc } from 'firebase/firestore';
 import ConfettiOverlay from './ConfettiOverlay';
 import { toast } from 'react-toastify';
+import badgeRules from './badgeRules'; // ✅ Assure-toi que ce fichier existe
 
 const TaskHistoryModal = ({ onClose }) => {
   const { currentUser, db, setCurrentUser } = useUser();
   const [tasks, setTasks] = useState([]);
   const [showConfetti, setShowConfetti] = useState(false);
 
-  // Récupère les tâches depuis Firestore
   useEffect(() => {
     const fetchTasks = async () => {
       if (!db || !currentUser) return;
@@ -23,16 +23,7 @@ const TaskHistoryModal = ({ onClose }) => {
     fetchTasks();
   }, [db, currentUser]);
 
-  // Récupère tous les badges disponibles
-  const fetchAvailableBadges = async () => {
-    const badgeRef = collection(db, 'badges');
-    const snapshot = await getDocs(badgeRef);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  };
-
-  // Attribue les badges automatiquement si les conditions sont remplies
   const checkAndAssignBadges = async (user, db) => {
-    const badges = await fetchAvailableBadges();
     const userRef = doc(db, 'users', user.uid);
     const userSnap = await getDoc(userRef);
     const userData = userSnap.data();
@@ -40,16 +31,12 @@ const TaskHistoryModal = ({ onClose }) => {
 
     const newBadges = [];
 
-    for (const badge of badges) {
-      const alreadyHasBadge = userBadges.includes(badge.id);
-      const conditionMet =
-        (badge.rule === 'level_1' && (user.level || 1) >= 1) ||
-        (badge.rule === 'level_2' && (user.level || 1) >= 2) ||
-        (badge.rule === 'xp_100' && (user.xp || 0) >= 100) ||
-        (badge.rule === 'urgent_task_done' && user.totalCumulativePoints >= 1); // Peut être raffiné
+    for (const rule of badgeRules) {
+      const alreadyHasBadge = userBadges.includes(rule.id);
+      const conditionMet = rule.condition(userData);
 
       if (!alreadyHasBadge && conditionMet) {
-        newBadges.push(badge.id);
+        newBadges.push(rule.id);
       }
     }
 
@@ -57,11 +44,10 @@ const TaskHistoryModal = ({ onClose }) => {
       await updateDoc(userRef, {
         badges: [...userBadges, ...newBadges],
       });
-      toast.success(`🌟 Nouveau badge débloqué !`);
+      toast.success(`🌟 ${newBadges.length} badge(s) débloqué(s) !`);
     }
   };
 
-  // Quand une tâche est validée
   const handleCompleteTask = async (task) => {
     if (!currentUser || !db) return;
 
@@ -81,7 +67,7 @@ const TaskHistoryModal = ({ onClose }) => {
       totalCumulativePoints: (currentUser.totalCumulativePoints || 0) + pointsToAdd,
       xp: newXp,
       level: newLevel,
-      lastReadTimestamp: new Date().toISOString()
+      lastReadTimestamp: new Date().toISOString(),
     });
 
     setCurrentUser(prev => ({
@@ -90,10 +76,10 @@ const TaskHistoryModal = ({ onClose }) => {
       totalCumulativePoints: (prev.totalCumulativePoints || 0) + pointsToAdd,
       xp: newXp,
       level: newLevel,
-      lastReadTimestamp: new Date().toISOString()
+      lastReadTimestamp: new Date().toISOString(),
     }));
 
-    await checkAndAssignBadges(currentUser, db);
+    await checkAndAssignBadges({ ...currentUser, xp: newXp, level: newLevel }, db);
 
     if (newLevel > previousLevel) {
       toast.success(`🎉 Bravo ! Vous avez atteint le niveau ${newLevel} !`);

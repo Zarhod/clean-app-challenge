@@ -44,7 +44,7 @@ import ChatFloatingButton from './ChatFloatingButton';
 import ProfileEditOptionsModal from './ProfileEditOptionsModal'; 
 import confetti from 'canvas-confetti';
 import UserBadgeDisplay from './UserBadgeDisplay'; 
-import AdminBadgeManager from './AdminBadgeManager';
+import badgeRules from './badgeRules';
 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -149,7 +149,7 @@ function AppContent() {
   const [showAdminUserManagementModal, setShowAdminUserManagementModal] = useState(false); 
   const [showAdminCongratulatoryMessagesModal, setShowAdminCongratulatoryMessagesModal] = useState(false);
   const [showAdminBadgeManager, setShowAdminBadgeManager] = useState(false);
-
+  const getBadgeDetails = (id) => badgeRules.find(b => b.id === id) || {};
 
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportedTaskDetails, setReportedTaskDetails] = useState(null); 
@@ -1300,94 +1300,6 @@ function AppContent() {
       return newCount;
     });
   };
-
-  const getParticipantBadges = useCallback((participant) => {
-    const badges = [];
-    const participantRealisations = realisations.filter(r => String(r.nomParticipant).trim() === String(participant.Nom_Participant).trim());
-    
-    const totalPoints = parseFloat(participant.Points_Total_Cumulatif) || 0;
-
-    if (participantRealisations.length > 0 && !badges.some(b => b.name === 'Premier Pas')) {
-        badges.push({ name: 'Premier Pas', icon: '🐣', description: 'A complété sa première tâche.' });
-    }
-    
-    const tasksThisWeek = participantRealisations.filter(real => {
-        const realDate = new Date(real.timestamp);
-        const today = new Date();
-        const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1))); 
-        return realDate >= startOfWeek;
-    }).length;
-    if (tasksThisWeek >= 3 && !badges.some(b => b.name === 'Actif de la Semaine')) {
-        badges.push({ name: 'Actif de la Semaine', icon: '⚡', description: '3 tâches ou plus complétées cette semaine.' });
-    }
-
-    const kitchenTasks = participantRealisations.filter(r => String(r.categorieTache || '').toLowerCase() === 'cuisine').length;
-    if (kitchenTasks >= 5 && !badges.some(b => b.name === 'Chef Propre')) {
-      badges.push({ name: 'Chef Propre', icon: '🍳', description: '5 tâches de cuisine complétées.' });
-    }
-
-    const roomTasks = participantRealisations.filter(r => String(r.categorieTache || '').toLowerCase() === 'salle').length;
-    if (roomTasks >= 5 && !badges.some(b => b.name === 'Maître de Salon')) {
-      badges.push({ name: 'Maître de Salon', icon: '🛋️', description: '5 tâches de salle complétées.' });
-    }
-
-    if (totalPoints >= 100 && !badges.some(b => b.name === 'Grand Nettoyeur')) {
-      badges.push({ name: 'Grand Nettoyeur', icon: '✨', description: 'Atteint 100 points cumulés.' });
-    }
-    if (totalPoints >= 500 && !badges.some(b => b.name === 'Champion de la Propreté')) {
-      badges.push({ name: 'Champion de la Propreté', icon: '🏆', description: 'Atteint 500 points cumulés.' });
-    }
-    if (totalPoints >= 1000 && !badges.some(b => b.name === 'Légende de la Propreté')) {
-      badges.push({ name: 'Légende de la Propreté', icon: '🌟', description: 'Atteint 1000 points cumulés.' });
-    }
-
-    const hasBeenWeeklyWinner = historicalPodiums.some(podium => 
-        podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.Nom_Participant).trim()
-    );
-    if (hasBeenWeeklyWinner && !badges.some(b => b.name === 'Vainqueur Hebdomadaire')) {
-        badges.push({ name: 'Vainqueur Hebdomadaire', icon: '🥇', description: 'A été premier du podium hebdomadaire.' });
-    }
-
-    const weeklyWins = historicalPodiums.filter(podium => 
-        podium.top3.length > 0 && String(podium.top3[0].name).trim() === String(participant.Nom_Participant).trim()
-    ).length;
-    if (weeklyWins >= 3 && !badges.some(b => b.name === 'Triple Couronne')) {
-        badges.push({ name: 'Triple Couronne', icon: '👑', description: 'A été premier 3 fois ou plus.' });
-    }
-
-    const firstObjectiveCompleted = objectives.some(obj => 
-      obj.Est_Atteint && 
-      (String(obj.Type_Cible || '').toLowerCase() === 'cumulatif' && parseFloat(participant.Points_Total_Cumulatif) >= parseFloat(obj.Cible_Points || 0))
-    );
-    if (firstObjectiveCompleted && !badges.some(b => b.name === 'Conquérant d\'Objectifs')) {
-      badges.push({ name: 'Conquérant d\'Objectifs', icon: '🎯', description: 'A complété son premier objectif.' });
-    }
-
-    const allObjectivesCompleted = objectives.every(obj => {
-      const isCumulatifObjectiveMet = 
-        String(obj.Type_Cible || '').toLowerCase() === 'cumulatif' && 
-        parseFloat(participant.Points_Total_Cumulatif) >= parseFloat(obj.Cible_Points || 0);
-      
-      const isCategorieObjectiveMet = 
-        String(obj.Type_Cible || '').toLowerCase() === 'par_categorie' && 
-        participantRealisations.filter(r => String(r.categorieTache || '').toLowerCase() === String(obj.Categorie_Cible || '').toLowerCase()).length > 0 && 
-        participantRealisations.filter(r => String(r.categorieTache || '').toLowerCase() === String(obj.Categorie_Cible || '').toLowerCase()).reduce((sum, r) => sum + (parseFloat(r.pointsGagnes) || 0), 0) >= parseFloat(obj.Cible_Points || 0);
-      
-      return obj.Est_Atteint && (isCumulatifObjectiveMet || isCategorieObjectiveMet);
-    });
-
-    if (allObjectivesCompleted && objectives.length > 0 && !badges.some(b => b.name === 'Maître des Objectifs')) {
-      badges.push({ name: 'Maître des Objectifs', icon: '🏆', description: 'A complété tous les objectifs.' });
-    }
-
-    const hasReportedTask = reports.some(r => String(r.reporterUserId || '') === String(currentUser?.uid || ''));
-    if (hasReportedTask && !badges.some(b => b.name === 'Vigie de la Propreté')) {
-        badges.push({ name: 'Vigie de la Propreté', icon: '👁️', description: 'A signalé une tâche problématique.' });
-    }
-
-    return badges;
-  }, [realisations, historicalPodiums, objectives, reports, currentUser]);
-
 
   const getUrgencyClasses = (urgency) => {
     switch (urgency ? String(urgency).toLowerCase() : '') { 
@@ -2599,7 +2511,7 @@ function AppContent() {
           <p className="text-center text-lightText text-lg">Aucun classement disponible pour le moment.</p>
           <button
             className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg
-                       transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
+                      transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
             onClick={() => setActiveMainView('home')}
           >
             Retour à l'accueil
@@ -2608,7 +2520,9 @@ function AppContent() {
       );
     }
 
-    const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
+    const sortedClassement = [...classement].sort(
+      (a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante
+    );
 
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8">
@@ -2620,22 +2534,21 @@ function AppContent() {
               participant={participant}
               rank={index + 1}
               type="weekly" 
-              onParticipantClick={handleParticipantClick} 
-              getParticipantBadges={getParticipantBadges}
+              onParticipantClick={handleParticipantClick}
             />
           ))}
         </div>
         <div className="flex flex-col sm:flex-row justify-center gap-3 mt-4"> 
           <button
             className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg
-                       transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
+                      transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
             onClick={() => setActiveMainView('home')}
           >
             Retour à l'accueil
           </button>
           <button
             className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg shadow-lg
-                       transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
+                      transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
             onClick={() => setShowOverallRankingModal(true)}
           >
             Voir le Classement Général
@@ -2644,6 +2557,7 @@ function AppContent() {
       </div>
     );
   };
+
 
   const renderExportSelectionModal = useCallback(() => {
     if (!showExportSelectionModal) return null;
@@ -2882,9 +2796,9 @@ function AppContent() {
             classement={classement}
             onClose={() => setShowOverallRankingModal(false)}
             onParticipantClick={handleParticipantClick}
-            getParticipantBadges={getParticipantBadges}
           />
         )}
+
 
         {showReportModal && currentUser && ( 
           <ReportTaskModal
@@ -2940,10 +2854,6 @@ function AppContent() {
             onClose={() => setShowAdminUserManagementModal(false)}
             realisations={realisations} 
           />
-        )}
-
-        {showAdminBadgeManager && (
-          <AdminBadgeManager onClose={() => setShowAdminBadgeManager(false)} />
         )}
 
 
