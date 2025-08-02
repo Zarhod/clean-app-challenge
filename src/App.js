@@ -148,6 +148,7 @@ function AppContent() {
   const [showOverallRankingModal, setShowOverallRankingModal] = useState(false); 
   const [showAdminUserManagementModal, setShowAdminUserManagementModal] = useState(false); 
   const [showAdminCongratulatoryMessagesModal, setShowAdminCongratulatoryMessagesModal] = useState(false);
+  const [reports, setReports] = useState([]);
 
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportedTaskDetails, setReportedTaskDetails] = useState(null); 
@@ -2449,17 +2450,8 @@ function AppContent() {
             </div>
           </div>
 
-          <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                onClick={() => setShowAdminBadgeManager(true)}
-                className={`${adminPurpleButtonClasses} col-span-1`}
-              >
-                Gérer les Badges
-              </button>
-            </div>
-          </div>
-
+          {/* Bloc supprimé : bouton Gérer les Badges */}
+          
           <div className="bg-neutralBg/50 rounded-xl p-3 shadow-inner border border-gray-200">
             <h3 className="text-base font-bold text-primary mb-3 text-center">Outils Avancés</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -2498,6 +2490,7 @@ function AppContent() {
       </div>
     );
   };
+
 
 
   const renderFullRankingCards = () => {
