@@ -1,25 +1,4 @@
 // src/App.js
-// Version mise à jour pour utiliser Firebase Authentication et Firestore avec des écouteurs en temps réel.
-// Tous les chemins Firestore sont maintenant à la racine de la base de données.
-// Les boutons des modales sont centrés sur mobile.
-// Gestion améliorée des erreurs de permission pour éviter les toasts sur la page de connexion.
-// Correction de l'erreur "TypeError: null is not iterable" dans calculateWeeklyRecap.
-// Améliorations de l'affichage du profil utilisateur, des modales et suppression des logs.
-// Intégration d'une fonctionnalité de chat simple avec bouton flottant.
-// Correction des problèmes de z-index et d'affichage des modales.
-// Correction des dépendances manquantes dans useCallback pour résoudre les erreurs de compilation CI.
-// Amélioration du graphique de statistiques des tâches.
-// Correction des problèmes de boutons de profil et d'affichage d'avatar.
-// Correction des erreurs no-undef dans UserContext.js.
-// Correction des avertissements ESLint 'exhaustive-deps' et 'no-unused-vars'.
-// Correction de la duplication de l'écran de bienvenue lors de l'ouverture de la modale de connexion.
-// Correction du podium affichant des utilisateurs à 0 point.
-// Amélioration majeure de l'interface utilisateur du chat.
-// Correction de l'affichage du bouton de modification de profil.
-// Correction du chevauchement des boutons dans AuthModal.
-// Ajout de l'indicateur de messages non lus sur le bouton de chat.
-// Amélioration des messages d'erreur de connexion.
-// Correction de l'erreur de compilation 'no-undef' pour __firebase_config et __initial_auth_token.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
@@ -40,7 +19,6 @@ import WeeklyRecapModal from './WeeklyRecapModal';
 import TaskHistoryModal from './TaskHistoryModal'; 
 import AvatarSelectionModal from './AvatarSelectionModal'; 
 import PasswordChangeModal from './PasswordChangeModal'; 
-import ChatFloatingButton from './ChatFloatingButton'; 
 import ProfileEditOptionsModal from './ProfileEditOptionsModal'; 
 import confetti from 'canvas-confetti';
 import UserBadgeDisplay from './UserBadgeDisplay'; 
@@ -1925,6 +1903,7 @@ function AppContent() {
   const renderParticipantProfile = () => {
     if (!selectedParticipantProfile) return null;
 
+    const isCurrentUser = currentUser && selectedParticipantProfile.id === currentUser.uid;
     const participantCumulativePoints = selectedParticipantProfile.totalCumulativePoints || 0;
     const engagementPercentage =
       totalGlobalCumulativePoints > 0
@@ -1969,13 +1948,25 @@ function AppContent() {
             Points Cumulatifs: <span className="font-bold">{participantCumulativePoints}</span>
           </p>
 
-          {currentUser && selectedParticipantProfile.id === currentUser.uid && (
-            <div className="flex justify-center mt-4">
+          {isCurrentUser && (
+            <div className="flex justify-center mt-4 gap-2 flex-wrap">
               <button
                 onClick={() => setShowProfileEditOptionsModal(true)}
                 className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1 px-3 rounded-md transition duration-300 text-sm flex items-center gap-1"
               >
                 ✏️ Modifier le Profil
+              </button>
+              <button
+                onClick={() => setShowAvatarSelectionModal(true)}
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1 px-3 rounded-md transition duration-300 text-sm flex items-center gap-1"
+              >
+                🖼️ Changer d'Avatar
+              </button>
+              <button
+                onClick={() => setShowPasswordChangeModal(true)}
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1 px-3 rounded-md transition duration-300 text-sm flex items-center gap-1"
+              >
+                🔐 Modifier le Mot de Passe
               </button>
             </div>
           )}
@@ -2025,6 +2016,7 @@ function AppContent() {
       </div>
     );
   };
+
 
   const renderConfirmResetModal = () => {
     if (!showConfirmResetModal) return null;
@@ -2310,7 +2302,7 @@ function AppContent() {
       { name: 'historical_podiums', label: 'Podiums Historiques' },
       { name: 'congratulatory_messages', label: 'Messages de Félicitations' },
       { name: 'reports', label: 'Rapports' },
-      { name: 'chat_messages', label: 'Messages de Chat' }, 
+      // { name: 'chat_messages', label: 'Messages de Chat' }, // Supprimé
     ];
 
     return (
@@ -2386,6 +2378,7 @@ function AppContent() {
       </ListAndInfoModal>
     );
   }, [showGlobalDataViewModal, selectedGlobalCollection, globalCollectionDocs, loadingGlobalCollectionDocs, fetchGlobalCollectionDocs]);
+
 
   const renderDocumentDetailsModal = useCallback(() => {
     if (!selectedDocumentDetails) return null;
@@ -2912,7 +2905,6 @@ function AppContent() {
         )}
         
         {/* Le bouton flottant du chat est rendu ici */}
-        <ChatFloatingButton currentUser={currentUser} db={db} />
 
       </div>
       <ToastContainer 
