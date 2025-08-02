@@ -729,7 +729,7 @@ function AppContent() {
       const { data, error } = await supabase
         .from('realizations')
         .select('*')
-        .eq('nomParticipant', participantName);
+        .eq('Nom_Participant', participantName);
 
       if (error) throw error;
 
