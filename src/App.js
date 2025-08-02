@@ -175,7 +175,7 @@ function AppContent() {
   // Ref pour suivre l'état de chargement initial de chaque collection
   const initialLoadStatus = useRef({
     tasks: false,
-    realizations: false,
+    realisations: false,
     classement: false,
     objectives: false,
     congratulatoryMessages: false,
@@ -370,7 +370,7 @@ function AppContent() {
       }
 
       const { data: realisationsData, error: realisationsError } = await supabase
-        .from('realizations')
+        .from('realisations')
         .select('*');
 
       if (realisationsError) {
@@ -455,7 +455,7 @@ function AppContent() {
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'realizations' },
+        { event: '*', schema: 'public', table: 'realisations' },
         fetchClassement
       )
       .subscribe();
@@ -727,7 +727,7 @@ function AppContent() {
     setLoading(true); 
     try {
       const { data, error } = await supabase
-        .from('realizations')
+        .from('realisations')
         .select('*')
         .eq('Nom_Participant', participantName);
 
@@ -831,7 +831,7 @@ function AppContent() {
       const categoryToSend = taskToRecord.Categorie || 'Non catégorisée';
 
       // Enregistrer la réalisation
-      const { error: addError } = await supabase.from('realizations').insert([{
+      const { error: addError } = await supabase.from('realisations').insert([{
         taskId: idTacheToRecord,
         userId: currentUser.uid,
         nomParticipant: currentUser.displayName || currentUser.email,
@@ -949,7 +949,7 @@ function AppContent() {
       });
 
       // Insertion multiple
-      const { error: insertError } = await supabase.from('realizations').insert(realizationsToInsert);
+      const { error: insertError } = await supabase.from('realisations').insert(realizationsToInsert);
       if (insertError) throw insertError;
 
       // Suppression des tâches ponctuelles
@@ -1082,14 +1082,14 @@ function AppContent() {
     try {
       // Supprimer toutes les réalisations
       const { data: realisations, error: realisationsError } = await supabase
-        .from('realizations')
+        .from('realisations')
         .select('id');
 
       if (realisationsError) throw realisationsError;
 
       for (const real of realisations) {
         const { error: deleteError } = await supabase
-          .from('realizations')
+          .from('realisations')
           .delete()
           .eq('id', real.id);
         if (deleteError) throw deleteError;
@@ -1413,7 +1413,7 @@ function AppContent() {
 
       // 3. Supprimer la réalisation signalée
       const { error: deleteError } = await supabase
-        .from('realizations')
+        .from('realisations')
         .delete()
         .eq('id', reportedTaskDetails.realizationId);
       if (deleteError) throw deleteError;
@@ -2696,7 +2696,7 @@ function AppContent() {
     const collectionsList = [
       { name: 'users', label: 'Utilisateurs' },
       { name: 'tasks', label: 'Tâches' },
-      { name: 'realizations', label: 'Réalisations' },
+      { name: 'realisations', label: 'Réalisations' },
       { name: 'objectives', label: 'Objectifs' },
       { name: 'historical_podiums', label: 'Podiums Historiques' },
       { name: 'congratulatory_messages', label: 'Messages de Félicitations' },
