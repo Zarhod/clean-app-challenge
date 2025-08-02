@@ -1,28 +1,20 @@
 /* global __initial_auth_token */
 // src/UserContext.js
-// Ce fichier est le SEUL responsable de l'initialisation de l'application Firebase
-// et de la gestion de l'état d'authentification de l'utilisateur.
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-
-// Importe la configuration Firebase depuis le fichier firebase.js
-// Ce fichier (./firebase) ne fait que fournir l'objet de configuration.
 import { firebaseConfig } from './firebase';
 
 const UserContext = createContext();
 
-// Variables pour stocker les instances Firebase
-// Elles seront initialisées une seule fois au niveau du module.
 let firebaseAppInstance = null;
 let firestoreDbInstance = null;
 let firebaseAuthInstance = null;
-let firebaseInitializationError = null; // Variable pour stocker l'erreur d'initialisation
+let firebaseInitializationError = null;
 
 try {
-  // Vérifie si la configuration Firebase est valide avant d'initialiser
   if (!firebaseConfig.projectId || !firebaseConfig.apiKey || !firebaseConfig.authDomain) {
     firebaseInitializationError = new Error(
       "CRITIQUE : La configuration Firebase est incomplète. " +
@@ -31,7 +23,6 @@ try {
     );
     console.error(firebaseInitializationError.message);
   } else {
-    // Procède à l'initialisation UNIQUEMENT si la configuration est valide
     if (!getApps().length) {
       firebaseAppInstance = initializeApp(firebaseConfig);
     } else {
@@ -80,7 +71,9 @@ export const UserProvider = ({ children }) => {
           await signInWithCustomToken(auth, token);
         } else {
           console.warn("Aucun token fourni, utilisateur non connecté. Redirection vers /login.");
-          window.location.href = "/login";
+          if (!window.location.pathname.includes("/login")) {
+            window.location.href = "/login";
+          }
           return;
         }
 
