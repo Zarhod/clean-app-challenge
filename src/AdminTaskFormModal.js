@@ -12,7 +12,10 @@ function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading
       Frequence: taskData.Frequence || null,
       Urgence: taskData.Urgence || null,
       Categorie: taskData.Categorie || null,
-      Sous_Taches_IDs: taskData.Sous_Taches_IDs?.trim() || null,
+      Sous_Taches_IDs: taskData.Sous_Taches_IDs
+        ? taskData.Sous_Taches_IDs.split(',').map(id => id.trim())
+        : null,
+
       Parent_Task_ID: taskData.Parent_Task_ID?.trim() || null,
     };
 
