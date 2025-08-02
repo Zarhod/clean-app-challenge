@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { UserContext } from './UserContext'; // ✅ Corrigé : import nommé
+import UserContext from './UserContext'; // ✅ Correct
 
 function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading, editingTask }) {
   const { currentUser } = useContext(UserContext);
