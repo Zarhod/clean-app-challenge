@@ -1,10 +1,7 @@
-/* global __initial_auth_token */
-
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
 
 const UserContext = createContext();
-export const useUser = () => useContext(UserContext);
 
 export const UserProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
@@ -14,23 +11,10 @@ export const UserProvider = ({ children }) => {
   useEffect(() => {
     const setupAuthAndUser = async () => {
       try {
-        await new Promise(resolve => setTimeout(resolve, 300)); // 👈 Attente importante
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         let sessionResponse = await supabase.auth.getSession();
         let user = sessionResponse.data?.session?.user;
-
-        // Si pas de user, on essaie avec le token initial
-        if (!user) {
-          const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-          if (token) {
-            const { error: tokenError } = await supabase.auth.setSession({ access_token: token });
-            if (tokenError) throw new Error("Token invalide");
-            sessionResponse = await supabase.auth.getSession();
-            user = sessionResponse.data?.session?.user;
-          }
-        }
-
-        // Et ici on vérifie proprement après les tentatives
         if (!user || !user.id) {
           setLoadingUser(false);
           return;
@@ -58,12 +42,9 @@ export const UserProvider = ({ children }) => {
         };
 
         if (!userData) {
-          console.log("🧪 Inserting user:", defaultUserData);
-          const { error: insertError } = await supabase
+          await supabase
             .from('users')
             .insert(defaultUserData, { returning: 'minimal' });
-
-          if (insertError) throw new Error("Erreur création profil utilisateur");
           setCurrentUser(defaultUserData);
           setIsAdmin(false);
         } else {
@@ -83,11 +64,11 @@ export const UserProvider = ({ children }) => {
     setupAuthAndUser();
   }, []);
 
-
-
   return (
-    <UserContext.Provider value={{ currentUser, isAdmin, loadingUser, setCurrentUser }}>
+    <UserContext.Provider value={{ currentUser, isAdmin, loadingUser, setCurrentUser, setIsAdmin }}>
       {children}
     </UserContext.Provider>
   );
 };
+
+export const useUser = () => useContext(UserContext);

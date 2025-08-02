@@ -62,10 +62,10 @@ const AuthModal = ({ onClose }) => {
         };
 
         setCurrentUser(finalUser);
-        setIsAdmin(userData?.isAdmin || false); // ✅ essentiel
-
+        setIsAdmin(finalUser.isAdmin || false);
         toast.success(`Bienvenue, ${finalUser.displayName} !`);
-        onClose();
+        setTimeout(onClose, 50);
+
       } else {
         if (!displayName.trim()) {
           setError("Le nom d'affichage est requis.");
@@ -102,27 +102,18 @@ const AuthModal = ({ onClose }) => {
         if (insertError) throw insertError;
 
         setCurrentUser({ uid: signUpData.user.id, ...newUserData });
-        setIsAdmin(false); // ✅ par défaut
+        setIsAdmin(false);
         toast.success(`Compte créé pour ${displayName} !`);
-        onClose();
+        setTimeout(onClose, 50);
       }
 
     } catch (err) {
       const msg = err?.message || '';
-      const code = err?.code || err?.status || '';
       let errorMessage = "Une erreur est survenue.";
-
-      if (process.env.NODE_ENV === 'development') {
-        console.warn("Erreur d'auth:", err);
-      }
 
       switch (true) {
         case msg.includes("Invalid login credentials"):
-        case msg.includes("Invalid login"):
-        case msg.includes("User not found"):
-        case code === 'auth/user-not-found':
-        case code === 'auth/wrong-password':
-          errorMessage = "Ce compte n'existe pas ou le mot de passe est incorrect.";
+          errorMessage = "Adresse e-mail ou mot de passe incorrect.";
           break;
         case msg.includes("User already registered"):
           errorMessage = "Cette adresse e-mail est déjà utilisée.";
@@ -130,7 +121,7 @@ const AuthModal = ({ onClose }) => {
         case msg.includes("Password should be at least"):
           errorMessage = "Le mot de passe doit contenir au moins 6 caractères.";
           break;
-        case code === 'auth/network-request-failed':
+        case msg.includes("network"):
           errorMessage = "Erreur réseau. Vérifiez votre connexion.";
           break;
         default:
@@ -142,8 +133,6 @@ const AuthModal = ({ onClose }) => {
       setLoading(false);
     }
   };
-
-  const isDisabled = loading || loadingUser;
 
   return (
     <ListAndInfoModal title={isLogin ? "Connexion" : "Inscription"} onClose={onClose} sizeClass="max-w-xs sm:max-w-md">

@@ -58,10 +58,9 @@ const AuthModal = ({ onClose }) => {
         };
 
         setCurrentUser(finalUser);
-        setIsAdmin(userData?.isAdmin || false); // ✅ important ici
-
+        setIsAdmin(finalUser.isAdmin || false);
         toast.success(`Bienvenue, ${finalUser.displayName} !`);
-        onClose();
+        setTimeout(onClose, 50); // ✅ ferme proprement la modale
 
       } else {
         if (!displayName.trim()) {
@@ -81,8 +80,8 @@ const AuthModal = ({ onClose }) => {
           id: signUpData.user.id,
           displayName: displayName.trim(),
           email: email.trim(),
-          isAdmin: false,
           avatar: '👤',
+          isAdmin: false,
           weeklyPoints: 0,
           totalCumulativePoints: 0,
           previousWeeklyPoints: 0,
@@ -99,27 +98,18 @@ const AuthModal = ({ onClose }) => {
         if (insertError) throw insertError;
 
         setCurrentUser({ uid: signUpData.user.id, ...newUserData });
-        setIsAdmin(false); // ✅ par défaut
-        toast.success(`Compte créé avec succès pour ${newUserData.displayName} !`);
-        onClose();
+        setIsAdmin(false);
+        toast.success(`Compte créé pour ${displayName} !`);
+        setTimeout(onClose, 50);
       }
 
     } catch (err) {
       const msg = err?.message || '';
-      const code = err?.status || err?.code || '';
-      let errorMessage = "Une erreur est survenue lors de l'authentification.";
-
-      if (process.env.NODE_ENV === 'development') {
-        console.warn("Auth error:", err);
-      }
+      let errorMessage = "Une erreur est survenue.";
 
       switch (true) {
         case msg.includes("Invalid login credentials"):
-        case msg.includes("Invalid login"):
-        case msg.includes("User not found"):
-        case code === 'auth/wrong-password':
-        case code === 'auth/user-not-found':
-          errorMessage = "Ce compte n'existe pas ou le mot de passe est incorrect.";
+          errorMessage = "Adresse e-mail ou mot de passe incorrect.";
           break;
         case msg.includes("User already registered"):
           errorMessage = "Cette adresse e-mail est déjà utilisée.";
@@ -127,11 +117,11 @@ const AuthModal = ({ onClose }) => {
         case msg.includes("Password should be at least"):
           errorMessage = "Le mot de passe doit contenir au moins 6 caractères.";
           break;
-        case code === 'auth/network-request-failed':
-          errorMessage = "Erreur réseau. Veuillez vérifier votre connexion.";
+        case msg.includes("network"):
+          errorMessage = "Erreur réseau. Vérifiez votre connexion.";
           break;
         default:
-          errorMessage = msg || errorMessage;
+          errorMessage = msg;
       }
 
       setError(errorMessage);
