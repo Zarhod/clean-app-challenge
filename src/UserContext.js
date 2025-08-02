@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 // Importe la configuration Firebase depuis le fichier firebase.js
@@ -32,20 +32,18 @@ try {
     console.error(firebaseInitializationError.message);
   } else {
     // Procède à l'initialisation UNIQUEMENT si la configuration est valide
-    if (!getApps().length) { // Vérifie si aucune application Firebase n'a été initialisée
+    if (!getApps().length) {
       firebaseAppInstance = initializeApp(firebaseConfig);
     } else {
-      firebaseAppInstance = getApp(); // Utilise l'application déjà initialisée
+      firebaseAppInstance = getApp();
     }
     firestoreDbInstance = getFirestore(firebaseAppInstance);
     firebaseAuthInstance = getAuth(firebaseAppInstance);
     console.log("Firebase initialisé avec succès via UserContext.");
   }
-
 } catch (error) {
   firebaseInitializationError = new Error(`Erreur critique lors de l'initialisation de l'application Firebase : ${error.message}`);
   console.error(firebaseInitializationError.message, error);
-  // S'assure que les instances sont nulles si une erreur se produit pendant cette étape critique
   firebaseAppInstance = null;
   firestoreDbInstance = null;
   firebaseAuthInstance = null;
@@ -58,20 +56,16 @@ export const UserProvider = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
 
-  // Utilise directement les instances au niveau du module. Elles sont garanties d'être les mêmes
-  // entre les rendus et ne causeront pas de problèmes de réinitialisation.
   const db = firestoreDbInstance;
   const auth = firebaseAuthInstance;
 
   useEffect(() => {
-    // Si Firebase n'a pas pu être initialisé au niveau du module, gère cela ici
     if (firebaseInitializationError) {
       console.error("Impossible de procéder à l'authentification :", firebaseInitializationError.message);
       setLoadingUser(false);
       return;
     }
 
-    // Si les instances Firebase ne sont pas disponibles (en raison d'une erreur de configuration), arrête le chargement et retourne
     if (!auth || !db) {
       console.error("Firebase instances sont nulles. Impossible de procéder à l'authentification.");
       setLoadingUser(false);
@@ -85,7 +79,9 @@ export const UserProvider = ({ children }) => {
         if (token) {
           await signInWithCustomToken(auth, token);
         } else {
-          await signInAnonymously(auth);
+          console.warn("Aucun token fourni, utilisateur non connecté. Redirection vers /login.");
+          window.location.href = "/login";
+          return;
         }
 
         const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
