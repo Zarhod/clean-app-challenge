@@ -1,65 +1,101 @@
 // src/TaskHistoryModal.js
-import React, { useState, useEffect } from 'react';
-import ListAndInfoModal from './ListAndInfoModal'; // Assurez-vous que le chemin est correct
+import React, { useEffect, useState } from 'react';
+import { useUser } from './UserContext';
+import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
+import ConfettiOverlay from './ConfettiOverlay';
+import { toast } from 'react-toastify';
 
-function TaskHistoryModal({ taskId, allRealisations, allTasks, onClose }) {
-  const [taskDetails, setTaskDetails] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
+const TaskHistoryModal = ({ onClose }) => {
+  const { currentUser, db, setCurrentUser } = useUser();
+  const [tasks, setTasks] = useState([]);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {
-    setLoading(true);
-    // Trouver les détails de la tâche à partir de allTasks
-    const foundTask = allTasks.find(task => String(task.ID_Tache) === String(taskId));
-    setTaskDetails(foundTask);
+    const fetchTasks = async () => {
+      if (!db || !currentUser) return;
+      const tasksRef = collection(db, 'tasks');
+      const snapshot = await getDocs(tasksRef);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTasks(data);
+    };
 
-    // Filtrer l'historique des réalisations pour cette tâche
-    const filteredHistory = allRealisations
-      .filter(real => String(real.taskId) === String(taskId))
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); // Trier par date décroissante
-    
-    setHistory(filteredHistory);
-    setLoading(false);
-  }, [taskId, allRealisations, allTasks]);
+    fetchTasks();
+  }, [db, currentUser]);
 
-  if (loading) {
-    return (
-      <ListAndInfoModal title="Historique de la Tâche" onClose={onClose}>
-        <div className="flex justify-center items-center py-4">
-          <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
-          <p className="ml-3 text-lightText">Chargement de l'historique...</p>
-        </div>
-      </ListAndInfoModal>
-    );
-  }
+  const handleCompleteTask = async (task) => {
+    if (!currentUser || !db) return;
+
+    const basePoints = task.Points || 1;
+    const isUrgent = task.Urgence === 'Élevée';
+    const bonusXP = isUrgent ? 5 : 0;
+
+    const pointsToAdd = basePoints;
+    const xpGained = basePoints + bonusXP;
+    const newXp = (currentUser.xp || 0) + xpGained;
+    const previousLevel = currentUser.level || 1;
+    const newLevel = Math.floor(newXp / 100) + 1;
+
+    const userRef = doc(db, 'users', currentUser.uid);
+    await updateDoc(userRef, {
+      weeklyPoints: (currentUser.weeklyPoints || 0) + pointsToAdd,
+      totalCumulativePoints: (currentUser.totalCumulativePoints || 0) + pointsToAdd,
+      xp: newXp,
+      level: newLevel,
+      lastReadTimestamp: new Date().toISOString()
+    });
+
+    setCurrentUser(prev => ({
+      ...prev,
+      weeklyPoints: (prev.weeklyPoints || 0) + pointsToAdd,
+      totalCumulativePoints: (prev.totalCumulativePoints || 0) + pointsToAdd,
+      xp: newXp,
+      level: newLevel,
+      lastReadTimestamp: new Date().toISOString()
+    }));
+
+    if (newLevel > previousLevel) {
+      toast.success(`🎉 Bravo ! Vous avez atteint le niveau ${newLevel} !`);
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 4000);
+    } else {
+      toast.success(`+${pointsToAdd} points & +${xpGained} XP ajoutés !`);
+    }
+  };
 
   return (
-    <ListAndInfoModal title={`Historique de la Tâche: ${taskDetails?.Nom_Tache || 'Inconnu'}`} onClose={onClose} sizeClass="max-w-full sm:max-w-md md:max-w-lg">
-      <div className="mb-4 text-center">
-        <p className="text-lg font-semibold text-text">ID Tâche: <span className="text-primary">{taskId}</span></p>
-        {taskDetails && (
-          <p className="text-md text-lightText">Points: {taskDetails.Points} | Fréquence: {taskDetails.Frequence} | Catégorie: {taskDetails.Categorie}</p>
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
+      <div className="bg-card rounded-xl p-6 shadow-lg w-full max-w-xl text-center relative">
+        <h2 className="text-2xl font-bold text-primary mb-4">Historique des tâches</h2>
+        {tasks.length === 0 ? (
+          <p className="text-lightText">Aucune tâche trouvée.</p>
+        ) : (
+          <ul className="space-y-4 max-h-[60vh] overflow-y-auto">
+            {tasks.map((task) => (
+              <li key={task.id} className="bg-background rounded-lg p-4 shadow flex justify-between items-center">
+                <div>
+                  <p className="text-sm font-semibold text-left">{task.Nom_Tache}</p>
+                  <p className="text-xs text-gray-400 text-left">Points: {task.Points}</p>
+                </div>
+                <button
+                  onClick={() => handleCompleteTask(task)}
+                  className="bg-primary hover:bg-secondary text-white font-semibold py-1 px-4 rounded-full text-sm transition"
+                >
+                  Valider
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
+        <button
+          onClick={onClose}
+          className="absolute top-2 right-2 text-gray-400 hover:text-white transition"
+        >
+          ✕
+        </button>
       </div>
-
-      <h3 className="text-xl font-bold text-secondary mb-3 text-center">Réalisations Passées</h3>
-      {history.length > 0 ? (
-        <div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">
-          {history.map((real, index) => (
-            <div key={real.id || index} className="bg-white rounded-lg p-3 shadow-sm border border-neutralBg/50">
-              <p className="font-bold text-text text-base">{real.nomParticipant}</p>
-              <p className="text-sm text-lightText">
-                Le {new Date(real.timestamp).toLocaleDateString('fr-FR')} à {new Date(real.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-              </p>
-              <p className="text-sm text-primary">{real.pointsGagnes} points</p>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-center text-lightText text-lg">Aucune réalisation trouvée pour cette tâche.</p>
-      )}
-    </ListAndInfoModal>
+      {showConfetti && <ConfettiOverlay />}
+    </div>
   );
-}
+};
 
 export default TaskHistoryModal;
