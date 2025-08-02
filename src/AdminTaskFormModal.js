@@ -1,15 +1,11 @@
-import React, { useContext } from 'react';
-import UserContext from './UserContext';
+import React from 'react';
 import { supabase } from './supabase';
 
 function AdminTaskFormModal({ taskData, onFormChange, onSubmit, onClose, loading, editingTask }) {
-  const { currentUser } = useContext(UserContext);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     try {
-      // eslint-disable-next-line no-unused-vars
       const { error } = await supabase.from('objectives').insert({
         ID_Tache: taskData.ID_Tache || null,
         Nom_Tache: taskData.Nom_Tache || null,
