@@ -4,7 +4,7 @@ import getCroppedImg from './getCroppedImg.js';
 import { useUser } from './UserContext';
 import { Dialog, Transition } from '@headlessui/react';
 
-const AvatarSelectionModal = ({ currentAvatar, onClose, onAvatarSelected, isOpen }) => {
+const AvatarSelectionModal = ({ currentAvatar, onClose, onAvatarSelected, isOpen = true }) => {
   const { uploadAvatarImage } = useUser();
 
   const isCurrentPhoto = currentAvatar?.startsWith('http');
@@ -17,7 +17,7 @@ const AvatarSelectionModal = ({ currentAvatar, onClose, onAvatarSelected, isOpen
   const [uploading, setUploading] = useState(false);
   const [imageTooLarge, setImageTooLarge] = useState(false);
 
-  const avatarOptions = ['😀', '😇', '😎', '🤓', '🥳', '🤖', '🐶', '🐱', '🦁', '🐼', '🌸', '☀️', '🍕', '🍔', '⚽️', '🎮', '🎨', '🚀', '❤️', '🍺', '🤯', '🥸', '🤭', '🤕', '👀','🫥', '🤓', '😶‍🌫️', '🥷', '🤪'];
+  const avatarOptions = ['😀', '😇', '😎', '🤓', '🥳', '🤖', '🐶', '🐱', '🦁', '🐼', '🌸', '☀️', '🍕', '🍔', '⚽️', '🎮', '🎨', '🚀', '❤️', '🍺', '🤯', '🥸', '🤭', '🤕', '👀', '🫥', '🤓', '😶‍🌫️', '🥷', '🤪'];
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -42,18 +42,21 @@ const AvatarSelectionModal = ({ currentAvatar, onClose, onAvatarSelected, isOpen
     try {
       if (tab === 'emoji') {
         onAvatarSelected(selectedEmoji);
+        onClose();
       } else if (tab === 'photo' && imageSrc && croppedAreaPixels) {
-        const croppedImageBlob = await getCroppedImg(imageSrc, croppedAreaPixels);
-        const file = new File([croppedImageBlob], 'avatar.jpg', { type: 'image/jpeg' });
+        const { blob } = await getCroppedImg(imageSrc, croppedAreaPixels);
+        const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
         const uploadedUrl = await uploadAvatarImage(file);
         onAvatarSelected(uploadedUrl);
+        onClose();
       }
-      onClose();
     } catch (error) {
-      console.error("Erreur avatar:", error);
+      console.error("Erreur avatar:", error.message || error);
+      alert("❌ Échec lors de l'enregistrement de l'avatar. Vérifie la taille ou le format.");
     }
     setUploading(false);
   };
+
 
   return (
     <Transition.Root show={isOpen} as={Fragment}>

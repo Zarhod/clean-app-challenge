@@ -2,10 +2,14 @@
 export default function getCroppedImg(imageSrc, crop) {
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.src = imageSrc;
     image.crossOrigin = "anonymous";
+    image.src = imageSrc;
 
     image.onload = () => {
+      if (!crop || !crop.width || !crop.height) {
+        return reject(new Error("Zone de recadrage invalide."));
+      }
+
       const canvas = document.createElement("canvas");
       const scaleX = image.naturalWidth / image.width;
       const scaleY = image.naturalHeight / image.height;
@@ -27,9 +31,8 @@ export default function getCroppedImg(imageSrc, crop) {
       );
 
       canvas.toBlob(blob => {
-        if (!blob) {
-          reject(new Error("Canvas is empty"));
-          return;
+        if (!blob || blob.size < 1000) {
+          return reject(new Error("L’image générée est vide ou trop petite."));
         }
         blob.name = "cropped.jpg";
         const fileUrl = URL.createObjectURL(blob);
@@ -37,6 +40,7 @@ export default function getCroppedImg(imageSrc, crop) {
       }, "image/jpeg");
     };
 
-    image.onerror = () => reject(new Error("Image loading failed"));
+    image.onerror = () =>
+      reject(new Error("Impossible de charger l’image source."));
   });
 }

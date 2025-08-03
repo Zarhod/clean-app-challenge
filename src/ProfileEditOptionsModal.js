@@ -7,7 +7,7 @@ import { useUser } from './UserContext';
 const ProfileEditOptionsModal = ({ onClose }) => {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const { currentUser } = useUser();
+  const { currentUser, updateUserAvatar } = useUser();
   const [currentAvatar, setCurrentAvatar] = useState(currentUser?.avatar || null);
 
   useEffect(() => {
@@ -16,7 +16,12 @@ const ProfileEditOptionsModal = ({ onClose }) => {
 
   const handleCloseAvatarModal = () => {
     setShowAvatarModal(false);
-    // Rien à faire ici, car on écoute déjà les mises à jour via onSnapshot dans UserContext
+  };
+
+  const handleAvatarSelected = (newAvatar) => {
+    setCurrentAvatar(newAvatar);
+    updateUserAvatar(newAvatar); // met à jour dans Firestore/Firebase
+    setShowAvatarModal(false);
   };
 
   const closeAndReset = () => {
@@ -65,6 +70,7 @@ const ProfileEditOptionsModal = ({ onClose }) => {
         <AvatarSelectionModal
           currentAvatar={currentAvatar}
           onClose={handleCloseAvatarModal}
+          onAvatarSelected={handleAvatarSelected}
           isOpen={true}
         />
       )}

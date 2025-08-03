@@ -23,7 +23,6 @@ import ProfileEditOptionsModal from './ProfileEditOptionsModal';
 import confetti from 'canvas-confetti';
 import { calculateLevelAndXP } from './utils/levelUtils';
 
-
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 
@@ -1906,7 +1905,7 @@ function AppContent() {
 
         <div className="mb-6 p-4 bg-neutralBg rounded-xl shadow-inner">
           <div className="flex items-center justify-center mb-4">
-            {profileData.avatar?.startsWith('http') ? (
+            {profileData.avatar && profileData.avatar.includes('http') ? (
               <img
                 src={profileData.avatar}
                 alt="Avatar"
@@ -1992,6 +1991,7 @@ function AppContent() {
       </div>
     );
   };
+
 
 
   const renderConfirmResetModal = () => {
