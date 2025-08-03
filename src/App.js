@@ -1945,6 +1945,18 @@ function AppContent() {
               >
                 ✏️ Modifier le Profil
               </button>
+
+              <button
+                onClick={() => weeklyRecapData && setShowWeeklyRecapModal(true)}
+                disabled={!weeklyRecapData}
+                className={`py-1 px-3 rounded-md transition text-sm flex items-center gap-1 font-medium ${
+                  weeklyRecapData
+                    ? 'bg-blue-100 hover:bg-blue-200 text-blue-800'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                🗓 Voir mon dernier récap
+              </button>
             </div>
           )}
         </div>
@@ -1991,8 +2003,6 @@ function AppContent() {
       </div>
     );
   };
-
-
 
   const renderConfirmResetModal = () => {
     if (!showConfirmResetModal) return null;
