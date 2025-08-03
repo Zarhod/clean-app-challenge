@@ -162,10 +162,17 @@ export const UserProvider = ({ children }) => {
   const uploadAvatarImage = async (file) => {
     if (!auth?.currentUser || !storage) return null;
     const storageRef = ref(storage, `avatars/${auth.currentUser.uid}`);
-    await uploadBytes(storageRef, file);
+
+    const metadata = {
+      contentDisposition: 'inline', // ✅ Pour affichage direct
+      contentType: file.type,
+    };
+
+    await uploadBytes(storageRef, file, metadata);
     const url = await getDownloadURL(storageRef);
-    return url;
+    return `${url}?alt=media`;
   };
+
 
   const updateUserAvatar = async (newAvatar) => {
     if (!auth?.currentUser || !db) return;

@@ -8,6 +8,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
+import AvatarSelectionModal from './AvatarSelectionModal';
 
 const AuthModal = ({ onClose }) => {
   const { auth, db, setCurrentUser, loadingUser } = useUser();
@@ -15,6 +16,8 @@ const AuthModal = ({ onClose }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [avatar, setAvatar] = useState('😀');
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -22,6 +25,7 @@ const AuthModal = ({ onClose }) => {
     setEmail('');
     setPassword('');
     setDisplayName('');
+    setAvatar('😀');
     setError('');
     setLoading(false);
   }, [isLogin]);
@@ -32,7 +36,7 @@ const AuthModal = ({ onClose }) => {
     setError('');
 
     if (loadingUser || !auth || !db) {
-      setError("Le service d'authentification n'est pas encore prêt. Veuillez patienter et réessayer.");
+      setError("Le service d'authentification n'est pas encore prêt.");
       setLoading(false);
       return;
     }
@@ -77,7 +81,7 @@ const AuthModal = ({ onClose }) => {
           };
           await setDoc(userDocRef, defaultUserData);
           setCurrentUser({ uid: user.uid, email: user.email, ...defaultUserData });
-          toast.success(`Bienvenue, ${defaultUserData.displayName} ! Votre compte a été initialisé.`);
+          toast.success(`Bienvenue, ${defaultUserData.displayName} !`);
           onClose();
         }
 
@@ -97,7 +101,7 @@ const AuthModal = ({ onClose }) => {
           displayName: displayName.trim(),
           email: email.trim(),
           isAdmin: false,
-          avatar: '👤',
+          avatar: avatar || '👤',
           weeklyPoints: 0,
           totalCumulativePoints: 0,
           previousWeeklyPoints: 0,
@@ -114,7 +118,7 @@ const AuthModal = ({ onClose }) => {
       }
 
     } catch (err) {
-      let errorMessage = "Une erreur est survenue lors de l'authentification.";
+      let errorMessage = "Une erreur est survenue.";
       switch (err.code) {
         case 'auth/invalid-email':
           errorMessage = 'Adresse e-mail invalide.'; break;
@@ -127,11 +131,11 @@ const AuthModal = ({ onClose }) => {
         case 'auth/email-already-in-use':
           errorMessage = 'Cette adresse e-mail est déjà utilisée.'; break;
         case 'auth/weak-password':
-          errorMessage = 'Le mot de passe doit contenir au moins 6 caractères.'; break;
+          errorMessage = 'Mot de passe trop faible (6 caractères min).'; break;
         case 'auth/network-request-failed':
-          errorMessage = 'Erreur réseau. Veuillez vérifier votre connexion.'; break;
+          errorMessage = 'Erreur réseau.'; break;
         default:
-          errorMessage = "Une erreur inattendue est survenue. Veuillez réessayer.";
+          errorMessage = "Erreur inconnue.";
       }
       setError(errorMessage);
     } finally {
@@ -149,22 +153,36 @@ const AuthModal = ({ onClose }) => {
         </h2>
         <form onSubmit={handleAuth} className="space-y-4">
           {!isLogin && (
-            <div>
-              <label htmlFor="displayName" className="block text-text text-left font-medium mb-1 text-sm">Nom d'affichage</label>
-              <input
-                type="text"
-                id="displayName"
-                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                placeholder="Votre nom ou pseudo"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                required={!isLogin}
-                disabled={isDisabled}
-              />
-            </div>
+            <>
+              <div>
+                <label htmlFor="displayName" className="block text-left text-sm font-medium mb-1">Nom d'affichage</label>
+                <input
+                  type="text"
+                  id="displayName"
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                  placeholder="Votre nom ou pseudo"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  disabled={isDisabled}
+                />
+              </div>
+
+              <div className="text-5xl text-center mt-4">{avatar.startsWith('http') ? '🖼️' : avatar}</div>
+              <div className="flex justify-center my-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAvatarModal(true)}
+                  className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-md transition duration-300 ease-in-out text-sm"
+                  disabled={isDisabled}
+                >
+                  Choisir un avatar
+                </button>
+              </div>
+            </>
           )}
+
           <div>
-            <label htmlFor="email" className="block text-text text-left font-medium mb-1 text-sm">Email</label>
+            <label htmlFor="email" className="block text-left text-sm font-medium mb-1">Email</label>
             <input
               type="email"
               id="email"
@@ -176,8 +194,9 @@ const AuthModal = ({ onClose }) => {
               disabled={isDisabled}
             />
           </div>
+
           <div>
-            <label htmlFor="password" className="block text-text text-left font-medium mb-1 text-sm">Mot de passe</label>
+            <label htmlFor="password" className="block text-left text-sm font-medium mb-1">Mot de passe</label>
             <input
               type="password"
               id="password"
@@ -189,7 +208,9 @@ const AuthModal = ({ onClose }) => {
               disabled={isDisabled}
             />
           </div>
+
           {error && <p className="text-error text-sm mt-2">{error}</p>}
+
           <button
             type="submit"
             className="w-full bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
@@ -198,6 +219,7 @@ const AuthModal = ({ onClose }) => {
             {loading ? 'Chargement...' : (isLogin ? 'Se connecter' : "S'inscrire")}
           </button>
         </form>
+
         <div className="flex flex-col gap-3 mt-4">
           <button
             onClick={() => setIsLogin(!isLogin)}
@@ -215,6 +237,16 @@ const AuthModal = ({ onClose }) => {
           </button>
         </div>
       </div>
+
+      <AvatarSelectionModal
+        isOpen={showAvatarModal}
+        currentAvatar={avatar}
+        onClose={() => setShowAvatarModal(false)}
+        onAvatarSelected={(selected) => {
+          setAvatar(selected);
+          setShowAvatarModal(false);
+        }}
+      />
     </div>
   );
 };

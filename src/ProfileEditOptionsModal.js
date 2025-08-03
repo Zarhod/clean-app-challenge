@@ -65,6 +65,7 @@ const ProfileEditOptionsModal = ({ onClose }) => {
         <AvatarSelectionModal
           currentAvatar={currentAvatar}
           onClose={handleCloseAvatarModal}
+          isOpen={true}
         />
       )}
 
