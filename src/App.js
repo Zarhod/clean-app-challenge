@@ -21,7 +21,7 @@ import AvatarSelectionModal from './AvatarSelectionModal';
 import PasswordChangeModal from './PasswordChangeModal'; 
 import ProfileEditOptionsModal from './ProfileEditOptionsModal'; 
 import confetti from 'canvas-confetti';
-import UserBadgeDisplay from './UserBadgeDisplay'; 
+import { calculateLevelAndXP } from './utils/levelUtils';
 
 
 import { ToastContainer, toast } from 'react-toastify';
@@ -36,34 +36,6 @@ import { UserProvider, useUser } from './UserContext';
 
 const LOGO_FILENAME = 'logo.png'; 
 
-// Fonctions utilitaires pour la gamification (déplacées en dehors du du composant pour éviter les re-déclarations)
-const calculateLevelAndXP = (currentXP) => {
-  let level = 1;
-  let xpNeededForNextLevel = 100; 
-  
-  if (currentXP >= 100) {
-    level = 2;
-    xpNeededForNextLevel = 150; 
-  }
-  if (currentXP >= 250) {
-    level = 3;
-    xpNeededForNextLevel = 250; 
-  }
-  if (currentXP >= 500) {
-    level = 4;
-    xpNeededForNextLevel = 500; 
-  }
-  if (currentXP >= 1000) {
-    level = 5;
-    xpNeededForNextLevel = 1000; 
-  }
-  if (currentXP >= 2000) { 
-    level = Math.floor(currentXP / 100) + 1; 
-    xpNeededForNextLevel = 100; 
-  }
-
-  return { level, xpNeededForNextLevel };
-};
 
 
 function AppContent() { 
@@ -126,7 +98,6 @@ function AppContent() {
   const [showAdminUserManagementModal, setShowAdminUserManagementModal] = useState(false); 
   const [showAdminCongratulatoryMessagesModal, setShowAdminCongratulatoryMessagesModal] = useState(false);
   const [reports, setReports] = useState([]);
-  console.log('Reports loaded:', reports);
 
 
   const [showReportModal, setShowReportModal] = useState(false);
@@ -179,11 +150,16 @@ function AppContent() {
 
   // Synchronise selectedParticipantProfile si c'est le profil de l'utilisateur actuel
   useEffect(() => {
-    if (currentUser && selectedParticipantProfile && selectedParticipantProfile.id === currentUser.uid) {
-      // Met à jour selectedParticipantProfile avec les dernières données de currentUser
-      setSelectedParticipantProfile({ ...currentUser });
+    if (
+      currentUser &&
+      selectedParticipantProfile &&
+      selectedParticipantProfile.id === currentUser.uid &&
+      JSON.stringify(selectedParticipantProfile) !== JSON.stringify({ id: currentUser.uid, ...currentUser })
+    ) {
+      setSelectedParticipantProfile({ id: currentUser.uid, ...currentUser });
     }
   }, [currentUser, selectedParticipantProfile]);
+
 
 
   // Fonction pour calculer le récapitulatif de la semaine précédente
@@ -1160,7 +1136,7 @@ function AppContent() {
     // Si le participant cliqué est l'utilisateur actuellement connecté
     if (currentUser && String(participant.Nom_Participant || '').trim() === String(currentUser.displayName || currentUser.email).trim()) {
       // Utilisez l'objet currentUser du contexte qui est toujours à jour
-      setSelectedParticipantProfile({ ...currentUser }); 
+      setSelectedParticipantProfile({ ...currentUser, id: currentUser.uid });
       setActiveMainView('participantProfile');
       await fetchParticipantWeeklyTasks(currentUser.displayName || currentUser.email);
       return;
@@ -1903,34 +1879,47 @@ function AppContent() {
   const renderParticipantProfile = () => {
     if (!selectedParticipantProfile) return null;
 
-    const isCurrentUser = currentUser && selectedParticipantProfile.id === currentUser.uid;
-    const participantCumulativePoints = selectedParticipantProfile.totalCumulativePoints || 0;
+    const isCurrentUser =
+      currentUser && selectedParticipantProfile.id === currentUser.uid;
+
+    const profileData = isCurrentUser ? currentUser : selectedParticipantProfile;
+
+    const participantCumulativePoints = profileData.totalCumulativePoints || 0;
     const engagementPercentage =
       totalGlobalCumulativePoints > 0
         ? ((participantCumulativePoints / totalGlobalCumulativePoints) * 100).toFixed(2)
         : 0;
 
-    const { level, xpNeededForNextLevel } = calculateLevelAndXP(selectedParticipantProfile.xp || 0);
+    const level = profileData.level || 1;
+    const { xpNeededForNextLevel } = calculateLevelAndXP(profileData.xp || 0);
     const xpProgress =
       xpNeededForNextLevel > 0
-        ? ((selectedParticipantProfile.xp || 0) / xpNeededForNextLevel) * 100
+        ? ((profileData.xp || 0) / xpNeededForNextLevel) * 100
         : 0;
 
     return (
       <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8">
         <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">
-          Profil de {selectedParticipantProfile.displayName || selectedParticipantProfile.email}
+          Profil de {profileData.displayName || profileData.email}
         </h2>
 
         <div className="mb-6 p-4 bg-neutralBg rounded-xl shadow-inner">
           <div className="flex items-center justify-center mb-4">
-            <span className="text-6xl mr-4">{selectedParticipantProfile.avatar || '👤'}</span>
+            {profileData.avatar?.startsWith('http') ? (
+              <img
+                src={profileData.avatar}
+                alt="Avatar"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover mr-4 border-2 border-primary"
+              />
+            ) : (
+              <span className="text-6xl mr-4">{profileData.avatar || '👤'}</span>
+            )}
             <div className="text-left">
               <p className="text-lg sm:text-xl font-semibold text-text">
                 Niveau: <span className="text-primary font-bold">{level}</span>
               </p>
               <p className="text-base sm:text-lg text-lightText">
-                XP: <span className="font-bold">{selectedParticipantProfile.xp || 0}</span> / {xpNeededForNextLevel}
+                XP: <span className="font-bold">{profileData.xp || 0}</span> / {xpNeededForNextLevel}
               </p>
               <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
                 <div
@@ -1956,22 +1945,8 @@ function AppContent() {
               >
                 ✏️ Modifier le Profil
               </button>
-              <button
-                onClick={() => setShowAvatarSelectionModal(true)}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1 px-3 rounded-md transition duration-300 text-sm flex items-center gap-1"
-              >
-                🖼️ Changer d'Avatar
-              </button>
-              <button
-                onClick={() => setShowPasswordChangeModal(true)}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1 px-3 rounded-md transition duration-300 text-sm flex items-center gap-1"
-              >
-                🔐 Modifier le Mot de Passe
-              </button>
             </div>
           )}
-
-          <UserBadgeDisplay badges={selectedParticipantProfile.badges} />
         </div>
 
         <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4">Tâches terminées cette semaine:</h3>
@@ -2587,7 +2562,9 @@ function AppContent() {
       <div className="min-h-screen bg-gradient-to-br from-background-light to-background-dark font-sans p-4 sm:p-6">
         <header className="relative flex flex-col items-center justify-center py-4 sm:py-6 px-4 mb-6 sm:mb-8 text-center">
           <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-20 sm:h-28 md:h-36 w-auto drop-shadow-xl" />
-          <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1>
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-primary mb-2 tracking-tight">
+            Clean App Challenge
+          </h1>
         </header>
         <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-md text-center border border-primary/20 mx-auto">
           <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-4">Bienvenue !</h2>
@@ -2640,7 +2617,13 @@ function AppContent() {
           ) : (
             <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-20 sm:h-28 md:h-36 w-auto drop-shadow-xl cursor-pointer" onClick={handleLogoClick} /> 
           )}
-          <h1 className="text-3xl sm:text-6xl font-extrabold tracking-tight text-secondary drop-shadow-md">Clean App Challenge</h1> 
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-primary mb-2 tracking-tight">
+            Clean App Challenge
+          </h1>
+          <p className="text-2xl sm:text-3xl text-lightText font-semibold mb-6">
+            Bonjour, {currentUser?.displayName || currentUser?.email || 'Utilisateur'} 👋
+          </p>
+
           
           {currentUser && (
             <div className="absolute top-4 right-4 z-10">

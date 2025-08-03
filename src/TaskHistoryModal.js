@@ -1,10 +1,10 @@
 // src/TaskHistoryModal.js
 import React, { useEffect, useState } from 'react';
 import { useUser } from './UserContext';
-import { collection, getDocs, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
 import ConfettiOverlay from './ConfettiOverlay';
 import { toast } from 'react-toastify';
-import badgeRules from './badgeRules'; // ✅ Assure-toi que ce fichier existe
+import { calculateLevelAndXP } from './utils/levelUtils';
 
 const TaskHistoryModal = ({ onClose }) => {
   const { currentUser, db, setCurrentUser } = useUser();
@@ -14,39 +14,18 @@ const TaskHistoryModal = ({ onClose }) => {
   useEffect(() => {
     const fetchTasks = async () => {
       if (!db || !currentUser) return;
-      const tasksRef = collection(db, 'tasks');
-      const snapshot = await getDocs(tasksRef);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setTasks(data);
+      try {
+        const tasksRef = collection(db, 'tasks');
+        const snapshot = await getDocs(tasksRef);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setTasks(data);
+      } catch (err) {
+        console.error("Erreur Firestore tasks :", err.message);
+      }
     };
 
     fetchTasks();
   }, [db, currentUser]);
-
-  const checkAndAssignBadges = async (user, db) => {
-    const userRef = doc(db, 'users', user.uid);
-    const userSnap = await getDoc(userRef);
-    const userData = userSnap.data();
-    const userBadges = userData.badges || [];
-
-    const newBadges = [];
-
-    for (const rule of badgeRules) {
-      const alreadyHasBadge = userBadges.includes(rule.id);
-      const conditionMet = rule.condition(userData);
-
-      if (!alreadyHasBadge && conditionMet) {
-        newBadges.push(rule.id);
-      }
-    }
-
-    if (newBadges.length > 0) {
-      await updateDoc(userRef, {
-        badges: [...userBadges, ...newBadges],
-      });
-      toast.success(`🌟 ${newBadges.length} badge(s) débloqué(s) !`);
-    }
-  };
 
   const handleCompleteTask = async (task) => {
     if (!currentUser || !db) return;
@@ -59,27 +38,39 @@ const TaskHistoryModal = ({ onClose }) => {
     const xpGained = basePoints + bonusXP;
     const newXp = (currentUser.xp || 0) + xpGained;
     const previousLevel = currentUser.level || 1;
-    const newLevel = Math.floor(newXp / 100) + 1;
 
-    const userRef = doc(db, 'users', currentUser.uid);
-    await updateDoc(userRef, {
+    const { level: newLevel } = calculateLevelAndXP(newXp);
+
+    const stats = currentUser.stats || {};
+    const updatedStats = {
+      ...stats,
+      urgentTasksCompleted: isUrgent
+        ? (stats.urgentTasksCompleted || 0) + 1
+        : (stats.urgentTasksCompleted || 0),
+      maxXpInOneTask: Math.max(stats.maxXpInOneTask || 0, xpGained),
+    };
+
+    const updatedUser = {
+      ...currentUser,
       weeklyPoints: (currentUser.weeklyPoints || 0) + pointsToAdd,
       totalCumulativePoints: (currentUser.totalCumulativePoints || 0) + pointsToAdd,
       xp: newXp,
       level: newLevel,
       lastReadTimestamp: new Date().toISOString(),
+      stats: updatedStats,
+    };
+
+    const userRef = doc(db, 'users', currentUser.uid);
+    await updateDoc(userRef, {
+      weeklyPoints: updatedUser.weeklyPoints,
+      totalCumulativePoints: updatedUser.totalCumulativePoints,
+      xp: updatedUser.xp,
+      level: updatedUser.level,
+      lastReadTimestamp: updatedUser.lastReadTimestamp,
+      stats: updatedUser.stats,
     });
 
-    setCurrentUser(prev => ({
-      ...prev,
-      weeklyPoints: (prev.weeklyPoints || 0) + pointsToAdd,
-      totalCumulativePoints: (prev.totalCumulativePoints || 0) + pointsToAdd,
-      xp: newXp,
-      level: newLevel,
-      lastReadTimestamp: new Date().toISOString(),
-    }));
-
-    await checkAndAssignBadges({ ...currentUser, xp: newXp, level: newLevel }, db);
+    setCurrentUser(updatedUser);
 
     if (newLevel > previousLevel) {
       toast.success(`🎉 Bravo ! Vous avez atteint le niveau ${newLevel} !`);

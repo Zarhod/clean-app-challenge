@@ -1,10 +1,9 @@
 /* global __initial_auth_token */
-// src/UserContext.js
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { firebaseConfig } from './firebase';
 
 const UserContext = createContext();
@@ -12,6 +11,7 @@ const UserContext = createContext();
 let firebaseAppInstance = null;
 let firestoreDbInstance = null;
 let firebaseAuthInstance = null;
+let firebaseStorageInstance = null;
 let firebaseInitializationError = null;
 
 try {
@@ -22,21 +22,14 @@ try {
     );
     console.error(firebaseInitializationError.message);
   } else {
-    if (!getApps().length) {
-      firebaseAppInstance = initializeApp(firebaseConfig);
-    } else {
-      firebaseAppInstance = getApp();
-    }
+    firebaseAppInstance = getApps().length ? getApp() : initializeApp(firebaseConfig);
     firestoreDbInstance = getFirestore(firebaseAppInstance);
     firebaseAuthInstance = getAuth(firebaseAppInstance);
-    console.log("Firebase initialisé avec succès via UserContext.");
+    firebaseStorageInstance = getStorage(firebaseAppInstance);
   }
 } catch (error) {
   firebaseInitializationError = new Error(`Erreur critique lors de l'initialisation de Firebase : ${error.message}`);
   console.error(firebaseInitializationError.message, error);
-  firebaseAppInstance = null;
-  firestoreDbInstance = null;
-  firebaseAuthInstance = null;
 }
 
 export const useUser = () => useContext(UserContext);
@@ -48,6 +41,63 @@ export const UserProvider = ({ children }) => {
 
   const db = firestoreDbInstance;
   const auth = firebaseAuthInstance;
+  const storage = firebaseStorageInstance;
+
+  const initializeStatsIfMissing = async (userRef, existingStats = {}) => {
+    const defaultStats = {
+      urgentTasksCompleted: 0,
+      weeksParticipated: 0,
+      maxXpInOneTask: 0,
+    };
+    const newStats = { ...defaultStats, ...existingStats };
+    await updateDoc(userRef, { stats: newStats });
+    return newStats;
+  };
+
+  const fetchAndSetUserData = async (user) => {
+    if (!user) return;
+
+    const userDocRef = doc(db, 'users', user.uid);
+    const userDocSnap = await getDoc(userDocRef);
+
+    if (userDocSnap.exists()) {
+      const userData = userDocSnap.data();
+
+      let finalStats = userData.stats || {};
+      const missingStatKeys = ['urgentTasksCompleted', 'weeksParticipated', 'maxXpInOneTask'].some(
+        key => typeof finalStats[key] !== 'number'
+      );
+
+      if (missingStatKeys) {
+        finalStats = await initializeStatsIfMissing(userDocRef, finalStats);
+      }
+
+      setCurrentUser({
+        uid: user.uid,
+        email: user.email,
+        displayName: userData.displayName || user.displayName,
+        isAdmin: userData.isAdmin || false,
+        avatar: userData.avatar || '👤',
+        weeklyPoints: userData.weeklyPoints || 0,
+        totalCumulativePoints: userData.totalCumulativePoints || 0,
+        previousWeeklyPoints: userData.previousWeeklyPoints || 0,
+        xp: userData.xp || 0,
+        level: userData.level || 1,
+        dateJoined: userData.dateJoined || new Date().toISOString(),
+        lastReadTimestamp: userData.lastReadTimestamp || null,
+        badges: userData.badges || [],
+        stats: finalStats,
+      });
+
+      setIsAdmin(userData.isAdmin || false);
+    }
+  };
+
+  const refreshUserData = async () => {
+    if (auth?.currentUser) {
+      await fetchAndSetUserData(auth.currentUser);
+    }
+  };
 
   useEffect(() => {
     if (firebaseInitializationError || !auth || !db) {
@@ -62,51 +112,14 @@ export const UserProvider = ({ children }) => {
         try {
           await signInWithCustomToken(auth, token);
         } catch (err) {
-          console.warn("Échec de connexion avec token custom :", err.message);
+          console.warn("⚠️ Échec de connexion avec token custom :", err.message);
         }
       }
     };
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-
-        if (userDocSnap.exists()) {
-          const userData = userDocSnap.data();
-          setCurrentUser({
-            uid: user.uid,
-            email: user.email,
-            displayName: userData.displayName || user.displayName,
-            isAdmin: userData.isAdmin || false,
-            avatar: userData.avatar || '👤',
-            weeklyPoints: userData.weeklyPoints || 0,
-            totalCumulativePoints: userData.totalCumulativePoints || 0,
-            previousWeeklyPoints: userData.previousWeeklyPoints || 0,
-            xp: userData.xp || 0,
-            level: userData.level || 1,
-            dateJoined: userData.dateJoined || new Date().toISOString(),
-            lastReadTimestamp: userData.lastReadTimestamp || null
-          });
-          setIsAdmin(userData.isAdmin || false);
-        } else {
-          const newUserData = {
-            displayName: user.displayName || user.email.split('@')[0],
-            email: user.email,
-            isAdmin: false,
-            avatar: '👤',
-            weeklyPoints: 0,
-            totalCumulativePoints: 0,
-            previousWeeklyPoints: 0,
-            xp: 0,
-            level: 1,
-            dateJoined: new Date().toISOString(),
-            lastReadTimestamp: new Date().toISOString()
-          };
-          await setDoc(userDocRef, newUserData);
-          setCurrentUser({ uid: user.uid, ...newUserData });
-          setIsAdmin(false);
-        }
+        await fetchAndSetUserData(user);
       } else {
         setCurrentUser(null);
         setIsAdmin(false);
@@ -123,19 +136,42 @@ export const UserProvider = ({ children }) => {
       const userDocRef = doc(db, 'users', auth.currentUser.uid);
       const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
         if (docSnap.exists()) {
-          const updatedUserData = docSnap.data();
-          setCurrentUser(prevUser => ({
+          const data = docSnap.data();
+          const stats = data.stats || {
+            urgentTasksCompleted: 0,
+            weeksParticipated: 0,
+            maxXpInOneTask: 0,
+          };
+
+          setCurrentUser((prevUser) => ({
             ...prevUser,
-            ...updatedUserData
+            ...data,
+            stats,
+            badges: data.badges || [],
           }));
-          setIsAdmin(updatedUserData.isAdmin || false);
+
+          setIsAdmin(data.isAdmin || false);
         }
       }, (error) => {
-        console.warn("Erreur lors de l'écoute du document utilisateur :", error.message);
+        console.warn("⚠️ Erreur lors de l'écoute du document utilisateur :", error.message);
       });
       return () => unsubscribe();
     }
   }, [db, auth?.currentUser]);
+
+  const uploadAvatarImage = async (file) => {
+    if (!auth?.currentUser || !storage) return null;
+    const storageRef = ref(storage, `avatars/${auth.currentUser.uid}`);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    return url;
+  };
+
+  const updateUserAvatar = async (newAvatar) => {
+    if (!auth?.currentUser || !db) return;
+    const userDocRef = doc(db, 'users', auth.currentUser.uid);
+    await updateDoc(userDocRef, { avatar: newAvatar });
+  };
 
   const value = {
     currentUser,
@@ -143,7 +179,11 @@ export const UserProvider = ({ children }) => {
     loadingUser,
     db,
     auth,
-    setCurrentUser
+    storage,
+    setCurrentUser,
+    uploadAvatarImage,
+    updateUserAvatar,
+    refreshUserData,
   };
 
   return (
