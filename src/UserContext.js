@@ -1,5 +1,5 @@
 /* global __initial_auth_token */
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore';
@@ -54,7 +54,7 @@ export const UserProvider = ({ children }) => {
     return newStats;
   };
 
-  const fetchAndSetUserData = async (user) => {
+  const fetchAndSetUserData = useCallback(async (user) => {
     if (!user) return;
 
     const userDocRef = doc(db, 'users', user.uid);
@@ -91,7 +91,7 @@ export const UserProvider = ({ children }) => {
 
       setIsAdmin(userData.isAdmin || false);
     }
-  };
+  }, [db]);
 
   const refreshUserData = async () => {
     if (auth?.currentUser) {
@@ -129,7 +129,7 @@ export const UserProvider = ({ children }) => {
 
     attemptTokenLogin();
     return () => unsubscribe();
-  }, [auth, db]);
+  }, [auth, db, fetchAndSetUserData]);
 
   useEffect(() => {
     if (db && auth?.currentUser) {
