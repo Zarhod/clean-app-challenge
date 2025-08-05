@@ -2,37 +2,51 @@
 import React from 'react';
 
 const ConfirmActionModal = ({
-  title,
+  title = "Confirmation",
   message,
-  confirmText,
-  cancelText,
+  confirmText = "Confirmer",
+  cancelText = "Annuler",
   onConfirm,
-  onCancel,
-  loading,
-  confirmButtonClass = 'bg-primary hover:bg-secondary', // Default Tailwind classes
+  onClose,
+  loading = false,
+  confirmButtonClass = "bg-primary hover:bg-blue-600",
 }) => {
   return (
-    // z-index: 1000 pour être toujours au-dessus
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4">
-      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto">
-        <h3 className="text-2xl sm:text-3xl font-bold text-error mb-6">{title}</h3>
-        <p className="text-base sm:text-lg mb-8 text-text">{message}</p>
-        <div className="flex flex-col items-center gap-3 sm:gap-4 mt-4 sm:flex-row sm:justify-end">
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center px-4 sm:px-6 pointer-events-none">
+      <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-gray-200 overflow-hidden animate-fade-in pointer-events-auto">
+
+        {/* Header */}
+        <div className="relative flex items-center justify-center px-6 py-4 border-b bg-gradient-to-r from-red-50 to-red-100">
+          <h3 className="text-center text-xl font-extrabold text-red-700">
+            {title}
+          </h3>
+        </div>
+
+        {/* Message */}
+        <div className="px-6 py-5 text-sm text-gray-700 text-center">
+          {typeof message === 'string' ? (
+            <>
+              {message}
+            </>
+          ) : (
+            <div className="space-y-2">{message}</div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 px-6 py-4 border-t bg-white">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2 rounded-full text-sm font-semibold bg-gray-100 hover:bg-gray-200 transition shadow-sm"
+          >
+            {cancelText}
+          </button>
           <button
             onClick={onConfirm}
             disabled={loading}
-            className={`w-full sm:w-auto ${confirmButtonClass} text-white font-semibold py-2 px-4 rounded-full shadow-lg
-                       transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed tracking-wide text-sm`}
+            className={`flex-1 py-2 rounded-full text-sm font-semibold text-white transition shadow-md ${confirmButtonClass}`}
           >
-            {loading ? 'Chargement...' : confirmText}
-          </button>
-          <button
-            onClick={onCancel}
-            disabled={loading}
-            className="w-full sm:w-auto bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg
-                       transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed tracking-wide text-sm"
-          >
-            {cancelText}
+            {loading ? "Chargement..." : confirmText}
           </button>
         </div>
       </div>

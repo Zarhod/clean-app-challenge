@@ -1,110 +1,108 @@
 import React from 'react';
 
-/**
- * Composant modal pour l'ajout ou l'édition d'un objectif.
- * @param {Object} objectiveData - Les données de l'objectif en cours d'édition ou le modèle pour un nouvel objectif.
- * @param {function} onFormChange - Fonction de rappel pour gérer les changements dans le formulaire.
- * @param {function} onSubmit - Fonction de rappel pour soumettre le formulaire (ajouter/modifier).
- * @param {function} onClose - Fonction de rappel pour fermer le modal.
- * @param {boolean} loading - Indique si une opération est en cours (pour désactiver les boutons).\
- * @param {Object|null} editingObjective - L'objectif en cours d'édition, null si c'est un nouvel objectif.
- */
 function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClose, loading, editingObjective }) {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4"> 
-      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl w-full max-w-xs sm:max-w-md md:max-w-lg animate-fade-in-scale border border-primary/20 mx-auto"> 
-        <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-center"> 
-          {editingObjective ? 'Modifier l\'Objectif' : 'Ajouter un Objectif'}
+    <div className="fixed inset-0 z-[1000] flex justify-center items-center p-2 sm:p-4 pointer-events-none">
+      <div className="bg-white rounded-3xl w-full max-w-md sm:max-w-lg max-h-[90vh] flex flex-col shadow-[0_15px_35px_rgba(0,0,0,0.2)] border border-gray-200 overflow-hidden animate-fade-in pointer-events-auto">
+        <h3 className="text-2xl font-bold text-primary text-center py-4 border-b bg-gradient-to-r from-blue-50 to-blue-100">
+          {editingObjective ? 'Modifier un objectif' : 'Nouvel Objectif'}
         </h3>
-        <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }} className="space-y-3"> 
+
+        <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }} className="px-6 py-4 space-y-4 overflow-y-auto">
           <div>
-            <label htmlFor="ID_Objectif" className="block text-text text-sm font-medium mb-1 text-left">ID Objectif (Unique):</label>
+            <label htmlFor="ID_Objectif" className="block text-sm font-semibold mb-1 text-gray-600">ID Objectif (Unique)</label>
             <input
               type="text"
               name="ID_Objectif"
               value={objectiveData.ID_Objectif}
               onChange={onFormChange}
               placeholder="Ex: OBJ001"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" 
-              disabled={!!editingObjective} 
+              disabled={!!editingObjective}
               required
+              className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
+
           <div>
-            <label htmlFor="Nom_Objectif" className="block text-text text-sm font-medium mb-1 text-left">Nom de l'Objectif:</label>
+            <label htmlFor="Nom_Objectif" className="block text-sm font-semibold mb-1 text-gray-600">Nom de l'Objectif</label>
             <input
               type="text"
               name="Nom_Objectif"
               value={objectiveData.Nom_Objectif}
               onChange={onFormChange}
               placeholder="Ex: Atteindre 1000 points"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" 
               required
+              className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
+
           <div>
-            <label htmlFor="Description_Objectif" className="block text-text text-sm font-medium mb-1 text-left">Description:</label>
+            <label htmlFor="Description_Objectif" className="block text-sm font-semibold mb-1 text-gray-600">Description</label>
             <textarea
               name="Description_Objectif"
               value={objectiveData.Description_Objectif}
               onChange={onFormChange}
+              rows="2"
               placeholder="Détails de l'objectif..."
-              rows="2" 
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" 
+              className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
             ></textarea>
           </div>
+
           <div>
-            <label htmlFor="Cible_Points" className="block text-text text-sm font-medium mb-1 text-left">Points Cible:</label>
+            <label htmlFor="Cible_Points" className="block text-sm font-semibold mb-1 text-gray-600">Points Cible</label>
             <input
               type="number"
               name="Cible_Points"
               value={objectiveData.Cible_Points}
               onChange={onFormChange}
               placeholder="Ex: 1000"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" 
               required
+              className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
+
           <div>
-            <label htmlFor="Type_Cible" className="block text-text text-sm font-medium mb-1 text-left">Type de Cible:</label>
+            <label htmlFor="Type_Cible" className="block text-sm font-semibold mb-1 text-gray-600">Type de Cible</label>
             <select
               name="Type_Cible"
               value={objectiveData.Type_Cible}
               onChange={onFormChange}
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" 
+              className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="Cumulatif">Points Cumulatifs</option>
               <option value="Par_Categorie">Par Catégorie de Tâche</option>
             </select>
           </div>
+
           {objectiveData.Type_Cible === 'Par_Categorie' && (
             <div>
-              <label htmlFor="Categorie_Cible" className="block text-text text-sm font-medium mb-1 text-left">Catégorie Cible:</label>
+              <label htmlFor="Categorie_Cible" className="block text-sm font-semibold mb-1 text-gray-600">Catégorie Cible</label>
               <input
                 type="text"
                 name="Categorie_Cible"
                 value={objectiveData.Categorie_Cible}
                 onChange={onFormChange}
                 placeholder="Ex: Cuisine, Salle"
-                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" 
-                required={objectiveData.Type_Cible === 'Par_Categorie'}
+                required
+                className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
           )}
 
-          {editingObjective && ( 
+          {editingObjective && (
             <>
               <div>
-                <label htmlFor="Points_Actuels" className="block text-text text-sm font-medium mb-1 text-left">Points Actuels:</label>
+                <label htmlFor="Points_Actuels" className="block text-sm font-semibold mb-1 text-gray-600">Points Actuels</label>
                 <input
                   type="number"
                   name="Points_Actuels"
                   value={objectiveData.Points_Actuels}
                   onChange={onFormChange}
                   placeholder="Points actuels"
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm" 
+                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
+
               <div className="flex items-center">
                 <input
                   type="checkbox"
@@ -114,16 +112,16 @@ function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClos
                   onChange={(e) => onFormChange({ target: { name: 'Est_Atteint', value: e.target.checked } })}
                   className="form-checkbox h-5 w-5 text-primary rounded focus:ring-2 focus:ring-primary"
                 />
-                <label htmlFor="Est_Atteint" className="ml-2 text-text text-sm font-medium">Objectif Atteint</label>
+                <label htmlFor="Est_Atteint" className="ml-2 text-sm text-gray-700">Objectif Atteint</label>
               </div>
             </>
           )}
 
-          <div className="flex flex-col sm:flex-row gap-2 mt-4"> 
+          <div className="flex gap-3 pt-4 border-t">
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm" 
+              className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-full text-sm font-semibold shadow-md transition duration-300"
             >
               {loading ? 'Envoi...' : (editingObjective ? 'Mettre à jour' : 'Ajouter')}
             </button>
@@ -131,7 +129,7 @@ function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClos
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="flex-1 bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm" 
+              className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-full text-sm font-semibold shadow-md transition duration-300"
             >
               Annuler
             </button>

@@ -16,6 +16,7 @@ import AuthModal from './AuthModal';
 import AdminUserManagementModal from './AdminUserManagementModal'; 
 import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; 
 import WeeklyRecapModal from './WeeklyRecapModal'; 
+// TaskHistoryModal n'est pas utilisé dans le code fourni, mais l'importation est conservée.
 import TaskHistoryModal from './TaskHistoryModal'; 
 import AvatarSelectionModal from './AvatarSelectionModal'; 
 import PasswordChangeModal from './PasswordChangeModal'; 
@@ -32,19 +33,26 @@ import { signOut } from 'firebase/auth';
 
 // Importation du contexte utilisateur
 import { UserProvider, useUser } from './UserContext';
+// TaskConfirmModal gère maintenant les tâches simples et complexes
+import TaskConfirmModal from './TaskConfirmModal'; 
+import RankingCardModal from './RankingCard';
+import Navbar from './components/Navbar'; // adapte le chemin si besoin
+import { LogOut } from 'lucide-react';
+
+
 
 const LOGO_FILENAME = 'logo.png'; 
-
 
 
 function AppContent() { 
   // eslint-disable-next-line no-unused-vars
   const [logoClickCount, setLogoClickCount] = useState(0); 
-  const { currentUser, isAdmin, loadingUser, db, auth, setCurrentUser } = useUser(); // Récupère db et auth du contexte
+  const { currentUser, isAdmin, loadingUser, db, auth, setCurrentUser } = useUser(); 
 
   const [taches, setTaches] = useState([]); 
   const [allRawTaches, setAllRawTaches] = useState([]); 
   const [realisations, setRealisations] = useState([]); 
+  const [usersData, setUsersData] = useState([]); // Nouveau: pour stocker les données brutes des utilisateurs
   const [classement, setClassement] = useState([]); 
   const [historicalPodiums, setHistoricalPodiums] = useState([]); 
   const [objectives, setObjectives] = useState([]); 
@@ -52,20 +60,208 @@ function AppContent() {
   const [loading, setLoading] = useState(true); 
 
   const [selectedTask, setSelectedTask] = useState(null); 
-  const [participantName, setParticipantName] = useState(currentUser?.displayName || currentUser?.email || ''); 
   const [showThankYouPopup, setShowThankYouPopup] = useState(null); 
   const [showConfetti, setShowConfetti] = useState(false); 
   
   const [activeMainView, setActiveMainView] = useState('home'); 
   const [activeTaskCategory, setActiveTaskCategory] = useState('tous'); 
 
-  const [selectedParticipantProfile, setSelectedParticipantProfile] = useState(null); 
+  const [selectedParticipantProfile, setSelectedParticipantProfile] = useState(null);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  // alreadyDoneSubTasks n'est pas utilisé dans le code fourni, mais conservé.
+  // eslint-disable-next-line no-unused-vars
+  const [alreadyDoneSubTasks, setAlreadyDoneSubTasks] = useState([]);
+  const [loadingConfirm, setLoadingConfirm] = useState(false);
+
+  // Fonction pour vérifier si une sous-tâche est disponible (non encore complétée pour la période)
+  const isSubTaskAvailable = useCallback((subTask) => {
+    if (!currentUser) return false;
+
+    const frequence = subTask.Frequence ? String(subTask.Frequence).toLowerCase() : 'hebdomadaire';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); 
+
+    const dayOfWeek = today.getDay(); 
+    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
+    const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
+    startOfCurrentWeek.setHours(0, 0, 0, 0); 
+
+    const isCompletedInRealisations = realisations.some(real => {
+      if (String(real.taskId || '') === String(subTask.ID_Tache) && String(real.userId) === String(currentUser.uid)) { 
+        const realDate = new Date(real.timestamp); 
+        realDate.setHours(0, 0, 0, 0);
+
+        if (frequence === 'quotidien') {
+          return realDate.toDateString() === today.toDateString();
+        } else if (frequence === 'hebdomadaire') {
+          return realDate >= startOfCurrentWeek;
+        } else if (frequence === 'ponctuel') {
+          return true; 
+        }
+      }
+      return false;
+    });
+
+    return !isCompletedInRealisations;
+  }, [realisations, currentUser]); 
+
+  // Gère le clic sur une tâche pour ouvrir la modale de confirmation
+  const handleTaskClick = async (task) => {
+    if (!currentUser) {
+      toast.warn("Veuillez vous connecter pour valider une tâche.");
+      setShowAuthModal(true);
+      return;
+    }
+
+    setLoading(true); // Active le chargement pendant la préparation de la tâche
+
+    try {
+      const taskToOpenModal = { ...task }; // Crée une copie pour éviter de modifier l'état directement
+
+      // Si c'est une tâche de groupe (définie par Sous_Taches_IDs)
+      if (task.Sous_Taches_IDs && typeof task.Sous_Taches_IDs === 'string' && task.Sous_Taches_IDs.trim() !== '') {
+        const subTaskIds = task.Sous_Taches_IDs.split(',').map(id => id.trim()).filter(Boolean);
+        const fetchedSubTasks = [];
+
+        // Récupère les détails complets de chaque sous-tâche depuis allRawTaches
+        for (const id of subTaskIds) {
+          const subTaskDetail = allRawTaches.find(t => String(t.ID_Tache) === String(id));
+          if (subTaskDetail) {
+            fetchedSubTasks.push({
+              ID_Tache: subTaskDetail.ID_Tache,
+              Nom_Tache: subTaskDetail.Nom_Tache,
+              Points: parseFloat(subTaskDetail.Points) || 0,
+              Frequence: subTaskDetail.Frequence, // Important pour isSubTaskAvailable
+              Urgence: subTaskDetail.Urgence,
+              Categorie: subTaskDetail.Categorie,
+              // Ajoutez d'autres champs si nécessaire pour l'affichage dans la modale
+            });
+          } else {
+            console.warn(`Sous-tâche avec l'ID ${id} non trouvée dans allRawTaches.`);
+          }
+        }
+
+        // Injecte le tableau des objets sous-tâches dans l'objet de la tâche principale
+        taskToOpenModal.SousTaches = fetchedSubTasks;
+        taskToOpenModal.isGroupTask = true; // Confirme que c'est une tâche de groupe
+      } else {
+        // C'est une tâche simple
+        taskToOpenModal.isGroupTask = false;
+        taskToOpenModal.SousTaches = []; // S'assurer que c'est vide pour une tâche simple
+        // Les points sont déjà dans task.Calculated_Points pour les tâches simples
+      }
+
+      setSelectedTask(taskToOpenModal); // Définit la tâche préparée pour la modale
+      setShowTaskModal(true); // Ouvre la TaskConfirmModal
+    } catch (err) {
+      toast.error(`Erreur lors du chargement de la tâche : ${err.message}`);
+      console.error("Erreur dans handleTaskClick:", err);
+    } finally {
+      setLoading(false); // Désactive le chargement
+    }
+  };
+
+
+  // Gère la confirmation d'une tâche (appelée par TaskConfirmModal)
+  const handleTaskConfirmation = async ({ selectedSubs, points }) => {
+      if (!currentUser) {
+        toast.warn('Veuillez vous connecter pour valider une tâche.');
+        setShowAuthModal(true);
+        return;
+      }
+
+      setLoadingConfirm(true);
+      try {
+        const now = new Date();
+        const batch = writeBatch(db); 
+
+        let totalPointsGained = 0;
+        // Détermine si on traite des sous-tâches sélectionnées ou la tâche principale
+        const itemsToProcess = selectedSubs.length > 0 ? selectedSubs : [selectedTask]; 
+
+        for (const item of itemsToProcess) {
+          const taskId = item.ID_Tache; 
+          const taskName = item.Nom_Tache;
+          const taskPoints = parseFloat(item.Points) || 0;
+          const taskCategory = item.Categorie || 'Non catégorisée';
+          const taskFrequence = item.Frequence; // Récupère la fréquence pour la suppression ponctuelle
+
+          totalPointsGained += taskPoints;
+
+          batch.set(doc(collection(db, 'realizations')), {
+            taskId: taskId,
+            userId: currentUser.uid,
+            nomParticipant: currentUser.displayName || currentUser.email,
+            nomTacheEffectuee: taskName,
+            categorieTache: taskCategory,
+            pointsGagnes: taskPoints,
+            timestamp: now.toISOString(),
+            parentTaskId: selectedSubs.length > 0 ? selectedTask.ID_Tache : null, 
+          });
+
+          // Si la tâche (ou sous-tâche) est ponctuelle, ajouter sa suppression au batch
+          if (String(taskFrequence || '').toLowerCase() === 'ponctuel') {
+            const taskDocToDelete = allRawTaches.find(t => String(t.ID_Tache) === String(taskId));
+            if (taskDocToDelete) {
+              batch.delete(doc(db, 'tasks', taskDocToDelete.id));
+            }
+          }
+        }
+
+        const userRef = doc(db, 'users', currentUser.uid);
+        const userSnap = await getDoc(userRef);
+  
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          const updatedXP = (userData.xp || 0) + totalPointsGained;
+  
+          batch.update(userRef, {
+            xp: updatedXP,
+            weeklyPoints: (userData.weeklyPoints || 0) + totalPointsGained,
+            totalCumulativePoints: (userData.totalCumulativePoints || 0) + totalPointsGained,
+          });
+  
+          const { newLevel } = calculateLevelAndXP(updatedXP);
+          if (newLevel > (userData.level || 1)) {
+            confetti({
+              particleCount: 150,
+              spread: 90,
+              origin: { y: 0.6, x: 0.5 }, 
+              colors: ['#a8e6cf', '#dcedc1', '#ffd3b6', '#ffaaa5', '#ff8b94', '#6a0dad', '#800080', '#ffc0cb', '#0000ff'] 
+            });
+            toast.success(`Félicitations ! Vous avez atteint le niveau ${newLevel} !`);
+          }
+
+          setCurrentUser(prevUser => ({
+            ...prevUser,
+            xp: updatedXP,
+            weeklyPoints: (userData.weeklyPoints || 0) + totalPointsGained,
+            totalCumulativePoints: (userData.totalCumulativePoints || 0) + totalPointsGained,
+            level: newLevel
+          }));
+        }
+        await batch.commit(); 
+
+        const completedTaskNames = itemsToProcess.map(t => t.Nom_Tache).join(', ');
+        const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
+        setShowThankYouPopup({ name: currentUser.displayName || currentUser.email, task: completedTaskNames, message: randomMessage }); 
+        setShowConfetti(true); 
+        
+        toast.success("Tâche(s) validée(s) !");
+        
+      } catch (error) {
+        console.error("Erreur de validation :", error);
+        toast.error("Erreur lors de la validation de la tâche.");
+      } finally {
+        setLoadingConfirm(false);
+        setShowTaskModal(false); 
+        setSelectedTask(null); 
+      }
+    };
+
+
   const [participantWeeklyTasks, setParticipantWeeklyTasks] = useState([]); 
   const [totalGlobalCumulativePoints, setTotalGlobalCumulativePoints] = useState(0); 
-
-  const [showSplitTaskDialog, setShowSplitTaskDialog] = useState(false); 
-  const [subTasks, setSubTasks] = useState([]); 
-  const [selectedSubTasks, setSelectedSubTasks] = useState([]); 
   
   const [showConfirmResetModal, setShowConfirmResetModal] = useState(false); 
   const [showConfirmResetRealisationsModal, setShowConfirmResetRealisationsModal] = useState(false);
@@ -120,6 +316,7 @@ function AppContent() {
 
   const [showTaskHistoryModal, setShowTaskHistoryModal] = useState(false); 
   const [taskHistoryTaskId, setTaskHistoryTaskId] = useState(null); 
+  const [showFullRankingModal, setShowFullRankingModal] = useState(false);
 
   const [showAvatarSelectionModal, setShowAvatarSelectionModal] = useState(false); 
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false); 
@@ -132,19 +329,19 @@ function AppContent() {
   const initialLoadStatus = useRef({
     tasks: false,
     realizations: false,
-    classement: false,
+    users: false, // Ajouté pour suivre le chargement des utilisateurs
     objectives: false,
     congratulatoryMessages: false,
     historicalPodiums: false,
     reports: false,
   });
 
-  // Met à jour participantName si currentUser change
+  // Met à jour participantName si currentUser change (commenté car géré par TaskConfirmModal)
   useEffect(() => {
     if (currentUser) {
-      setParticipantName(currentUser.displayName || currentUser.email);
+      // setParticipantName(currentUser.displayName || currentUser.email); 
     } else {
-      setParticipantName('');
+      // setParticipantName(''); 
     }
   }, [currentUser]);
 
@@ -159,7 +356,6 @@ function AppContent() {
       setSelectedParticipantProfile({ id: currentUser.uid, ...currentUser });
     }
   }, [currentUser, selectedParticipantProfile]);
-
 
 
   // Fonction pour calculer le récapitulatif de la semaine précédente
@@ -277,85 +473,89 @@ function AppContent() {
     return unsubscribe;
   }, [db, auth]); 
 
-  const setupClassementListener = useCallback(() => {
-    const usersUnsubscribe = onSnapshot(collection(db, "users"), (usersSnapshot) => {
-      const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      onSnapshot(collection(db, 'realizations'), (realisationsSnapshot) => { 
-        const realisationsData = realisationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const dayOfWeek = today.getDay(); 
-        const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
-        const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
-        startOfCurrentWeek.setHours(0, 0, 0, 0);
-
-        const participantScores = {};
-        usersData.forEach(user => {
-          participantScores[user.displayName] = {
-            Nom_Participant: user.displayName,
-            Points_Total_Semaine_Courante: parseFloat(user.weeklyPoints || 0), 
-            Points_Total_Cumulatif: parseFloat(user.totalCumulativePoints || 0),
-            Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0), 
-            Date_Mise_A_Jour: user.dateJoined || '',
-            Avatar: user.avatar || '👤', 
-            Level: user.level || 1, 
-            XP: user.xp || 0 
-          };
-        });
-
-        const tempWeeklyPoints = {};
-        const tempCumulativePoints = {};
-
-        realisationsData.forEach(real => {
-          const participant = real.nomParticipant;
-          const points = parseFloat(real.pointsGagnes) || 0;
-          const realDate = new Date(real.timestamp);
-          realDate.setHours(0, 0, 0, 0);
-
-          if (realDate >= startOfCurrentWeek) {
-            tempWeeklyPoints[participant] = (tempWeeklyPoints[participant] || 0) + points;
-          }
-          tempCumulativePoints[participant] = (tempCumulativePoints[participant] || 0) + points;
-        });
-
-        usersData.forEach(user => {
-          const displayName = user.displayName;
-          if (!participantScores[displayName]) {
-            participantScores[displayName] = {
-              Nom_Participant: displayName,
-              Points_Total_Semaine_Courante: 0,
-              Points_Total_Cumulatif: 0,
-              Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0),
-              Date_Mise_A_Jour: user.dateJoined || '',
-              Avatar: user.avatar || '👤',
-              Level: user.level || 1,
-              XP: user.xp || 0
-            };
-          }
-          participantScores[displayName].Points_Total_Semaine_Courante = tempWeeklyPoints[displayName] || 0;
-          participantScores[displayName].Points_Total_Cumulatif = tempCumulativePoints[displayName] || 0;
-        });
-        
-        const currentClassement = Object.values(participantScores)
-          .sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
-        
-        setClassement(currentClassement); 
-        const globalCumulative = currentClassement.reduce((sum, p) => sum + (parseFloat(p.Points_Total_Cumulatif) || 0), 0); 
-        setTotalGlobalCumulativePoints(globalCumulative);
-        initialLoadStatus.current.classement = true;
-      }, (error) => {
-        if (auth.currentUser) {
-          toast.error(`Erreur lors de la récupération des réalisations pour le classement: ${error.message}`);
-        }
-      });
+  // Nouveau: Écouteur pour les données brutes des utilisateurs
+  const setupUsersListener = useCallback(() => {
+    const q = query(collection(db, "users"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setUsersData(data); // Met à jour l'état usersData
+      initialLoadStatus.current.users = true; // Marque les utilisateurs comme chargés
     }, (error) => {
       if (auth.currentUser) {
-        toast.error(`Erreur lors de la récupération des utilisateurs pour le classement: ${error.message}`);
+        toast.error(`Erreur lors de la récupération des utilisateurs: ${error.message}`);
       }
     });
-    return usersUnsubscribe; 
-  }, [db, auth]); 
+    return unsubscribe;
+  }, [db, auth]);
+
+  // Nouveau: useEffect pour calculer le classement une fois que les données utilisateurs et réalisations sont disponibles
+  useEffect(() => {
+    // Ne calcule le classement que si les données brutes des utilisateurs et les réalisations sont chargées
+    if (usersData.length > 0 && realisations.length > 0) { 
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dayOfWeek = today.getDay(); 
+      const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
+      const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
+      startOfCurrentWeek.setHours(0, 0, 0, 0);
+
+      const participantScores = {};
+      usersData.forEach(user => {
+        participantScores[user.displayName] = {
+          Nom_Participant: user.displayName,
+          Points_Total_Semaine_Courante: parseFloat(user.weeklyPoints || 0), 
+          Points_Total_Cumulatif: parseFloat(user.totalCumulativePoints || 0),
+          Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0), 
+          Date_Mise_A_Jour: user.dateJoined || '',
+          Avatar: user.avatar || '👤', 
+          Level: user.level || 1, 
+          XP: user.xp || 0 
+        };
+      });
+
+      const tempWeeklyPoints = {};
+      const tempCumulativePoints = {};
+
+      realisations.forEach(real => {
+        const participant = real.nomParticipant;
+        const points = parseFloat(real.pointsGagnes) || 0;
+        const realDate = new Date(real.timestamp);
+        realDate.setHours(0, 0, 0, 0);
+
+        if (realDate >= startOfCurrentWeek) {
+          tempWeeklyPoints[participant] = (tempWeeklyPoints[participant] || 0) + points;
+        }
+        tempCumulativePoints[participant] = (tempCumulativePoints[participant] || 0) + points;
+      });
+
+      usersData.forEach(user => {
+        const displayName = user.displayName;
+        if (!participantScores[displayName]) {
+          participantScores[displayName] = {
+            Nom_Participant: displayName,
+            Points_Total_Semaine_Courante: 0,
+            Points_Total_Cumulatif: 0,
+            Points_Total_Semaine_Precedente: parseFloat(user.previousWeeklyPoints || 0),
+            Date_Mise_A_Jour: user.dateJoined || '',
+            Avatar: user.avatar || '👤',
+            Level: user.level || 1,
+            XP: user.xp || 0
+          };
+        }
+        participantScores[displayName].Points_Total_Semaine_Courante = tempWeeklyPoints[displayName] || 0;
+        participantScores[displayName].Points_Total_Cumulatif = tempCumulativePoints[displayName] || 0;
+      });
+      
+      const currentClassement = Object.values(participantScores)
+        .sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
+      
+      setClassement(currentClassement); 
+      const globalCumulative = currentClassement.reduce((sum, p) => sum + (parseFloat(p.Points_Total_Cumulatif) || 0), 0); 
+      setTotalGlobalCumulativePoints(globalCumulative);
+      // initialLoadStatus.current.classement = true; // Cette ligne est supprimée car le statut est géré par l'écouteur des utilisateurs
+    }
+  }, [usersData, realisations]); // Dépend de usersData et realisations
+
 
   const setupObjectivesListener = useCallback(() => {
     const q = query(collection(db, 'objectives')); 
@@ -423,20 +623,19 @@ function AppContent() {
     const checkInitialLoad = () => {
       const allLoaded = Object.values(currentInitialLoadStatusRef).every(status => status);
       if (allLoaded) {
-        setLoading(false);
+        setLoading(false); 
       } else {
         timeoutId = setTimeout(() => {
-          setLoading(false);
+          setLoading(false); 
         }, 5000); 
       }
     };
 
     if (!loadingUser && currentUser) {
-      // S'assurer que db et auth sont disponibles avant de setup les listeners
       if (db && auth) {
         unsubscribes.push(setupTasksListener());
         unsubscribes.push(setupRealisationsListener());
-        unsubscribes.push(setupClassementListener());
+        unsubscribes.push(setupUsersListener()); // Appel du nouvel écouteur pour les utilisateurs
         unsubscribes.push(setupObjectivesListener());
         unsubscribes.push(setupCongratulatoryMessagesListener());
         unsubscribes.push(setupHistoricalPodiumsListener());
@@ -449,13 +648,14 @@ function AppContent() {
       setTaches([]);
       setAllRawTaches([]);
       setRealisations([]);
+      setUsersData([]); // Réinitialise les données utilisateurs brutes
       setClassement([]);
       setHistoricalPodiums([]);
       setObjectives([]);
       setCongratulatoryMessages([]);
       setReports([]);
-      setWeeklyRecapData(null);
-      setLoading(false);
+      setWeeklyRecapData(null); 
+      setLoading(false); 
     }
 
     return () => {
@@ -467,10 +667,28 @@ function AppContent() {
     };
   }, [
     currentUser, loadingUser, db, auth, 
-    setupTasksListener, setupRealisationsListener, setupClassementListener,
+    setupTasksListener, setupRealisationsListener, setupUsersListener, // Dépendance mise à jour
     setupObjectivesListener, setupCongratulatoryMessagesListener, setupHistoricalPodiumsListener,
     setupReportsListener
   ]);
+
+  useEffect(() => {
+    const fetchClassement = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "users"));
+        const data = querySnapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id,
+        }));
+        setClassement(data);
+      } catch (error) {
+        console.error("Erreur lors de la récupération du classement :", error);
+      }
+    };
+
+    fetchClassement();
+  }, []);
+
 
   // Deuxième useEffect: Calcul et affichage du récapitulatif hebdomadaire
   useEffect(() => {
@@ -478,6 +696,7 @@ function AppContent() {
       if (currentUser && realisations.length > 0 && historicalPodiums.length > 0 && db) { 
         const today = new Date();
         const currentDayOfWeek = today.getDay(); 
+
         const currentMonday = new Date(today);
         currentMonday.setDate(today.getDate() - (currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1));
         currentMonday.setHours(0, 0, 0, 0);
@@ -542,37 +761,6 @@ function AppContent() {
     }
   }, [setParticipantWeeklyTasks, setLoading, db]); 
 
-  const fetchSubTasks = useCallback(async (parentTaskId) => {
-    setLoading(true); 
-    try {
-      const parentTaskDoc = await getDoc(doc(db, 'tasks', parentTaskId)); 
-      if (!parentTaskDoc.exists()) {
-        throw new Error("Tâche parente introuvable.");
-      }
-      const parentTaskData = parentTaskDoc.data();
-
-      if (!parentTaskData.Sous_Taches_IDs || String(parentTaskData.Sous_Taches_IDs).trim() === '') {
-        setSubTasks([]);
-        return;
-      }
-
-      const subTaskIds = String(parentTaskData.Sous_Taches_IDs).split(',').map(id => id.trim());
-      
-      const subTasksPromises = subTaskIds.map(id => getDoc(doc(db, 'tasks', id))); 
-      const subTaskDocs = await Promise.all(subTasksPromises);
-      const sousTaches = subTaskDocs
-        .filter(docSnap => docSnap.exists())
-        .map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
-
-      setSubTasks(sousTaches); 
-    } catch (err) {
-      toast.error(`Erreur: ${err.message}`);
-      setSubTasks([]); 
-    } finally {
-      setLoading(false);
-    }
-  }, [setSubTasks, setLoading, db]); 
-
   const fetchGlobalCollectionDocs = useCallback(async (collectionName) => {
     setLoadingGlobalCollectionDocs(true);
     try {
@@ -589,169 +777,6 @@ function AppContent() {
     }
   }, [db]); 
 
-  const recordTask = async (idTacheToRecord, isSubTask = false) => {
-    if (!currentUser) {
-      toast.warn('Veuillez vous connecter pour valider une tâche.');
-      setShowAuthModal(true);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const taskToRecord = allRawTaches.find(t => String(t.ID_Tache) === String(idTacheToRecord));
-      if (!taskToRecord) {
-        throw new Error(`Tâche avec l'ID ${idTacheToRecord} introuvable.`);
-      }
-
-      const pointsToSend = parseFloat(taskToRecord.Points) || 0;
-      const categoryToSend = taskToRecord.Categorie || 'Non catégorisée';
-
-      await addDoc(collection(db, 'realizations'), { 
-        taskId: idTacheToRecord,
-        userId: currentUser.uid,
-        nomParticipant: currentUser.displayName || currentUser.email, 
-        nomTacheEffectuee: taskToRecord.Nom_Tache,
-        categorieTache: categoryToSend,
-        pointsGagnes: pointsToSend,
-        timestamp: new Date().toISOString()
-      });
-
-      const userDocRef = doc(db, "users", currentUser.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
-        const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + pointsToSend;
-        const newWeeklyPoints = (userData.weeklyPoints || 0) + pointsToSend;
-        const newXP = (userData.xp || 0) + pointsToSend; 
-        const { level: newLevel } = calculateLevelAndXP(newXP); 
-
-        await updateDoc(userDocRef, {
-          totalCumulativePoints: newTotalCumulativePoints,
-          weeklyPoints: newWeeklyPoints,
-          xp: newXP, 
-          level: newLevel 
-        });
-
-        // Mettre à jour le currentUser dans le contexte pour refléter les changements
-        setCurrentUser(prevUser => ({
-          ...prevUser,
-          totalCumulativePoints: newTotalCumulativePoints,
-          weeklyPoints: newWeeklyPoints,
-          xp: newXP,
-          level: newLevel
-        }));
-
-      }
-
-      if (String(taskToRecord.Frequence || '').toLowerCase() === 'ponctuel') {
-          await deleteDoc(doc(db, 'tasks', taskToRecord.id)); 
-          toast.success(`Tâche ponctuelle "${taskToRecord.Nom_Tache}" enregistrée et supprimée.`);
-      } else {
-          toast.success(`Tâche "${taskToRecord.Nom_Tache}" enregistrée avec succès.`);
-      }
-
-      if (!isSubTask) { 
-        const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
-        setShowThankYouPopup({ name: currentUser.displayName || currentUser.email, task: taskToRecord.Nom_Tache, message: randomMessage }); 
-        setShowConfetti(true); 
-        setSelectedTask(null); 
-      }
-    } catch (err) {
-      toast.error(`Une erreur est survenue: ${err.message}`); 
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const recordMultipleTasks = async () => {
-    if (!currentUser) {
-      toast.warn('Veuillez vous connecter pour valider des tâches.');
-      setShowAuthModal(true);
-      return;
-    }
-
-    const availableSelectedSubTasks = selectedSubTasks.filter(subTask => isSubTaskAvailable(subTask));
-
-    if (availableSelectedSubTasks.length === 0) {
-      toast.warn('Veuillez sélectionner au moins une sous-tâche disponible.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      let totalPointsGained = 0;
-      const tasksToDelete = []; 
-
-      const batch = writeBatch(db); 
-
-      availableSelectedSubTasks.forEach(subTask => {
-        const points = parseFloat(subTask.Points) || 0;
-        const category = subTask.Categorie || 'Non catégorisée';
-        totalPointsGained += points;
-
-        if (String(subTask.Frequence || '').toLowerCase() === 'ponctuel') {
-          tasksToDelete.push(subTask.id); 
-        }
-
-        batch.set(doc(collection(db, 'realizations')), { 
-          taskId: subTask.ID_Tache,
-          userId: currentUser.uid,
-          nomParticipant: currentUser.displayName || currentUser.email,
-          nomTacheEffectuee: subTask.Nom_Tache,
-          categorieTache: category,
-          pointsGagnes: points,
-          timestamp: new Date().toISOString()
-        });
-      });
-      
-      tasksToDelete.forEach(taskId => {
-        batch.delete(doc(db, 'tasks', taskId)); 
-      });
-
-      const userDocRef = doc(db, "users", currentUser.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
-        const newTotalCumulativePoints = (userData.totalCumulativePoints || 0) + totalPointsGained;
-        const newWeeklyPoints = (userData.weeklyPoints || 0) + totalPointsGained;
-        const newXP = (userData.xp || 0) + totalPointsGained; 
-        const { level: newLevel } = calculateLevelAndXP(newXP); 
-
-        batch.update(userDocRef, {
-          totalCumulativePoints: newTotalCumulativePoints,
-          weeklyPoints: newWeeklyPoints,
-          xp: newXP, 
-          level: newLevel 
-        });
-
-        // Mettre à jour le currentUser dans le contexte pour refléter les changements
-        setCurrentUser(prevUser => ({
-          ...prevUser,
-          totalCumulativePoints: newTotalCumulativePoints,
-          weeklyPoints: newWeeklyPoints,
-          xp: newXP,
-          level: newLevel
-        }));
-      }
-      await batch.commit(); 
-
-      const completedTaskNames = availableSelectedSubTasks.map(st => st.Nom_Tache).join(', ');
-      const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
-      setShowThankYouPopup({ name: currentUser.displayName || currentUser.email, task: completedTaskNames, message: randomMessage });
-      setShowConfetti(true); 
-
-      toast.success(`Tâches enregistrées avec succès.`);
-
-      setSelectedTask(null);
-      setShowSplitTaskDialog(false); 
-      setSelectedSubTasks([]);
-    } catch (err) {
-      toast.error(`Une erreur est survenue: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const resetWeeklyPoints = async () => {
     if (!isAdmin) {
       toast.error("Accès refusé. Vous n'êtes pas administrateur.");
@@ -760,11 +785,9 @@ function AppContent() {
     setLoading(true);
     try {
       const sortedClassementForPodium = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
-      // Filtrer pour n'inclure que les participants avec des points > 0 pour le podium
       const top3 = sortedClassementForPodium.filter(p => parseFloat(p.Points_Total_Semaine_Courante) > 0).slice(0, 3);
       const datePodium = new Date().toISOString().split('T')[0]; 
 
-      // Enregistrer le podium uniquement s'il y a des participants avec des points
       if (top3.length > 0) {
         await addDoc(collection(db, 'historical_podiums'), { 
           Date_Podium: datePodium,
@@ -861,11 +884,64 @@ function AppContent() {
     }));
   };
 
+  // Fonction pour préparer les données de la tâche pour l'édition dans AdminTaskFormModal
+  const prepareTaskForEdit = useCallback(async (taskToEdit) => {
+    setLoading(true);
+    try {
+      let taskDataForModal = { ...taskToEdit };
+
+      // Si c'est une tâche complexe, charger les détails de ses sous-tâches
+      if (taskToEdit.Sous_Taches_IDs && typeof taskToEdit.Sous_Taches_IDs === 'string' && taskToEdit.Sous_Taches_IDs.trim() !== '') {
+        const subTaskIds = taskToEdit.Sous_Taches_IDs.split(',').map(id => id.trim()).filter(Boolean);
+        const fetchedSubTasks = [];
+
+        for (const id of subTaskIds) {
+          // Chercher dans allRawTaches d'abord, sinon faire un getDoc si nécessaire
+          const subTaskDetail = allRawTaches.find(t => String(t.ID_Tache) === String(id));
+          if (subTaskDetail) {
+            fetchedSubTasks.push({
+              nom: subTaskDetail.Nom_Tache, // Le champ 'nom' est attendu par AdminTaskFormModal
+              points: parseFloat(subTaskDetail.Points) || 0,
+              ID_Tache: subTaskDetail.ID_Tache,
+            });
+          } else {
+            console.warn(`Sous-tâche avec l'ID ${id} non trouvée dans allRawTaches. Tentative de récupération directe.`);
+            const subDoc = await getDoc(doc(db, 'tasks', id));
+            if (subDoc.exists()) {
+              const subData = subDoc.data();
+              fetchedSubTasks.push({
+                nom: subData.Nom_Tache,
+                points: parseFloat(subData.Points) || 0,
+                ID_Tache: subData.ID_Tache,
+              });
+            } else {
+              console.error(`Sous-tâche avec l'ID ${id} introuvable.`);
+            }
+          }
+        }
+        taskDataForModal.SousTaches = fetchedSubTasks; // Passe les objets sous-tâches
+      } else {
+        taskDataForModal.SousTaches = []; // S'assurer que c'est vide pour une tâche simple
+      }
+
+      setEditingTask(taskToEdit); // Définit la tâche en cours d'édition
+      setNewTaskData(taskDataForModal); // Prépare les données pour le formulaire
+      setShowAdminTaskFormModal(true); // Ouvre la modale
+    } catch (error) {
+      toast.error(`Erreur lors de la préparation de la tâche pour l'édition : ${error.message}`);
+      console.error("Erreur prepareTaskForEdit:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [allRawTaches, db]); // allRawTaches et db sont des dépendances importantes
+
+
   const handleSubmitTask = async () => {
     if (!isAdmin) {
       toast.error("Accès refusé. Vous n'êtes pas administrateur.");
       return;
     }
+    // Validations des champs
     if (!newTaskData.ID_Tache.trim()) {
       toast.error('L\'ID de la tâche est requis.');
       return;
@@ -874,22 +950,21 @@ function AppContent() {
       toast.error('Le nom de la tâche est requis.');
       return;
     }
-    if (newTaskData.Points === '' || isNaN(parseFloat(newTaskData.Points))) {
-      toast.error('Les points doivent être un nombre valide.');
+    // Vérifie les points seulement si ce n'est pas une tâche complexe (les points sont calculés pour les complexes)
+    if (!newTaskData.Sous_Taches_IDs && (newTaskData.Points === '' || isNaN(parseFloat(newTaskData.Points)))) {
+      toast.error('Les points doivent être un nombre valide pour une tâche classique.');
       return;
     }
+    // Logique pour éviter qu'une tâche soit à la fois sous-tâche et groupe de tâches
     if (newTaskData.Parent_Task_ID.trim() !== '' && newTaskData.Sous_Taches_IDs.trim() !== '') {
         toast.error('Une tâche ne peut pas être à la fois une sous-tâche et un groupe de tâches.');
-        return;
-    }
-    if (newTaskData.Sous_Taches_IDs.trim() !== '' && newTaskData.Parent_Task_ID.trim() !== '') {
-        toast.error('Une tâche ne peut pas être à la fois un groupe de tâches et une sous-tâche.');
         return;
     }
 
     setLoading(true);
     try {
-      const pointsToSave = parseFloat(newTaskData.Points);
+      // Les points pour les tâches complexes sont déjà calculés et mis à jour via onFormChange dans AdminTaskFormModal
+      const pointsToSave = parseFloat(newTaskData.Points) || 0; 
 
       if (editingTask) {
         await updateDoc(doc(db, 'tasks', editingTask.id), { 
@@ -925,7 +1000,6 @@ function AppContent() {
     }
     if (!skipConfirmation) {
       setTaskToDelete(taskId);
-      // Ne ferme pas la modale de liste ici, elle reste ouverte en arrière-plan
       setShowDeleteConfirmModal(true);
       return;
     }
@@ -1013,7 +1087,6 @@ function AppContent() {
     }
     if (!skipConfirmation) {
       setObjectiveToDelete(objectiveId);
-      // Ne ferme pas la modale de liste ici
       setShowDeleteObjectiveConfirmModal(true);
       return;
     }
@@ -1044,7 +1117,6 @@ function AppContent() {
       realizationId: taskRealisation.id, 
       reportedUserId: taskRealisation.userId 
     });
-    // Ne ferme pas la modale parente ici
     setShowReportModal(true);
   };
 
@@ -1057,7 +1129,6 @@ function AppContent() {
 
     setLoading(true);
     try {
-      // Vérifier si un rapport existe déjà pour cette réalisation spécifique pour éviter les doublons
       const existingReportsQuery = query(
         collection(db, 'reports'),
         where('realizationId', '==', reportedTaskDetails.realizationId)
@@ -1072,19 +1143,17 @@ function AppContent() {
         return;
       }
 
-      // Ajouter le rapport
       await addDoc(collection(db, 'reports'), { 
         reportedTaskId: reportedTaskDetails.id,
         reportedUserId: reportedTaskDetails.reportedUserId,
         reportedParticipantName: reportedTaskDetails.participant,
         reporterUserId: currentUser.uid,
         reporterName: currentUser.displayName || currentUser.email, 
-        realizationId: reportedTaskDetails.realizationId, // Ajout de l'ID de la réalisation pour un suivi précis
+        realizationId: reportedTaskDetails.realizationId, 
         timestamp: new Date().toISOString(),
         status: 'pending' 
       });
 
-      // Supprimer la réalisation (une seule suppression)
       await deleteDoc(doc(db, 'realizations', reportedTaskDetails.realizationId)); 
       toast.success(`Tâche signalée et réalisation supprimée.`);
 
@@ -1107,7 +1176,6 @@ function AppContent() {
           level: newLevel
         });
 
-        // Mettre à jour le currentUser si c'est l'utilisateur qui a été signalé
         if (currentUser.uid === reportedTaskDetails.reportedUserId) {
           setCurrentUser(prevUser => ({
             ...prevUser,
@@ -1133,74 +1201,35 @@ function AppContent() {
 
 
   const handleParticipantClick = useCallback(async (participant) => {
-    // Si le participant cliqué est l'utilisateur actuellement connecté
-    if (currentUser && String(participant.Nom_Participant || '').trim() === String(currentUser.displayName || currentUser.email).trim()) {
-      // Utilisez l'objet currentUser du contexte qui est toujours à jour
+    setShowFullRankingModal(false); // 👈 ferme la modale immédiatement
+
+    if (
+      currentUser &&
+      String(participant.Nom_Participant || '').trim() ===
+        String(currentUser.displayName || currentUser.email).trim()
+    ) {
       setSelectedParticipantProfile({ ...currentUser, id: currentUser.uid });
       setActiveMainView('participantProfile');
       await fetchParticipantWeeklyTasks(currentUser.displayName || currentUser.email);
       return;
     }
 
-    // Sinon, chercher le profil d'un autre participant
-    const usersQuery = query(collection(db, "users"), where("displayName", "==", participant.Nom_Participant));
+    const usersQuery = query(
+      collection(db, 'users'),
+      where('displayName', '==', participant.Nom_Participant)
+    );
     const usersSnapshot = await getDocs(usersQuery);
+
     if (!usersSnapshot.empty) {
       const userDoc = usersSnapshot.docs[0];
       setSelectedParticipantProfile({ id: userDoc.id, ...userDoc.data() });
       setActiveMainView('participantProfile');
       await fetchParticipantWeeklyTasks(participant.Nom_Participant);
     } else {
-      toast.error("Profil utilisateur introuvable.");
+      toast.error('Profil utilisateur introuvable.');
     }
-  }, [fetchParticipantWeeklyTasks, db, currentUser]); // Ajout de currentUser aux dépendances
+  }, [fetchParticipantWeeklyTasks, db, currentUser]);
 
-  const isSubTaskAvailable = useCallback((subTask) => {
-    const frequence = subTask.Frequence ? String(subTask.Frequence).toLowerCase() : 'hebdomadaire';
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); 
-
-    const dayOfWeek = today.getDay(); 
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
-    const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
-    startOfCurrentWeek.setHours(0, 0, 0, 0); 
-
-    const isCompletedInRealisations = realisations.some(real => {
-      if (String(real.taskId || '') === String(subTask.ID_Tache)) { 
-        const realDate = new Date(real.timestamp); 
-        realDate.setHours(0, 0, 0, 0);
-
-        if (frequence === 'quotidien') {
-          return realDate.toDateString() === today.toDateString();
-        } else if (frequence === 'hebdomadaire') {
-          return realDate >= startOfCurrentWeek;
-        } else if (frequence === 'ponctuel') {
-          return true; 
-        }
-      }
-      return false;
-    });
-
-    return !isCompletedInRealisations;
-  }, [realisations]); 
-
-
-  const handleTaskClick = (task) => {
-    if (!currentUser) {
-      toast.warn('Veuillez vous connecter pour valider une tâche.');
-      setShowAuthModal(true);
-      return;
-    }
-    setSelectedTask(task);
-    setParticipantName(currentUser.displayName || currentUser.email); 
-
-    if (task.Sous_Taches_IDs && String(task.Sous_Taches_IDs).trim() !== '') {
-      fetchSubTasks(task.ID_Tache); 
-      setShowSplitTaskDialog(true); 
-    } else {
-      setShowSplitTaskDialog(false); 
-    }
-  };
 
   const areAllSubtasksCompleted = useCallback((groupTask) => {
     if (!groupTask.isGroupTask || !groupTask.Sous_Taches_IDs) {
@@ -1294,266 +1323,221 @@ function AppContent() {
   };
 
   const renderPodiumSection = () => {
-    const podiumColors = ['bg-podium-gold', 'bg-podium-silver', 'bg-podium-bronze']; 
-    const medals = ['🥇', '🥈', '🥉'];
-
     const remainingTasksCount = taches.filter(tache => {
-        if (tache.isGroupTask) {
-            return !areAllSubtasksCompleted(tache);
-        }
-        return isSubTaskAvailable(tache);
+      if (tache.isGroupTask) return !areAllSubtasksCompleted(tache);
+      return isSubTaskAvailable(tache);
     }).length;
 
-    const sortedClassement = [...classement].sort((a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante);
-    const top3WithPoints = sortedClassement.filter(p => parseFloat(p.Points_Total_Semaine_Courante) > 0).slice(0, 3);
-
-    return (
-      <div className="bg-card rounded-3xl p-4 sm:p-6 mb-6 sm:mb-8 shadow-2xl text-center"> 
-        <p className="text-lg sm:text-xl font-semibold text-text mb-4">
-          Tâches restantes: <span className="text-primary font-bold">{remainingTasksCount}</span>
-        </p>
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-secondary mb-6 sm:mb-8 whitespace-nowrap overflow-hidden text-ellipsis">🏆 Podium de la Semaine 🏆</h2> 
-        
-        {Array.isArray(classement) && top3WithPoints.length > 0 ? ( 
-          <>
-            <div className="flex justify-center items-end mt-4 sm:mt-6 gap-2 sm:gap-4"> 
-              {/* 2ème Place */}
-              {top3WithPoints.length > 1 && (
-                <div 
-                  key={top3WithPoints[1].Nom_Participant || `anon-silver`} 
-                  className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
-                    ${podiumColors[1]} order-1 w-1/3 sm:w-auto min-w-[80px]`} 
-                  onClick={() => handleParticipantClick(top3WithPoints[1])} 
-                >
-                  <span className={`text-3xl sm:text-5xl mb-0.5 sm:mb-1`}>{medals[1]}</span> 
-                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[1].Nom_Participant}</p> 
-                  <p className="text-xs sm:text-base text-lightText">{top3WithPoints[1].Points_Total_Semaine_Courante} pts</p> 
-                </div>
-              )}
-
-              {/* 1ère Place */}
-              {top3WithPoints.length > 0 && (
-                <div 
-                  key={top3WithPoints[0].Nom_Participant || `anon-gold`} 
-                  className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
-                    ${podiumColors[0]} order-2 w-1/3 sm:w-auto -translate-y-2 min-w-[80px]`} 
-                  onClick={() => handleParticipantClick(top3WithPoints[0])} 
-                >
-                  <span className={`text-5xl sm:text-6xl mb-0.5 sm:mb-1`}>{medals[0]}</span> 
-                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[0].Nom_Participant}</p> 
-                  <p className="text-xs sm:text-base text-lightText">{top3WithPoints[0].Points_Total_Semaine_Courante} pts</p> 
-                </div>
-              )}
-
-              {/* 3ème Place */}
-              {top3WithPoints.length > 2 && (
-                <div 
-                  key={top3WithPoints[2].Nom_Participant || `anon-bronze`} 
-                  className={`flex flex-col items-center p-2 sm:p-4 rounded-3xl shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-xl cursor-pointer
-                    ${podiumColors[2]} order-3 w-1/3 sm:w-auto min-w-[80px]`} 
-                  onClick={() => handleParticipantClick(top3WithPoints[2])} 
-                >
-                  <span className={`text-3xl sm:text-5xl mb-0.5 sm:mb-1`}>{medals[2]}</span> 
-                  <p className="font-bold text-sm sm:text-xl mb-0.5 text-text truncate w-full px-1 text-center">{top3WithPoints[2].Nom_Participant}</p> 
-                  <p className="text-xs sm:text-base text-lightText">{top3WithPoints[2].Points_Total_Semaine_Courante} pts</p> 
-                </div>
-              )}
-            </div>
-
-            <button 
-                className="mt-6 sm:mt-8 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md 
-                           transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
-                onClick={() => setActiveMainView('fullRanking')} 
-              >
-                Voir le Classement Complet
-              </button>
-          </>
-        ) : (
-          <p className="text-center text-lightText text-lg py-4">Soyez le premier à marquer des points cette semaine !</p>
-        )}
-        
-        <div className="flex flex-wrap justify-center gap-2 sm:gap-4 mt-4 border-t border-neutralBg pt-4">
-            <button
-                onClick={() => setShowHighlightsModal(true)}
-                className="bg-neutralBg hover:bg-neutralBg/80 text-text font-semibold py-1.5 px-3 rounded-md transition duration-300 flex items-center justify-center text-xs sm:text-sm flex-1 min-w-[130px]" 
-            >
-                ✨ Tendances Actuelles ✨
-            </button>
-            <button
-                onClick={() => setShowObjectivesModal(true)}
-                className="bg-neutralBg hover:bg-neutralBg/80 text-text font-semibold py-1.5 px-3 rounded-md transition duration-300 flex items-center justify-center text-xs sm:text-sm flex-1 min-w-[130px]" 
-            >
-                🎯 Objectifs Communs 🎯
-            </button>
-        </div>
-      </div>
+    const sortedClassement = [...classement].sort(
+      (a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante
     );
-  };
+    const top3WithPoints = sortedClassement
+      .filter(p => parseFloat(p.Points_Total_Semaine_Courante) > 0)
+      .slice(0, 3);
 
-  const renderHighlightsContent = () => {
-    let mostImproved = null;
-    let maxImprovement = -1;
+    const getAvatarUrl = p =>
+      typeof p.Avatar === 'string' && p.Avatar.startsWith('http')
+        ? p.Avatar
+        : null;
 
-    if (classement.length > 0) {
-        classement.forEach(currentP => {
-            const previousScore = parseFloat(currentP.Points_Total_Semaine_Precedente) || 0; 
-            const currentScore = parseFloat(currentP.Points_Total_Semaine_Courante) || 0;
-            const improvement = currentScore - previousScore;
-
-            if (improvement > maxImprovement) {
-                maxImprovement = improvement;
-                mostImproved = currentP;
-            }
-        });
-    }
-
-    let mostActive = null;
-    let maxTasksCompleted = -1;
-    const tasksByParticipantThisWeek = new Map();
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const dayOfWeek = today.getDay(); 
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
-    const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
-    startOfCurrentWeek.setHours(0, 0, 0, 0);
-
-    realisations.forEach(real => {
-        const realDate = new Date(real.timestamp); 
-        realDate.setHours(0, 0, 0, 0);
-        if (realDate >= startOfCurrentWeek) {
-            const name = String(real.nomParticipant).trim(); 
-            tasksByParticipantThisWeek.set(name, (tasksByParticipantThisWeek.get(name) || 0) + 1);
-        }
-    });
-
-    tasksByParticipantThisWeek.forEach((count, name) => {
-        if (count > maxTasksCompleted) {
-            maxTasksCompleted = count;
-            mostActive = classement.find(p => String(p.Nom_Participant).trim() === name);
-        }
-    });
-
-    if (!mostImproved && !mostActive) {
-        return <p className="text-center text-lightText text-md py-2">Aucune tendance disponible pour le moment.</p>;
-    }
-
-    return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"> 
-            {mostImproved && maxImprovement > 0 && (
-              <div className="bg-white p-3 rounded-lg shadow-sm text-center border border-blue-50"> 
-                <h3 className="text-base font-bold text-primary mb-1">Le Plus Amélioré</h3>
-                <p className="text-text text-sm font-semibold">{mostImproved.Nom_Participant}</p>
-                <p className="text-lightText text-xs">+{maxImprovement} pts cette semaine</p>
-              </div>
-            )}
-            {mostActive && maxTasksCompleted > 0 && (
-              <div className="bg-white p-3 rounded-lg shadow-sm text-center border border-blue-50">
-                <h3 className="text-base font-bold text-primary mb-1">Le Plus Actif</h3>
-                <p className="text-text text-sm font-semibold">{mostActive.Nom_Participant}</p>
-                <p className="text-lightText text-xs">{maxTasksCompleted} tâches terminées cette semaine</p>
-              </div>
-            )}
-        </div>
-    );
-  };
-
-  const renderObjectivesContent = () => {
-    if (!Array.isArray(objectives) || objectives.length === 0) {
-      return <p className="text-center text-lightText text-md py-2">Aucun objectif disponible pour le moment.</p>;
-    }
-
-    return (
-      <div className="space-y-2"> 
-        {objectives.map(obj => {
-          const currentPoints = parseFloat(obj.Points_Actuels) || 0;
-          const targetPoints = parseFloat(obj.Cible_Points) || 0;
-          const progress = targetPoints > 0 ? (currentPoints / targetPoints) * 100 : 0;
-          const isCompleted = obj.Est_Atteint === true || String(obj.Est_Atteint).toLowerCase() === 'true' || currentPoints >= targetPoints;
-
-          return (
-            <div key={obj.ID_Objectif} className={`bg-white rounded-lg p-3 shadow-sm border 
-              ${isCompleted ? 'border-success' : 'border-primary/10'}`}> 
-              <div className="flex justify-between items-center mb-1">
-                <h3 className="text-base font-bold text-primary truncate">{obj.Nom_Objectif}</h3> 
-                {isCompleted ? (
-                  <span className="text-success font-bold text-sm">✅ Atteint !</span>
-                ) : (
-                  <span className="text-text font-semibold text-sm">{currentPoints} / {targetPoints} pts</span>
-                )}
-              </div>
-              <p className="text-lightText text-xs mb-2 truncate">{obj.Description_Objectif}</p> 
-              <div className="w-full bg-gray-200 rounded-full h-2"> 
-                <div 
-                  className={`h-2 rounded-full ${isCompleted ? 'bg-success' : 'bg-primary'}`} 
-                  style={{ width: `${Math.min(progress, 100)}%` }}
-                ></div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-
-  const renderTaskCategories = () => {
-    const categories = [
-      { name: 'tous', label: 'Tâches Communes' },
-      { name: 'salle', label: 'Tâches Salle' },
-      { name: 'cuisine', label: 'Tâches Cuisine' }
+    const bgClasses = [
+      'bg-gradient-to-tr from-yellow-300 to-yellow-500',
+      'bg-gradient-to-tr from-gray-200 to-gray-400',
+      'bg-gradient-to-tr from-orange-200 to-orange-400'
     ];
+    const medals = ['🥇', '🥈', '🥉'];
 
-    const currentCategoryTasks = taches.filter(tache => {
-      if (activeTaskCategory === 'tous') {
-        return tache.Categorie && String(tache.Categorie).toLowerCase() === 'tous'; 
-      } else {
-        return tache.Categorie && String(tache.Categorie).toLowerCase() === activeTaskCategory; 
+    return (
+      <div className="bg-card rounded-3xl p-5 mb-4 shadow-lg text-center space-y-4">
+        {/* Compteur de tâches restantes en pilule */}
+        <div className="inline-block px-4 py-1 bg-primary/10 text-primary font-semibold rounded-full">
+          Tâches restantes: <span className="font-bold">{remainingTasksCount}</span>
+        </div>
+
+        {/* Titre dynamique bleu-violet */}
+        <h2 className="text-3xl sm:text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 animate-pulse">
+          Podium de la Semaine
+        </h2>
+
+        {/* Podium dynamique */}
+        <div className="flex justify-center items-end gap-6">
+          {top3WithPoints.map((p, i) => {
+            const isTop = i === 0;
+            const sizeClass = isTop ? 'w-16 h-16 sm:w-20 sm:h-20' : 'w-12 h-12 sm:w-16 sm:h-16';
+            const avatar = getAvatarUrl(p);
+            return (
+              <div
+                key={p.id || p.Nom_Participant}
+                className={`flex flex-col items-center cursor-pointer ${isTop ? '-mb-6' : ''}`}
+                onClick={() => handleParticipantClick(p)}
+              >
+                <div className={`relative ${sizeClass}`}>  
+                  {/* cercle */}
+                  <div className={`${sizeClass} rounded-full overflow-hidden shadow-md ${bgClasses[i]}`}> 
+                    {avatar ? (
+                      <img
+                        src={avatar}
+                        alt={p.Nom_Participant}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex items-center justify-center w-full h-full text-lg sm:text-5xl">
+                        {p.Avatar || '👤'}
+                      </span>
+                    )}
+                  </div>
+                  {/* Médaille superposée sur l'avatar */}
+                  <span
+                    className={`absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4 ${isTop ? 'text-3xl' : 'text-2xl'}`}
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    {medals[i]}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm sm:text-base font-semibold text-text truncate w-24">
+                  {p.Nom_Participant}
+                </p>
+                <p className="text-xs text-lightText">
+                  {p.Points_Total_Semaine_Courante} pts
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Espace entre points et bouton classement */}
+        <div className="mt-6"></div>
+
+        {/* Bouton Voir le classement complet, taille réduite */}
+        <button
+          className="bg-primary hover:bg-secondary text-white font-semibold text-xs py-1.5 px-4 rounded-full shadow transition-transform hover:scale-105"
+          onClick={() => setShowFullRankingModal(true)}
+        >
+          Voir le classement complet
+        </button>
+
+        {/* Séparation légère */}
+        <div className="border-t border-neutralBg my-4"></div>
+
+        {/* Boutons Tendances et Objectifs */}
+        <div className="flex justify-center gap-6">
+          <button
+            className="flex items-center space-x-2 bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium text-sm py-2 px-4 rounded-full shadow-sm transition"
+            onClick={() => setShowHighlightsModal(true)}
+          >
+            <span className="text-base">✨</span>
+            <span>Tendances</span>
+          </button>
+          <button
+            className="flex items-center space-x-2 bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium text-sm py-2 px-4 rounded-full shadow-sm transition"
+            onClick={() => setShowObjectivesModal(true)}
+          >
+            <span className="text-base">🎯</span>
+            <span>Objectifs</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+    const renderHighlightsContent = () => {
+      let mostImproved = null;
+      let maxImprovement = -1;
+
+      if (classement.length > 0) {
+          classement.forEach(currentP => {
+              const previousScore = parseFloat(currentP.Points_Total_Semaine_Precedente) || 0; 
+              const currentScore = parseFloat(currentP.Points_Total_Semaine_Courante) || 0;
+              const improvement = currentScore - previousScore;
+
+              if (improvement > maxImprovement) {
+                  maxImprovement = improvement;
+                  mostImproved = currentP;
+              }
+          });
       }
-    });
 
-    const ponctuelTasks = currentCategoryTasks.filter(t => (String(t.Frequence || '')).toLowerCase() === 'ponctuel');
-    const quotidienTasks = currentCategoryTasks.filter(t => (String(t.Frequence || '')).toLowerCase() === 'quotidien');
-    const hebdomadaireTasks = currentCategoryTasks.filter(t => (String(t.Frequence || '')).toLowerCase() === 'hebdomadaire' || !(t.Frequence)); 
+      let mostActive = null;
+      let maxTasksCompleted = -1;
+      const tasksByParticipantThisWeek = new Map();
 
-    const renderTasksList = (tasks) => {
-      const visibleTasks = tasks.filter(tache => !isTaskHidden(tache));
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dayOfWeek = today.getDay(); 
+      const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
+      const startOfCurrentWeek = new Date(today.getFullYear(), today.getMonth(), diff);
+      startOfCurrentWeek.setHours(0, 0, 0, 0);
 
-      if (visibleTasks.length === 0) {
-        return <p className="text-center text-lightText text-md py-2">Aucune tâche disponible dans cette section.</p>;
+      realisations.forEach(real => {
+          const realDate = new Date(real.timestamp); 
+          realDate.setHours(0, 0, 0, 0);
+          if (realDate >= startOfCurrentWeek) {
+              const name = String(real.nomParticipant).trim(); 
+              tasksByParticipantThisWeek.set(name, (tasksByParticipantThisWeek.get(name) || 0) + 1);
+          }
+      });
+
+      tasksByParticipantThisWeek.forEach((count, name) => {
+          if (count > maxTasksCompleted) {
+              maxTasksCompleted = count;
+              mostActive = classement.find(p => String(p.Nom_Participant).trim() === name);
+          }
+      });
+
+      if (!mostImproved && !mostActive) {
+          return <p className="text-center text-lightText text-md py-2">Aucune tendance disponible pour le moment.</p>;
       }
+
       return (
-        <div className="space-y-3">
-          {visibleTasks.map(tache => { 
-            const cardClasses = `bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center sm:items-center justify-between 
-                                 cursor-pointer shadow-lg hover:shadow-xl transition duration-200 ease-in-out transform hover:-translate-y-1 border border-blue-100`; 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"> 
+              {mostImproved && maxImprovement > 0 && (
+                <div className="bg-white p-3 rounded-lg shadow-sm text-center border border-blue-50"> 
+                  <h3 className="text-base font-bold text-primary mb-1">Le Plus Amélioré</h3>
+                  <p className="text-text text-sm font-semibold">{mostImproved.Nom_Participant}</p>
+                  <p className="text-lightText text-xs">+{maxImprovement} pts cette semaine</p>
+                </div>
+              )}
+              {mostActive && maxTasksCompleted > 0 && (
+                <div className="bg-white p-3 rounded-lg shadow-sm text-center border border-blue-50">
+                  <h3 className="text-base font-bold text-primary mb-1">Le Plus Actif</h3>
+                  <p className="text-text text-sm font-semibold">{mostActive.Nom_Participant}</p>
+                  <p className="text-lightText text-xs">{maxTasksCompleted} tâches terminées cette semaine</p>
+                </div>
+              )}
+          </div>
+      );
+    };
+
+    const renderObjectivesContent = () => {
+      if (!Array.isArray(objectives) || objectives.length === 0) {
+        return <p className="text-center text-lightText text-md py-2">Aucun objectif disponible pour le moment.</p>;
+      }
+
+      return (
+        <div className="space-y-2"> 
+          {objectives.map(obj => {
+            const currentPoints = parseFloat(obj.Points_Actuels) || 0;
+            const targetPoints = parseFloat(obj.Cible_Points) || 0;
+            const progress = targetPoints > 0 ? (currentPoints / targetPoints) * 100 : 0;
+            const isCompleted = obj.Est_Atteint === true || String(obj.Est_Atteint).toLowerCase() === 'true' || currentPoints >= targetPoints;
 
             return (
-              <div 
-                key={tache.ID_Tache} 
-                className={cardClasses}
-                onClick={() => handleTaskClick(tache)} 
-              >
-                <div className="flex-1 min-w-0 flex flex-col sm:flex-row items-center sm:items-center mb-2 sm:mb-0"> 
-                    <h4 className="text-secondary text-base sm:text-xl font-extrabold leading-tight truncate mr-2 text-center sm:text-left"> 
-                        {tache.Nom_Tache}
-                    </h4> 
-                    {tache.isGroupTask && (
-                        <span className="ml-0 sm:ml-2 px-1 py-0.5 text-[0.6rem] sm:text-xs font-semibold rounded-full bg-primary text-white shadow-sm whitespace-nowrap mt-1 sm:mt-0"> 
-                            Groupe de Tâches
-                        </span>
-                    )}
+              <div key={obj.ID_Objectif} className={`bg-white rounded-lg p-3 shadow-sm border 
+                ${isCompleted ? 'border-success' : 'border-primary/10'}`}> 
+                <div className="flex justify-between items-center mb-1">
+                  <h3 className="text-base font-bold text-primary truncate">{obj.Nom_Objectif}</h3> 
+                  {isCompleted ? (
+                    <span className="text-success font-bold text-sm">✅ Atteint !</span>
+                  ) : (
+                    <span className="text-text font-semibold text-sm">{currentPoints} / {targetPoints} pts</span>
+                  )}
                 </div>
-                <div className="flex flex-wrap justify-center sm:justify-start items-center gap-1 sm:gap-2 w-full sm:w-auto"> 
-                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${getUrgencyClasses(tache.Urgence)}`}> 
-                        {tache.Urgence || 'Normal'} 
-                    </span>
-                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${getFrequencyClasses(tache.Frequence)}`}> 
-                        {tache.Frequence || 'Hebdomadaire'}
-                    </span>
-                    <div className="border border-gray-300 text-gray-700 font-bold text-xs sm:text-base px-1.5 py-0.5 rounded-md bg-gray-100"> 
-                        {tache.Calculated_Points} pts
-                    </div>
+                <p className="text-lightText text-xs mb-2 truncate">{obj.Description_Objectif}</p> 
+                <div className="w-full bg-gray-200 rounded-full h-2"> 
+                  <div 
+                    className={`h-2 rounded-full ${isCompleted ? 'bg-success' : 'bg-primary'}`} 
+                    style={{ width: `${Math.min(progress, 100)}%` }}
+                  ></div>
                 </div>
               </div>
             );
@@ -1562,127 +1546,216 @@ function AppContent() {
       );
     };
 
-    return (
-      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl"> 
-        <div className="flex justify-center gap-2 sm:gap-4 mb-6 flex-wrap">
-          {categories.map(cat => (
-            <button
-              key={cat.name}
-              className={`py-2 px-5 rounded-full font-semibold text-sm sm:text-base transition duration-300 ease-in-out transform hover:scale-105 shadow-md
-                ${activeTaskCategory === cat.name 
-                  ? 'bg-primary text-white shadow-lg' 
-                  : 'bg-neutralBg text-text hover:bg-accent hover:text-secondary'}`}
-              onClick={() => setActiveTaskCategory(cat.name)}
+
+  const renderTaskCategories = () => {
+    const categories = [
+      { name: 'tous', label: 'Communs' },
+      { name: 'salle', label: 'Salle' },
+      { name: 'cuisine', label: 'Cuisine' }
+    ];
+
+    const currentCategoryTasks = taches.filter(tache => {
+      if (activeTaskCategory === 'tous') {
+        return tache.Categorie?.toLowerCase() === 'tous';
+      }
+      return tache.Categorie?.toLowerCase() === activeTaskCategory;
+    });
+
+    const sections = [
+      { key: 'ponctuel', label: 'Ponctuelles' },
+      { key: 'quotidien', label: 'Quotidiennes' },
+      { key: 'hebdomadaire', label: 'Hebdomadaires' }
+    ];
+
+    const filterByFreq = (freq) =>
+      currentCategoryTasks.filter(
+        t => (t.Frequence || 'hebdomadaire').toLowerCase() === freq
+      );
+
+    const renderTasksList = (tasks) => {
+      const visible = tasks.filter(t => !isTaskHidden(t) && !t.Parent_Task_ID);
+      if (!visible.length) {
+        return (
+          <p className="text-center text-lightText text-base py-2">
+            Aucune tâche disponible.
+          </p>
+        );
+      }
+      return (
+        <div className="space-y-4">
+          {visible.map(t => (
+            <div
+              key={t.ID_Tache}
+              onClick={() => handleTaskClick(t)}
+              className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center p-4 bg-card rounded-2xl shadow hover:shadow-lg transition-shadow duration-200 border border-transparent hover:border-primary"
             >
-              {cat.label}
-            </button>
+              <div className="flex-1">
+                <h4 className="text-lg font-bold truncate bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                  {t.Nom_Tache}
+                </h4>
+                {t.isGroupTask && (
+                  <span className="inline-block mt-1 px-2 py-0.5 bg-primary/20 text-primary text-xs font-medium rounded-full">
+                    Groupe
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center space-x-2 mt-3 sm:mt-0">
+                <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getUrgencyClasses(t.Urgence)}`}> 
+                  {t.Urgence || 'Normal'}
+                </span>
+                <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getFrequencyClasses(t.Frequence)}`}> 
+                  {t.Frequence || 'Hebdo'}
+                </span>
+                <span className="px-2 py-0.5 text-xs font-bold rounded bg-secondary/10 text-secondary">
+                  {t.Calculated_Points} pts
+                </span>
+              </div>
+            </div>
           ))}
         </div>
+      );
+    };
 
-        {ponctuelTasks.filter(tache => !isTaskHidden(tache)).length > 0 && ( 
-          <div className="mb-6 border-b border-neutralBg pb-4"> 
-            <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Ponctuelles</h3> 
-            {renderTasksList(ponctuelTasks)}
-          </div>
-        )}
+    return (
+      <div className="bg-card rounded-3xl p-6 shadow-lg space-y-6">
+        {/* Category Buttons with responsive alignment */}
+        <div className="flex justify-center space-x-2 sm:space-x-3 overflow-x-auto py-2">
+          {categories.map(cat => {
+            const isActive = activeTaskCategory === cat.name;
+            const activeBg = cat.name === 'tous'
+              ? 'bg-gradient-to-r from-blue-400 to-blue-600 text-white'
+              : cat.name === 'salle'
+              ? 'bg-gradient-to-r from-green-400 to-green-600 text-white'
+              : 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white';
+            const inactiveBg = cat.name === 'tous'
+              ? 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+              : cat.name === 'salle'
+              ? 'bg-green-50 text-green-600 hover:bg-green-100'
+              : 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100';
+            return (
+              <button
+                key={cat.name}
+                onClick={() => setActiveTaskCategory(cat.name)}
+                className={`px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 shadow-md ${isActive ? activeBg : inactiveBg}`}
+              >
+                {cat.label}
+              </button>
+            );
+          })}
+        </div>
 
-        {quotidienTasks.filter(tache => !isTaskHidden(tache)).length > 0 && ( 
-          <div className="mb-6 border-b border-neutralBg pb-4"> 
-            <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Quotidiennes</h3> 
-            {renderTasksList(quotidienTasks)}
-          </div>
-        )}
+        {/* Task Sections */}
+        {sections.map(sec => {
+          const list = filterByFreq(sec.key);
+          if (!list.some(t => !isTaskHidden(t))) return null;
+          return (
+            <section key={sec.key} className="space-y-4">
+              <h3 className="text-xl font-bold text-primary border-l-4 border-primary pl-3">
+                Tâches {sec.label}
+              </h3>
+              {renderTasksList(list)}
+            </section>
+          );
+        })}
 
-        {hebdomadaireTasks.filter(tache => !isTaskHidden(tache)).length > 0 && ( 
-          <div className="mb-6"> 
-            <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-left">Tâches Hebdomadaires</h3> 
-            {renderTasksList(hebdomadaireTasks)}
-          </div>
-        )}
-
-        {currentCategoryTasks.filter(tache => !isTaskHidden(tache)).length === 0 && (
-          <p className="text-center text-lightText text-lg py-4">Aucune tâche disponible dans cette catégorie.</p>
+        {/* Empty State */}
+        {!currentCategoryTasks.some(t => !isTaskHidden(t)) && (
+          <p className="text-center text-lightText text-base py-4">
+            Aucune tâche disponible dans cette catégorie.
+          </p>
         )}
       </div>
     );
   };
-
+  
   const renderCompletedTasks = () => {
     if (!Array.isArray(realisations) || realisations.length === 0) {
       return (
-        <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8"> 
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Tâches Terminées</h2>
-          <p className="text-center text-lightText text-lg">Aucune tâche n'a été terminée pour le moment.</p>
+        <div className="bg-card rounded-3xl p-6 shadow-lg text-center space-y-4 mb-6">
+          {/* Titre dynamique */}
+          <h2 className="text-2xl sm:text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600 animate-pulse">
+            Tâches Terminées
+          </h2>
+          <p className="text-lightText text-base">
+            Aucune tâche n'a été terminée pour le moment.
+          </p>
         </div>
       );
     }
 
-    const indexOfLastRealization = currentRealizationsPage * realizationsPerPage;
-    const indexOfFirstRealization = indexOfLastRealization - realizationsPerPage;
-    const currentRealizations = realisations.slice(indexOfFirstRealization, indexOfLastRealization);
-
+    const startIdx = (currentRealizationsPage - 1) * realizationsPerPage;
+    const currentRealizations = realisations.slice(
+      startIdx,
+      startIdx + realizationsPerPage
+    );
     const totalPages = Math.ceil(realisations.length / realizationsPerPage);
-
-    const paginate = (pageNumber) => setCurrentRealizationsPage(pageNumber);
+    const paginate = (num) => setCurrentRealizationsPage(num);
 
     return (
-      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8"> 
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Tâches Terminées</h2>
-        <div className="space-y-3 text-left"> 
-          {currentRealizations.map((real, index) => ( 
-            <div key={real.id || real.timestamp + real.nomParticipant + index} 
-                 className="bg-card rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-lg border border-blue-100"> 
-              <div className="flex-1 min-w-0 mb-2 sm:mb-0"> 
-                  <h4 className="text-secondary text-base sm:text-xl font-extrabold leading-tight mb-1">
-                      {real.nomTacheEffectuee} 
-                  </h4>
-                  <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-sm text-lightText">
-                      <span>par <strong className="text-text">{real.nomParticipant}</strong></span> 
-                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(real.categorieTache)}`}> 
-                          {real.categorieTache || 'Non catégorisé'}
-                      </span>
-                      <span>le {new Date(real.timestamp).toLocaleDateString('fr-FR')} à {new Date(real.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span> 
-                  </div>
+      <div className="bg-card rounded-3xl p-6 shadow-lg text-center space-y-6 mb-6">
+        {/* Titre dynamique */}
+        <h2 className="text-2xl sm:text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600 animate-pulse">
+          Tâches Terminées
+        </h2>
+
+        <div className="space-y-4 text-left">
+          {currentRealizations.map((real, idx) => (
+            <div
+              key={real.id || real.timestamp + real.nomParticipant + idx}
+              className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-card rounded-2xl shadow hover:shadow-lg transition-shadow duration-200 border border-transparent hover:border-primary"
+            >
+              <div className="flex-1 mb-2 sm:mb-0">
+                <h4 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                  {real.nomTacheEffectuee}
+                </h4>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-lightText mt-1">
+                  <span>
+                    par <strong className="text-text">{real.nomParticipant}</strong>
+                  </span>
+                  <span className={`px-2 py-0.5 text-xs rounded-full ${getCategoryClasses(real.categorieTache)}`}>
+                    {real.categorieTache || 'Non catégorisé'}
+                  </span>
+                  <span>
+                    {new Date(real.timestamp).toLocaleDateString('fr-FR')} –{' '}
+                    {new Date(real.timestamp).toLocaleTimeString('fr-FR', {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0"> 
-                {currentUser && ( 
-                  <button
-                    onClick={() => handleReportClick(real)}
-                    className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs flex-shrink-0"
-                  >
-                    Signaler
-                  </button>
-                )}
+
+              {currentUser && (
                 <button
-                  onClick={() => {
-                    setTaskHistoryTaskId(real.taskId);
-                    setShowTaskHistoryModal(true);
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleReportClick(real);
                   }}
-                  className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs flex-shrink-0"
+                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full shadow-sm text-xs transition"
                 >
-                  Historique
+                  Signaler
                 </button>
-              </div>
+              )}
             </div>
           ))}
         </div>
 
         {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-2 mt-6">
+          <div className="flex justify-center items-center gap-4">
             <button
               onClick={() => paginate(currentRealizationsPage - 1)}
               disabled={currentRealizationsPage === 1}
-              className="bg-primary hover:bg-secondary text-white font-semibold py-1.5 px-3 rounded-md shadow-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              className="bg-primary hover:bg-secondary text-white px-3 py-1 rounded-full shadow-md text-sm transition disabled:opacity-50"
             >
               Précédent
             </button>
             <span className="text-text text-sm font-semibold">
-              Page {currentRealizationsPage} sur {totalPages}
+              {currentRealizationsPage} / {totalPages}
             </span>
             <button
               onClick={() => paginate(currentRealizationsPage + 1)}
               disabled={currentRealizationsPage === totalPages}
-              className="bg-primary hover:bg-secondary text-white font-semibold py-1.5 px-3 rounded-md shadow-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              className="bg-primary hover:bg-secondary text-white px-3 py-1 rounded-full shadow-md text-sm transition disabled:opacity-50"
             >
               Suivant
             </button>
@@ -1690,15 +1763,15 @@ function AppContent() {
         )}
 
         <button
-          className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg 
-                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
           onClick={() => setActiveMainView('home')}
+          className="mt-4 bg-primary/10 hover:bg-primary/20 text-primary px-4 py-2 rounded-full shadow-sm font-medium transition"
         >
-          Retour à l'Accueil
+          Retour à l'accueil
         </button>
       </div>
     );
   };
+
 
   const renderThankYouPopup = () => {
     if (!showThankYouPopup) return null; 
@@ -1725,352 +1798,294 @@ function AppContent() {
   };
 
 
-  const renderTaskDialog = () => {
-    if (!selectedTask || selectedTask.isGroupTask) return null; 
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4"> 
-        <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto"> 
-          <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">Confirmer la Tâche</h3> 
-          <p className="text-base sm:text-lg mb-4">Tâche: <strong className="text-text">{selectedTask.Nom_Tache}</strong> (<span className="font-semibold text-primary">{selectedTask.Calculated_Points} points</span>)</p>
-          
-          <label htmlFor="participantName" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Validé par:</label>
-          <input
-            id="participantName"
-            type="text"
-            value={participantName}
-            onChange={(e) => setParticipantName(e.target.value)}
-            placeholder="Entrez votre nom"
-            className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            readOnly={true} 
-            disabled={true} 
-            autoFocus
-          />
-          <div className="flex flex-col items-center gap-3 sm:gap-4 mt-4 sm:flex-row sm:justify-end"> 
-            <button 
-              onClick={() => recordTask(selectedTask.ID_Tache)} 
-              disabled={loading || !currentUser} 
-              className="w-full sm:w-auto bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg 
-                         transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
-            >
-              {loading ? 'Soumission...' : 'Valider la Tâche'} 
-            </button>
-            <button 
-              onClick={() => { setSelectedTask(null); setParticipantName(currentUser?.displayName || currentUser?.email || ''); }} 
-              disabled={loading}
-              className="w-full sm:w-auto bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg 
-                         transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
-            >
-              Annuler
-            </button>
-          </div>
+const renderParticipantProfile = () => {
+  if (!selectedParticipantProfile) return null;
+
+  const isCurrentUser = currentUser && selectedParticipantProfile.id === currentUser.uid;
+  const profileData = isCurrentUser ? currentUser : selectedParticipantProfile;
+  const totalPoints = profileData.totalCumulativePoints || 0;
+  const engagementPercentage = totalGlobalCumulativePoints
+    ? ((totalPoints / totalGlobalCumulativePoints) * 100).toFixed(1)
+    : 0;
+
+  const level = profileData.level || 1;
+  const { xpNeededForNextLevel } = calculateLevelAndXP(profileData.xp || 0);
+  const xpProgress = xpNeededForNextLevel
+    ? Math.min(((profileData.xp || 0) / xpNeededForNextLevel) * 100, 100)
+    : 0;
+
+  return (
+    <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 mb-8 text-center">
+      {/* Avatar + Level */}
+      <div className="relative inline-block">
+        <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-primary shadow-lg mx-auto">
+          <img src={profileData.avatar} alt="Avatar" className="w-full h-full object-cover" />
+        </div>
+        <div className="absolute bottom-0 right-0 bg-primary text-white rounded-full p-2 shadow-md transform translate-x-2 translate-y-2">
+          <span className="text-sm font-bold">Niv. {level}</span>
         </div>
       </div>
-    );
-  };
 
-  const renderSplitTaskDialog = () => {
-    if (!showSplitTaskDialog || !selectedTask || !selectedTask.isGroupTask) {
-      return null;
-    }
-    const handleSubTaskChange = (subTask) => {
-      if (isSubTaskAvailable(subTask)) {
-        setSelectedSubTasks(prev => 
-          prev.some(t => String(t.ID_Tache) === String(subTask.ID_Tache)) 
-            ? prev.filter(t => String(t.ID_Tache) !== String(subTask.ID_Tache))
-            : [...prev, subTask]
-        );
-      } else {
-        toast.info(`La tâche "${subTask.Nom_Tache}" a déjà été terminée pour sa période.`);
-      }
-    };
+      {/* Name */}
+      <h2 className="mt-4 text-2xl sm:text-3xl font-extrabold text-secondary">
+        {profileData.displayName || profileData.email}
+      </h2>
 
-    const handleClose = () => {
-      setShowSplitTaskDialog(false);
-      setSelectedTask(null);
-      setSubTasks([]);
-      setSelectedSubTasks([]);
-      setParticipantName(currentUser?.displayName || currentUser?.email || ''); 
-    };
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4"> 
-        <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto"> 
-          <h3 className="text-2xl sm:text-3xl font-bold text-primary mb-6">
-            Terminer: {selectedTask.Nom_Tache}
-          </h3>
-          <p className="text-base sm:text-lg mb-4 text-lightText">
-            Sélectionnez les parties que vous avez complétées:
-          </p>
-          
-          {loading ? (
-            <div className="flex justify-center items-center py-4">
-              <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
-              <p className="ml-3 text-lightText">Chargement des sous-tâches...</p>
-            </div>
-          ) : (
-            Array.isArray(subTasks) && subTasks.length > 0 ? (
-              <div className="space-y-3 mb-6 text-left max-h-60 overflow-y-auto p-2 border rounded-md bg-gray-50 custom-scrollbar"> 
-                {subTasks.map(subTask => {
-                  const available = isSubTaskAvailable(subTask);
-                  const isChecked = selectedSubTasks.some(t => String(t.ID_Tache) === String(subTask.ID_Tache));
-                  return (
-                    <label 
-                      key={subTask.ID_Tache} 
-                      className={`flex items-center p-3 rounded-lg shadow-sm cursor-pointer transition duration-150 
-                                  ${available ? 'bg-neutralBg hover:bg-neutralBg/80' : 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-70'}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => handleSubTaskChange(subTask)}
-                        disabled={!available} 
-                        className={`form-checkbox h-5 w-5 rounded focus:ring-primary mr-3 
-                                    ${available ? 'text-primary' : 'text-gray-400'}`}
-                      />
-                      <span className={`font-medium text-base sm:text-lg flex-1 ${!available ? 'line-through' : 'text-text'}`}>
-                        {subTask.Nom_Tache} ({subTask.Points} pts)
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-center text-lightText text-md py-2">Aucune sous-tâche disponible pour cette tâche, ou erreur de chargement.</p>
-            )
-          )}
-
-          <label htmlFor="participantNameSplit" className="block text-text text-left font-medium mb-2 text-sm sm:text-base">Validé par:</label>
-          <input
-            id="participantNameSplit"
-            type="text"
-            value={participantName}
-            onChange={(e) => setParticipantName(e.target.value)}
-            placeholder="Entrez votre nom"
-            className="w-full p-2 border border-gray-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            readOnly={true} 
-            disabled={true} 
-            autoFocus
+      {/* XP Bar (dynamic gradient animation) */}
+      <div className="mt-4 w-full max-w-lg mx-auto">
+        <div className="relative h-6 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+          <div
+            className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 animate-progress-bar"
+            style={{ width: `${xpProgress}%`, transition: 'width 1s ease-out' }}
           />
-
-          <div className="flex flex-col items-center gap-3 sm:gap-4 mt-4 sm:flex-row sm:justify-end"> 
-            <button
-              onClick={recordMultipleTasks}
-              disabled={loading || selectedSubTasks.length === 0 || !currentUser}
-              className="w-full sm:w-auto bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
-                         transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
-            >
-              {loading ? 'Soumission...' : 'Valider les Tâches Sélectionnées'}
-            </button>
-            <button
-              onClick={handleClose}
-              disabled={loading}
-              className="w-full sm:w-auto bg-error hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-full shadow-lg
-                         transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed tracking-wide text-sm"
-            >
-              Annuler
-            </button>
-          </div>
+          <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white">
+            {profileData.xp || 0} / {xpNeededForNextLevel}
+          </span>
         </div>
       </div>
-    );
-  };
 
+      {/* Engagement Score */}
+      <div className="mt-6">
+        <p className="text-text">Score d'Engagement Global</p>
+        <p className="text-2xl font-bold text-primary">{engagementPercentage}%</p>
+      </div>
 
-  const renderParticipantProfile = () => {
-    if (!selectedParticipantProfile) return null;
+      {/* Cumulative Points Pill (single-line) */}
+      <div className="mt-4 w-full max-w-xs sm:max-w-sm mx-auto bg-primary/10 px-6 py-2 rounded-full shadow-sm text-center">
+        <span className="text-sm text-text font-medium">Points Cumulatifs: </span>
+        <span className="text-sm font-bold text-primary ml-1">{totalPoints}</span>
+      </div>
 
-    const isCurrentUser =
-      currentUser && selectedParticipantProfile.id === currentUser.uid;
-
-    const profileData = isCurrentUser ? currentUser : selectedParticipantProfile;
-
-    const participantCumulativePoints = profileData.totalCumulativePoints || 0;
-    const engagementPercentage =
-      totalGlobalCumulativePoints > 0
-        ? ((participantCumulativePoints / totalGlobalCumulativePoints) * 100).toFixed(2)
-        : 0;
-
-    const level = profileData.level || 1;
-    const { xpNeededForNextLevel } = calculateLevelAndXP(profileData.xp || 0);
-    const xpProgress =
-      xpNeededForNextLevel > 0
-        ? ((profileData.xp || 0) / xpNeededForNextLevel) * 100
-        : 0;
-
-    return (
-      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8">
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">
-          Profil de {profileData.displayName || profileData.email}
-        </h2>
-
-        <div className="mb-6 p-4 bg-neutralBg rounded-xl shadow-inner">
-          <div className="flex items-center justify-center mb-4">
-            {profileData.avatar && profileData.avatar.includes('http') ? (
-              <img
-                src={profileData.avatar}
-                alt="Avatar"
-                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover mr-4 border-2 border-primary"
-              />
-            ) : (
-              <span className="text-6xl mr-4">{profileData.avatar || '👤'}</span>
-            )}
-            <div className="text-left">
-              <p className="text-lg sm:text-xl font-semibold text-text">
-                Niveau: <span className="text-primary font-bold">{level}</span>
-              </p>
-              <p className="text-base sm:text-lg text-lightText">
-                XP: <span className="font-bold">{profileData.xp || 0}</span> / {xpNeededForNextLevel}
-              </p>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                <div
-                  className="h-2 rounded-full bg-primary"
-                  style={{ width: `${Math.min(xpProgress, 100)}%` }}
-                ></div>
-              </div>
-            </div>
-          </div>
-
-          <p className="text-lg sm:text-xl font-semibold text-text">
-            Score d'Engagement Global: <span className="text-primary font-bold">{engagementPercentage}%</span>
-          </p>
-          <p className="text-base sm:text-lg text-lightText mt-2">
-            Points Cumulatifs: <span className="font-bold">{participantCumulativePoints}</span>
-          </p>
-
-          {isCurrentUser && (
-            <div className="flex justify-center mt-4 gap-2 flex-wrap">
-              <button
-                onClick={() => setShowProfileEditOptionsModal(true)}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-1 px-3 rounded-md transition duration-300 text-sm flex items-center gap-1"
-              >
-                ✏️ Modifier le Profil
-              </button>
-
-              <button
-                onClick={() => weeklyRecapData && setShowWeeklyRecapModal(true)}
-                disabled={!weeklyRecapData}
-                className={`py-1 px-3 rounded-md transition text-sm flex items-center gap-1 font-medium ${
-                  weeklyRecapData
-                    ? 'bg-blue-100 hover:bg-blue-200 text-blue-800'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                🗓 Voir mon dernier récap
-              </button>
-            </div>
-          )}
+      {/* Actions */}
+      {isCurrentUser && (
+        <div className="mt-6 flex justify-center space-x-4">
+          <button
+            onClick={() => setShowProfileEditOptionsModal(true)}
+            className="bg-primary hover:bg-primary/80 text-white px-6 py-2 rounded-full shadow-lg transition-transform hover:scale-105"
+          >
+            ✏️ Modifier
+          </button>
+          <button
+            onClick={() => weeklyRecapData && setShowWeeklyRecapModal(true)}
+            disabled={!weeklyRecapData}
+            className={`px-6 py-2 rounded-full shadow-lg transition ${weeklyRecapData
+              ? 'bg-secondary hover:bg-secondary/90 text-white'
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+          >
+            🗓 Récap Hebdo
+          </button>
         </div>
+      )}
 
-        <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4">Tâches terminées cette semaine:</h3>
+      {/* Weekly Tasks */}
+      <div className="mt-8 space-y-4 text-left">
+        <h3 className="text-xl font-bold text-secondary">Tâches terminées cette semaine</h3>
         {participantWeeklyTasks.length > 0 ? (
-          <div className="space-y-3 text-left">
-            {participantWeeklyTasks.map((task, index) => (
-              <div
-                key={task.id || task.timestamp + task.userId + index}
-                className="bg-card rounded-2xl p-3 sm:p-4 flex flex-row items-center justify-between shadow-lg border border-blue-100"
-              >
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-secondary text-base sm:text-xl font-extrabold leading-tight truncate">
-                    {task.nomTacheEffectuee}
-                  </h4>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <span
-                      className={`text-xs font-bold px-2 py-1 rounded-full ${getCategoryClasses(task.categorieTache)}`}
-                    >
-                      {task.categorieTache || 'Non catégorisé'}
-                    </span>
-                    <span className="text-sm text-lightText">
-                      {new Date(task.timestamp).toLocaleDateString('fr-FR')}
-                    </span>
-                  </div>
-                </div>
-                <p className="text-primary font-bold text-sm sm:text-base flex-shrink-0 ml-2">
-                  {task.pointsGagnes} pts
+          participantWeeklyTasks.map((task, idx) => (
+            <div
+              key={idx}
+              className="bg-gray-50 rounded-lg p-4 flex justify-between items-center shadow-md"
+            >
+              <div>
+                <h4 className="font-semibold text-text truncate">{task.nomTacheEffectuee}</h4>
+                <p className="text-xs text-lightText">
+                  {new Date(task.timestamp).toLocaleDateString('fr-FR')}
                 </p>
               </div>
-            ))}
-          </div>
+              <span className="text-primary font-bold">+{task.pointsGagnes} pts</span>
+            </div>
+          ))
         ) : (
-          <p className="text-lightText text-md sm:text-lg">Aucune tâche terminée cette semaine.</p>
+          <p className="text-center text-lightText">Aucune tâche terminée cette semaine.</p>
         )}
-
-        <button
-          className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
-          onClick={() => setActiveMainView('home')}
-        >
-          Retour à l'Accueil
-        </button>
       </div>
-    );
-  };
 
+      <button
+        className="mt-8 w-full bg-primary hover:bg-primary/80 text-white px-6 py-3 rounded-full shadow-lg transition-transform hover:scale-105"
+        onClick={() => setActiveMainView('home')}
+      >
+        Retour à l'accueil
+      </button>
+    </div>
+  );
+};
   const renderConfirmResetModal = () => {
     if (!showConfirmResetModal) return null;
 
     return (
-      <ConfirmActionModal
-        title="Confirmer la Réinitialisation"
-        message="Êtes-vous sûr de vouloir réinitialiser les points hebdomadaires et enregistrer le podium ? Cette action est irréversible."
-        confirmText="Oui, Réinitialiser"
-        confirmButtonClass="bg-error hover:bg-red-700" 
-        cancelText="Non, Annuler"
-        onConfirm={resetWeeklyPoints}
-        onCancel={() => setShowConfirmResetModal(false)}
-        loading={loading}
-      />
+      <div className="fixed inset-0 z-[1200] flex items-center justify-center px-4 sm:px-6 pointer-events-none">
+        <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-gray-200 overflow-hidden animate-fade-in pointer-events-auto">
+          {/* Header */}
+          <div className="relative flex items-center justify-center px-6 py-4 border-b bg-gradient-to-r from-yellow-50 to-yellow-100">
+            <h3 className="text-center text-xl font-extrabold text-yellow-700">
+              Confirmer la Réinitialisation
+            </h3>
+          </div>
+
+          {/* Message */}
+          <div className="px-6 py-5 text-sm text-gray-700 text-center">
+            Êtes-vous sûr de vouloir réinitialiser les points hebdomadaires et enregistrer le podium ?
+            <br />
+            <span className="text-xs text-gray-500">Cette action est irréversible.</span>
+          </div>
+
+          {/* Footer */}
+          <div className="flex gap-3 px-6 py-4 border-t bg-white">
+            <button
+              onClick={() => setShowConfirmResetModal(false)}
+              className="flex-1 py-2 rounded-full text-sm font-semibold bg-gray-100 hover:bg-gray-200 transition shadow-sm"
+            >
+              Non, Annuler
+            </button>
+            <button
+              onClick={resetWeeklyPoints}
+              disabled={loading}
+              className="flex-1 py-2 rounded-full text-sm font-semibold text-white bg-yellow-500 hover:bg-yellow-600 transition shadow-md"
+            >
+              {loading ? 'Réinitialisation...' : 'Oui, Réinitialiser'}
+            </button>
+          </div>
+        </div>
+      </div>
     );
   };
+
 
   const renderConfirmResetRealisationsModal = () => {
     if (!showConfirmResetRealisationsModal) return null;
 
     return (
-      <ConfirmActionModal
-        title="Confirmer la Réinitialisation des Réalisations"
-        message="Êtes-vous sûr de vouloir supprimer TOUTES les réalisations et réinitialiser TOUS les points des utilisateurs à zéro ? Cette action est irréversible et supprime l'historique des tâches terminées."
-        confirmText="Oui, Réinitialiser Tout"
-        confirmButtonClass="bg-red-600 hover:bg-red-700" 
-        cancelText="Non, Annuler"
-        onConfirm={resetRealisations}
-        onCancel={() => setShowConfirmResetRealisationsModal(false)}
-        loading={loading}
-      />
+      <div className="fixed inset-0 z-[1200] flex items-center justify-center px-4 sm:px-6 pointer-events-none">
+        <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-gray-200 overflow-hidden animate-fade-in pointer-events-auto">
+          {/* Header */}
+          <div className="relative flex items-center justify-center px-6 py-4 border-b bg-gradient-to-r from-red-50 to-red-100">
+            <h3 className="text-center text-xl font-extrabold text-red-700">
+              Confirmer la Réinitialisation
+            </h3>
+          </div>
+
+          {/* Message */}
+          <div className="px-6 py-5 text-sm sm:text-base text-gray-700 text-center space-y-2">
+            <p>
+              Êtes-vous sûr de vouloir supprimer <span className="font-semibold text-red-600">toutes les réalisations</span> ?
+            </p>
+            <p className="text-sm sm:text-base text-gray-500">
+              Cela réinitialisera les <span className="font-semibold">points de tous les utilisateurs à zéro</span> et effacera
+              définitivement l’historique des tâches terminées.
+            </p>
+          </div>
+
+          {/* Footer */}
+          <div className="flex gap-3 px-6 py-4 border-t bg-white">
+            <button
+              onClick={() => setShowConfirmResetRealisationsModal(false)}
+              className="flex-1 py-2 rounded-full text-sm font-semibold bg-gray-100 hover:bg-gray-200 transition shadow-sm"
+            >
+              Annuler
+            </button>
+            <button
+              onClick={resetRealisations}
+              disabled={loading}
+              className="flex-1 py-2 rounded-full text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition shadow-md"
+            >
+              {loading ? 'Réinitialisation...' : 'Oui, Réinitialiser'}
+            </button>
+          </div>
+        </div>
+      </div>
     );
   };
+
+
 
   const renderDeleteConfirmModal = () => {
-    if (!showDeleteConfirmModal || taskToDelete === null) return null; // Vérifie explicitement null
+  if (!showDeleteConfirmModal || taskToDelete === null) return null;
 
-    return (
-      <ConfirmActionModal
-        title="Confirmer la Suppression"
-        message={`Êtes-vous sûr de vouloir supprimer la tâche avec l'ID "${taskToDelete}" ? Cette action est irréversible.`}
-        confirmText="Oui, Supprimer"
-        confirmButtonClass="bg-error hover:bg-red-700" 
-        cancelText="Non, Annuler"
-        onConfirm={() => handleDeleteTask(taskToDelete, true)} 
-        onCancel={() => { setShowDeleteConfirmModal(false); setTaskToDelete(null); }}
-        loading={loading}
-      />
-    );
-  };
+  return (
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center px-4 sm:px-6 pointer-events-none">
+      <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-gray-200 overflow-hidden animate-fade-in pointer-events-auto">
+        {/* Header */}
+        <div className="relative flex items-center justify-center px-6 py-4 border-b bg-gradient-to-r from-red-50 to-red-100">
+          <h3 className="text-center text-xl font-extrabold text-red-700">
+            Confirmer la Suppression
+          </h3>
+        </div>
+
+        {/* Message */}
+        <div className="px-6 py-5 text-sm text-gray-700 text-center">
+          Êtes-vous sûr de vouloir supprimer la tâche avec l'ID <span className="font-mono text-red-600">{taskToDelete}</span> ?
+          <br />
+          <span className="text-xs text-gray-500">Cette action est irréversible.</span>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 px-6 py-4 border-t bg-white">
+          <button
+            onClick={() => {
+              setShowDeleteConfirmModal(false);
+              setTaskToDelete(null);
+            }}
+            className="flex-1 py-2 rounded-full text-sm font-semibold bg-gray-100 hover:bg-gray-200 transition shadow-sm"
+          >
+            Non, Annuler
+          </button>
+          <button
+            onClick={() => handleDeleteTask(taskToDelete, true)}
+            disabled={loading}
+            className="flex-1 py-2 rounded-full text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition shadow-md"
+          >
+            {loading ? 'Suppression...' : 'Oui, Supprimer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
   const renderDeleteObjectiveConfirmModal = () => {
-    if (!showDeleteObjectiveConfirmModal || objectiveToDelete === null) return null; // Vérifie explicitement null
+    if (!showDeleteObjectiveConfirmModal || objectiveToDelete === null) return null;
 
     return (
-      <ConfirmActionModal
-        title="Confirmer la Suppression de l'Objectif"
-        message={`Êtes-vous sûr de vouloir supprimer l'objectif avec l'ID "${objectiveToDelete}" ? Cette action est irréversible.`}
-        confirmText="Oui, Supprimer"
-        confirmButtonClass="bg-error hover:bg-red-700" 
-        cancelText="Non, Annuler"
-        onConfirm={() => handleDeleteObjective(objectiveToDelete, true)}
-        onCancel={() => { setShowDeleteObjectiveConfirmModal(false); setObjectiveToDelete(null); }}
-        loading={loading}
-      />
+      <div className="fixed inset-0 z-[1200] flex items-center justify-center px-4 sm:px-6 pointer-events-none">
+        <div className="bg-white pointer-events-auto w-full max-w-sm sm:max-w-md rounded-3xl border border-gray-200 shadow-[0_15px_35px_rgba(0,0,0,0.2)] animate-fade-in-scale overflow-hidden">
+          {/* Header */}
+          <div className="px-6 py-4 border-b bg-gradient-to-r from-red-50 to-red-100">
+            <h3 className="text-center text-xl font-extrabold text-red-700">⚠️ Suppression de l’Objectif</h3>
+          </div>
+
+          {/* Message */}
+          <div className="px-6 py-5 text-center text-sm text-gray-700">
+            Êtes-vous sûr de vouloir supprimer l’objectif avec l’ID <br />
+            <span className="font-semibold text-red-600">"{objectiveToDelete}"</span> ?<br />
+            <span className="text-xs text-gray-500 mt-2 block">Cette action est irréversible.</span>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col sm:flex-row px-6 py-4 gap-2 border-t bg-white">
+            <button
+              onClick={() => {
+                setShowDeleteObjectiveConfirmModal(false);
+                setObjectiveToDelete(null);
+              }}
+              disabled={loading}
+              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 rounded-full text-sm font-semibold shadow-inner transition"
+            >
+              Non, Annuler
+            </button>
+            <button
+              onClick={() => handleDeleteObjective(objectiveToDelete, true)}
+              disabled={loading}
+              className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-full text-sm font-semibold shadow-md transition"
+            >
+              {loading ? 'Suppression...' : 'Oui, Supprimer'}
+            </button>
+          </div>
+        </div>
+      </div>
     );
   };
+
 
   const exportToCsv = (filename, dataArray, headers) => {
     if (!dataArray || dataArray.length === 0) {
@@ -2121,7 +2136,6 @@ function AppContent() {
         Avatar: p.Avatar || '👤', 
         Level: p.Level || 1, 
         XP: p.XP || 0,
-        // Convertir Date_Mise_A_Jour en format lisible si nécessaire, ou laisser tel quel
         Date_Mise_A_Jour: p.Date_Mise_A_Jour ? new Date(p.Date_Mise_A_Jour).toLocaleDateString('fr-FR') : '' 
     }));
     exportToCsv('classement_clean_app.csv', dataToExport, headers);
@@ -2137,7 +2151,6 @@ function AppContent() {
         nomTacheEffectuee: r.nomTacheEffectuee,
         categorieTache: r.categorieTache,
         pointsGagnes: r.pointsGagnes,
-        // Convertir timestamp en format lisible si nécessaire
         timestamp: r.timestamp ? new Date(r.timestamp).toLocaleString('fr-FR') : '' 
     }));
     exportToCsv('realisations_clean_app.csv', dataToExport, headers);
@@ -2148,386 +2161,390 @@ function AppContent() {
     if (!showAdminObjectivesListModal) return null;
 
     return (
-      <ListAndInfoModal title="Gestion des Objectifs" onClose={() => setShowAdminObjectivesListModal(false)} sizeClass="max-w-full sm:max-w-md md:max-w-lg">
-        <button
-          onClick={() => {
-            setShowAdminObjectivesListModal(false); // Ferme la liste avant d'ouvrir le formulaire
-            setEditingObjective(null);
-            setNewObjectiveData({ 
-              ID_Objectif: '', Nom_Objectif: '', Description_Objectif: '', Cible_Points: '',
-              Type_Cible: 'Cumulatif', Categorie_Cible: '', Points_Actuels: 0, Est_Atteint: false
-            });
-            setShowAdminObjectiveFormModal(true); 
-          }}
-          className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full mb-4 text-sm" 
+      <div className={`z-10 fixed inset-0 px-2 sm:px-4 flex items-center justify-center ${showAdminObjectiveFormModal ? 'backdrop-blur-sm backdrop-saturate-150' : ''}`}>
+        <ListAndInfoModal
+          title="Gestion des Objectifs"
+          onClose={() => setShowAdminObjectivesListModal(false)}
+          sizeClass="w-full max-w-[95vw] sm:max-w-md md:max-w-xl lg:max-w-2xl h-[90vh] overflow-y-auto rounded-2xl p-6 animate-fade-in"
         >
-          Ajouter un Nouvel Objectif
-        </button>
+          <button
+            onClick={() => {
+              setEditingObjective(null);
+              setNewObjectiveData({
+                ID_Objectif: '',
+                Nom_Objectif: '',
+                Description_Objectif: '',
+                Cible_Points: '',
+                Type_Cible: 'Cumulatif',
+                Categorie_Cible: '',
+                Points_Actuels: 0,
+                Est_Atteint: false
+              });
+              setShowAdminObjectiveFormModal(true);
+            }}
+            className="w-full mb-4 text-sm font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-110 text-white py-2 px-4 rounded-2xl shadow-lg transition-all duration-300"
+          >
+            ➕ Ajouter un Nouvel Objectif
+          </button>
 
-        <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">Tous les Objectifs</h4>
-        {loading ? (
-          <div className="flex justify-center items-center py-4">
-            <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
-            <p className="ml-3 text-lightText">Chargement des objectifs...</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {objectives.length === 0 ? (
-              <p className="text-center text-lightText text-lg">Aucun objectif disponible.</p>
-            ) : (
-              objectives.map(obj => (
-                <div key={obj.ID_Objectif} className="bg-white rounded-lg p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm border border-neutralBg/50">
-                  <div className="flex-1 min-w-0 mb-2 sm:mb-0">
-                    <p className="font-bold text-text text-lg truncate">{obj.Nom_Objectif} <span className="text-sm text-lightText">({obj.ID_Objectif})</span></p>
-                    <p className="text-sm text-lightText">Cible: {obj.Cible_Points} | Actuel: {obj.Points_Actuels} | Type: {obj.Type_Cible} {obj.Categorie_Cible && `(${obj.Categorie_Cible})`}</p>
-                    <p className="text-sm text-lightText">Atteint: {obj.Est_Atteint ? 'Oui' : 'Non'}</p>
+          <h4 className="text-base sm:text-lg font-bold text-teal-500 mb-4 text-center">
+            Tous les Objectifs
+          </h4>
+
+          {loading ? (
+            <div className="flex justify-center items-center py-4">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin-fast"></div>
+              <p className="ml-3 text-lightText text-sm sm:text-base">Chargement des objectifs...</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {objectives.length === 0 ? (
+                <p className="text-center text-lightText text-sm sm:text-base">Aucun objectif disponible.</p>
+              ) : (
+                objectives.map(obj => (
+                  <div
+                    key={obj.ID_Objectif}
+                    className="bg-white rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-gray-200 transition-transform duration-300 hover:scale-[1.01]"
+                  >
+                    <div className="flex-1 min-w-0 mb-2 sm:mb-0">
+                      <p className="font-bold text-text text-base sm:text-lg truncate">
+                        {obj.Nom_Objectif}
+                        <span className="text-sm text-lightText ml-1">({obj.ID_Objectif})</span>
+                      </p>
+                      <p className="text-sm text-lightText">
+                        🎯 Cible : {obj.Cible_Points} | 📈 Actuel : {obj.Points_Actuels} | 🧭 Type : {obj.Type_Cible}
+                        {obj.Categorie_Cible && ` (${obj.Categorie_Cible})`}
+                      </p>
+                      <p className="text-sm text-lightText">
+                        🏁 Atteint : <span className={obj.Est_Atteint ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'}>
+                          {obj.Est_Atteint ? 'Oui' : 'Non'}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
+                      <button
+                        onClick={() => {
+                          setEditingObjective(obj);
+                          setNewObjectiveData(obj);
+                          setShowAdminObjectiveFormModal(true);
+                        }}
+                        className="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-1.5 px-4 rounded-full shadow-md transition-all duration-300 text-xs"
+                      >
+                        Modifier
+                      </button>
+                      <button
+                        onClick={() => handleDeleteObjective(obj.ID_Objectif)}
+                        className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1.5 px-4 rounded-full shadow-md transition-all duration-300 text-xs"
+                      >
+                        Supprimer
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
-                    <button
-                      onClick={() => {
-                        setShowAdminObjectivesListModal(false); // Ferme la liste avant d'ouvrir le formulaire
-                        setEditingObjective(obj);
-                        setNewObjectiveData(obj);
-                        setShowAdminObjectiveFormModal(true); 
-                      }}
-                      className="bg-accent hover:bg-yellow-600 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs"
-                    >
-                      Modifier
-                    </button>
-                    <button
-                      onClick={() => handleDeleteObjective(obj.ID_Objectif)}
-                      className="bg-error hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs"
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </ListAndInfoModal>
+                ))
+              )}
+            </div>
+          )}
+        </ListAndInfoModal>
+      </div>
     );
-  }, [loading, objectives, handleDeleteObjective, setShowAdminObjectivesListModal, setNewObjectiveData, setEditingObjective, setShowAdminObjectiveFormModal, showAdminObjectivesListModal]); 
+  }, [
+    loading,
+    objectives,
+    handleDeleteObjective,
+    setShowAdminObjectivesListModal,
+    setNewObjectiveData,
+    setEditingObjective,
+    setShowAdminObjectiveFormModal,
+    showAdminObjectivesListModal,
+    showAdminObjectiveFormModal
+  ]);
 
   const renderAdminTasksListModal = useCallback(() => {
     if (!showAdminTasksListModal) return null;
 
     return (
-      <ListAndInfoModal title="Gestion des Tâches" onClose={() => setShowAdminTasksListModal(false)} sizeClass="max-w-full sm:max-w-md md:max-w-lg">
+      <ListAndInfoModal
+        title="Gestion des Tâches"
+        onClose={() => setShowAdminTasksListModal(false)}
+        sizeClass="w-full max-w-[95vw] sm:max-w-xl md:max-w-2xl lg:max-w-3xl h-[90vh] overflow-y-auto rounded-2xl p-6 animate-fade-in"
+      >
         <button
-          onClick={() => { 
-            setShowAdminTasksListModal(false); // Ferme la liste avant d'ouvrir le formulaire
-            setEditingTask(null); 
-            setNewTaskData({ 
-              ID_Tache: '', Nom_Tache: '', Description: '', Points: '', Frequence: 'Hebdomadaire', 
-              Urgence: 'Faible', Categorie: 'Tous', Sous_Taches_IDs: '', Parent_Task_ID: ''
-            }); 
-            setShowAdminTaskFormModal(true); 
+          onClick={() => {
+            setEditingTask(null);
+            setNewTaskData({
+              ID_Tache: '',
+              Nom_Tache: '',
+              Description: '',
+              Points: '',
+              Frequence: 'Hebdomadaire',
+              Urgence: 'Faible',
+              Categorie: 'Tous',
+              Sous_Taches_IDs: '',
+              Parent_Task_ID: '',
+            });
+            setShowAdminTaskFormModal(true);
           }}
-          className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 w-full mb-4 text-sm" 
+          className="w-full mb-4 text-sm font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-110 text-white py-2 px-4 rounded-2xl shadow-lg transition-all duration-300"
         >
           Ajouter une Nouvelle Tâche
         </button>
 
-        <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">Toutes les Tâches</h4>
+        <h4 className="text-base sm:text-lg font-bold text-teal-500 mb-4 text-center">
+          Toutes les Tâches
+        </h4>
+
         {loading ? (
           <div className="flex justify-center items-center py-4">
-            <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
-            <p className="ml-3 text-lightText">Chargement des tâches...</p>
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin-fast"></div>
+            <p className="ml-3 text-lightText text-sm sm:text-base">Chargement des tâches...</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 overflow-y-auto max-h-[65vh] pr-1">
             {allRawTaches.length === 0 ? (
-              <p className="text-center text-lightText text-lg">Aucune tâche disponible.</p>
+              <p className="text-center text-lightText text-sm sm:text-base">Aucune tâche disponible.</p>
             ) : (
-              allRawTaches.map(task => (
-                <div key={task.ID_Tache} className="bg-white rounded-lg p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm border border-neutralBg/50">
-                  <div className="flex-1 min-w-0 mb-2 sm:mb-0">
-                    <p className="font-bold text-text text-lg truncate">{task.Nom_Tache} <span className="text-sm text-lightText">({task.ID_Tache})</span></p>
-                    <p className="text-sm text-lightText">Points: {task.Points} | Fréq: {task.Frequence} | Urg: {task.Urgence} | Cat: {task.Categorie}</p>
-                    {task.Sous_Taches_IDs && <p className="text-xs text-lightText">Sous-tâches: {task.Sous_Taches_IDs}</p>}
-                    {task.Parent_Task_ID && <p className="text-xs text-lightText">Parent: {task.Parent_Task_ID}</p>}
+              allRawTaches
+                .filter(task => !task.Parent_Task_ID)
+                .map(task => (
+                  <div
+                    key={task.ID_Tache}
+                    className="bg-white rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-gray-200 transition-transform duration-300 hover:scale-[1.01]"
+                  >
+                    <div className="flex-1 min-w-0 mb-2 sm:mb-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-text text-base sm:text-lg truncate">
+                          {task.Nom_Tache}
+                        </p>
+                        {task.Sous_Taches_IDs && (
+                          <span className="bg-purple-100 text-purple-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                            Tâche complexe
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs sm:text-sm text-lightText">
+                        ID: <span className="font-mono">{task.ID_Tache}</span> | Points: {task.Points} | Fréq: {task.Frequence} | Urg: {task.Urgence} | Cat: {task.Categorie}
+                      </p>
+                      {task.Sous_Taches_IDs && (
+                        <p className="text-xs text-purple-700 mt-1">
+                          {task.Sous_Taches_IDs.split(',').length} sous-tâche{task.Sous_Taches_IDs.split(',').length > 1 ? 's' : ''}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
+                      <button
+                        onClick={() => {
+                          prepareTaskForEdit(task);
+                          setShowAdminTaskFormModal(true);
+                        }}
+                        className="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-1.5 px-4 rounded-full shadow-md transition-all duration-300 text-xs"
+                      >
+                        Modifier
+                      </button>
+                      <button
+                        onClick={() => {
+                          setTaskToDelete(task.ID_Tache);
+                          setShowDeleteConfirmModal(true);
+                        }}
+                        className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1.5 px-4 rounded-full shadow-md transition-all duration-300 text-xs"
+                      >
+                        Supprimer
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
-                    <button
-                      onClick={() => { 
-                        setShowAdminTasksListModal(false); // Ferme la liste avant d'ouvrir le formulaire
-                        setEditingTask(task); 
-                        setNewTaskData(task); 
-                        setShowAdminTaskFormModal(true); 
-                      }}
-                      className="bg-accent hover:bg-yellow-600 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs"
-                    >
-                      Modifier
-                    </button>
-                    <button
-                      onClick={() => handleDeleteTask(task.ID_Tache)}
-                      className="bg-error hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs"
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-                </div>
-              ))
+                ))
             )}
           </div>
         )}
       </ListAndInfoModal>
     );
-  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal, showAdminTasksListModal]); 
+  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal, showAdminTasksListModal, prepareTaskForEdit]);
 
-  const renderGlobalDataViewModal = useCallback(() => {
+
+ const renderGlobalDataViewModal = useCallback(() => {
     if (!showGlobalDataViewModal) return null;
 
     const collectionsList = [
-      { name: 'users', label: 'Utilisateurs' },
-      { name: 'tasks', label: 'Tâches' },
-      { name: 'realizations', label: 'Réalisations' },
-      { name: 'objectives', label: 'Objectifs' },
-      { name: 'historical_podiums', label: 'Podiums Historiques' },
-      { name: 'congratulatory_messages', label: 'Messages de Félicitations' },
-      { name: 'reports', label: 'Rapports' },
-      // { name: 'chat_messages', label: 'Messages de Chat' }, // Supprimé
+      { name: 'users', label: '👥 Utilisateurs' },
+      { name: 'tasks', label: '📝 Tâches' },
+      { name: 'realizations', label: '✅ Réalisations' },
+      { name: 'objectives', label: '🎯 Objectifs' },
+      { name: 'historical_podiums', label: '🏆 Podiums Historiques' },
+      { name: 'congratulatory_messages', label: '🎉 Messages de Félicitations' },
+      { name: 'reports', label: '📊 Rapports' },
     ];
 
     return (
-      <ListAndInfoModal
-        title="Vision Globale de la Base de Données"
-        onClose={() => {
-          setShowGlobalDataViewModal(false);
-          setSelectedGlobalCollection(null);
-          setGlobalCollectionDocs([]);
-          setSelectedDocumentDetails(null);
-        }}
-        sizeClass="max-w-full sm:max-w-xl md:max-w-2xl"
-      >
-        {!selectedGlobalCollection ? (
-          <div className="space-y-3">
-            <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">Sélectionnez une Collection</h4>
-            <div className="grid grid-cols-2 gap-3">
-              {collectionsList.map(col => (
-                <button
-                  key={col.name}
-                  onClick={() => {
-                    setSelectedGlobalCollection(col.name);
-                    fetchGlobalCollectionDocs(col.name);
-                  }}
-                  className="bg-primary hover:bg-primary/80 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"
-                >
-                  {col.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div>
-            <h4 className="text-lg sm:text-xl font-bold text-secondary mb-3 text-center">Documents de la Collection "{selectedGlobalCollection}"</h4>
-            <button
-              onClick={() => {
-                setSelectedGlobalCollection(null);
-                setGlobalCollectionDocs([]);
-              }}
-              className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs mb-4"
-            >
-              ← Retour aux Collections
-            </button>
-            {loadingGlobalCollectionDocs ? (
-              <div className="flex justify-center items-center py-4">
-                <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
-                <p className="ml-3 text-lightText">Chargement des documents...</p>
+      <>
+        <ListAndInfoModal
+          title="📁 Vision Globale de la Base de Données"
+          onClose={() => {
+            setShowGlobalDataViewModal(false);
+            setSelectedGlobalCollection(null);
+            setGlobalCollectionDocs([]);
+            setSelectedDocumentDetails(null);
+          }}
+          sizeClass="w-full max-w-4xl h-[90vh] overflow-y-auto rounded-2xl animate-fade-in"
+        >
+          {!selectedGlobalCollection ? (
+            <div className="space-y-6">
+              <h4 className="text-center text-lg sm:text-xl font-bold text-primary">Choisissez une collection</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {collectionsList.map(col => (
+                  <button
+                    key={col.name}
+                    onClick={() => {
+                      setSelectedGlobalCollection(col.name);
+                      fetchGlobalCollectionDocs(col.name);
+                    }}
+                    className="h-20 w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-110 text-white font-semibold text-sm sm:text-base rounded-2xl shadow transition-all duration-300 flex items-center justify-center text-center px-2"
+                  >
+                    {col.label}
+                  </button>
+                ))}
               </div>
-            ) : (
-              globalCollectionDocs.length > 0 ? (
-                <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="relative flex justify-between items-center mb-2">
+                <h4 className="text-lg sm:text-xl font-bold text-secondary text-center w-full">
+                  📚 Documents : <span className="lowercase font-mono">{selectedGlobalCollection}</span>
+                </h4>
+                <button
+                  onClick={() => {
+                    setSelectedGlobalCollection(null);
+                    setGlobalCollectionDocs([]);
+                    setSelectedDocumentDetails(null);
+                  }}
+                  className="absolute left-0 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-1 px-3 rounded-full text-xs"
+                >
+                  ← Retour
+                </button>
+              </div>
+
+              {loadingGlobalCollectionDocs ? (
+                <div className="flex justify-center items-center py-6">
+                  <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin-fast"></div>
+                  <p className="ml-3 text-lightText">Chargement des documents...</p>
+                </div>
+              ) : globalCollectionDocs.length > 0 ? (
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar">
                   {globalCollectionDocs.map(doc => (
-                    <div key={doc.id} className="bg-white rounded-lg p-3 shadow-sm border border-neutralBg/50 flex justify-between items-center">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-text text-sm truncate">ID: {doc.id}</p>
-                        <p className="text-xs text-lightText truncate">{JSON.stringify(doc).substring(0, 100)}...</p>
+                    <div
+                      key={doc.id}
+                      className="bg-white rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm border border-gray-200 hover:shadow-md transition"
+                    >
+                      <div className="flex-1 overflow-hidden">
+                        <p className="font-semibold text-sm text-text truncate mb-1">🆔 {doc.id}</p>
+                        <p className="text-xs text-lightText truncate">
+                          {JSON.stringify(doc).substring(0, 120)}...
+                        </p>
                       </div>
                       <button
                         onClick={() => setSelectedDocumentDetails(doc)}
-                        className="bg-accent hover:bg-yellow-600 text-white font-semibold py-1 px-2 rounded-md shadow-sm transition duration-300 text-xs ml-2 flex-shrink-0"
+                        className="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-xl shadow-sm text-xs sm:text-sm w-full sm:w-auto"
                       >
-                        Voir Détails
+                        Voir plus
                       </button>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-center text-lightText text-lg">Aucun document dans cette collection.</p>
-              )
-            )}
+                <p className="text-center text-lightText text-sm mt-6">Aucun document dans cette collection.</p>
+              )}
+            </div>
+          )}
+        </ListAndInfoModal>
+
+        {selectedDocumentDetails && (
+          <div className="fixed inset-0 z-[1200] bg-black bg-opacity-50 flex justify-center items-center p-4">
+            <div className="bg-white max-w-2xl w-full rounded-2xl shadow-xl p-6 animate-fade-in relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+              <h3 className="text-lg font-bold text-center text-primary mb-4">
+                Détails du Document : <span className="text-sm break-all">{selectedDocumentDetails.id}</span>
+              </h3>
+              <pre className="bg-gray-100 p-4 rounded-lg text-xs whitespace-pre-wrap break-words max-h-[70vh] overflow-y-auto custom-scrollbar">
+                {JSON.stringify(selectedDocumentDetails, null, 2)}
+              </pre>
+              <button
+                onClick={() => setSelectedDocumentDetails(null)}
+                className="mt-4 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md transition duration-300 w-full text-sm"
+              >
+                Fermer
+              </button>
+            </div>
           </div>
         )}
-      </ListAndInfoModal>
+      </>
     );
-  }, [showGlobalDataViewModal, selectedGlobalCollection, globalCollectionDocs, loadingGlobalCollectionDocs, fetchGlobalCollectionDocs]);
-
-
-  const renderDocumentDetailsModal = useCallback(() => {
-    if (!selectedDocumentDetails) return null;
-    return (
-      <ListAndInfoModal
-        title={`Détails du Document: ${selectedDocumentDetails.id}`}
-        onClose={() => setSelectedDocumentDetails(null)}
-        sizeClass="max-w-full sm:max-w-md md:max-w-lg"
-      >
-        <pre className="bg-gray-100 p-4 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-words w-full max-h-[70vh] overflow-y-auto custom-scrollbar">
-          {JSON.stringify(selectedDocumentDetails, null, 2)}
-        </pre>
-      </ListAndInfoModal>
-    );
-  }, [selectedDocumentDetails]);
+  }, [
+    showGlobalDataViewModal,
+    selectedGlobalCollection,
+    globalCollectionDocs,
+    loadingGlobalCollectionDocs,
+    fetchGlobalCollectionDocs,
+    selectedDocumentDetails
+  ]);
 
 
   const renderAdminPanel = () => {
-    if (!isAdmin) {
-      return null;
-    }
+    if (!isAdmin) return null;
 
-    const adminPurpleButtonClasses = "bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm";
-    const adminBlueButtonClasses = "bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 text-sm"; 
-    const subtleAdminButtonClasses = "bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs";
+    const btnBase =
+      "px-4 py-2 text-sm font-medium rounded-full transition duration-200 shadow-sm text-center";
+    const purpleBtn = `${btnBase} bg-purple-100 text-purple-700 hover:bg-purple-200`;
+    const blueBtn = `${btnBase} bg-blue-100 text-blue-700 hover:bg-blue-200`;
+    const redBtn = `${btnBase} bg-red-100 text-red-700 hover:bg-red-200`;
+    const grayBtn = `${btnBase} bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200`;
 
     return (
-      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl mb-6 sm:mb-8">
-        <h2 className="text-2xl sm:text-3xl font-bold text-secondary mb-6 text-center">Panneau d'Administration</h2>
+      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl mb-10">
+        <h2 className="text-2xl sm:text-3xl font-bold text-center text-secondary mb-8">
+          Panneau d'Administration
+        </h2>
 
-        <div className="flex flex-col gap-4 mb-6">
-          <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                onClick={() => setShowAdminObjectivesListModal(true)}
-                className={`${adminPurpleButtonClasses} col-span-1`}
-              >
-                Gérer les Objectifs
+        <div className="space-y-8">
+          {/* Section 1 - Gestions principales */}
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap justify-center gap-3 sm:gap-4">
+            <button onClick={() => setShowAdminObjectivesListModal(true)} className={purpleBtn}>
+              🎯 Objectifs
+            </button>
+            <button onClick={() => setShowAdminTasksListModal(true)} className={purpleBtn}>
+              ✅ Tâches
+            </button>
+            <button onClick={() => setShowAdminUserManagementModal(true)} className={blueBtn}>
+              👥 Utilisateurs
+            </button>
+            <button onClick={() => setShowAdminCongratulatoryMessagesModal(true)} className={blueBtn}>
+              🎉 Félicitations
+            </button>
+            <button onClick={() => setShowConfirmResetModal(true)} className={redBtn}>
+              🔄 Reset Points Hebdo
+            </button>
+            <button onClick={() => setShowConfirmResetRealisationsModal(true)} className={redBtn}>
+              ❌ Reset Réalisations
+            </button>
+          </div>
+
+          {/* Section 2 - Outils spécifiques */}
+          <div className="bg-neutralBg/40 border border-gray-200 rounded-xl p-4 shadow-inner max-w-xl mx-auto">
+            <h3 className="text-center text-base font-semibold text-primary mb-4">
+              Outils spécifiques
+            </h3>
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:justify-center sm:gap-4">
+              <button onClick={() => setShowGlobalDataViewModal(true)} className={grayBtn}>
+                🧠 BDD Globale
               </button>
-              <button
-                onClick={() => setShowAdminTasksListModal(true)}
-                className={`${adminPurpleButtonClasses} col-span-1`}
-              >
-                Gérer les Tâches
+              <button onClick={() => setShowExportSelectionModal(true)} className={grayBtn}>
+                📤 Export CSV
               </button>
             </div>
           </div>
 
-          <div className="bg-neutralBg rounded-xl p-4 shadow-inner">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                onClick={() => setShowAdminUserManagementModal(true)}
-                className={`${adminBlueButtonClasses} col-span-1`}
-              >
-                Gérer les Utilisateurs
-              </button>
-              <button
-                onClick={() => setShowAdminCongratulatoryMessagesModal(true)}
-                className={`${adminBlueButtonClasses} col-span-1`}
-              >
-                Gérer les Messages de Félicitation
-              </button>
-            </div>
-          </div>
-
-          {/* Bloc supprimé : bouton Gérer les Badges */}
-          
-          <div className="bg-neutralBg/50 rounded-xl p-3 shadow-inner border border-gray-200">
-            <h3 className="text-base font-bold text-primary mb-3 text-center">Outils Avancés</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                onClick={() => setShowGlobalDataViewModal(true)}
-                className={`${subtleAdminButtonClasses} col-span-1`}
-              >
-                Vision Globale de la BDD
-              </button>
-              <button
-                onClick={() => setShowExportSelectionModal(true)}
-                className={`${subtleAdminButtonClasses} col-span-1`}
-              >
-                Exporter les Données (CSV)
-              </button>
-              <button
-                onClick={() => setShowConfirmResetModal(true)}
-                className={`bg-error/80 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`}
-              >
-                Réinitialiser les Points Hebdomadaires
-              </button>
-              <button
-                onClick={() => setShowConfirmResetRealisationsModal(true)}
-                className={`bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-lg shadow-md transition duration-300 text-xs sm:text-sm col-span-1`}
-              >
-                Réinitialiser les Réalisations
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="mb-6 p-3 bg-neutralBg rounded-xl shadow-inner">
-          <h3 className="text-xl sm:text-2xl font-bold text-primary mb-4 text-center">Statistiques des Tâches</h3>
+          {/* Section 3 - Statistiques */}
           <TaskStatisticsChart realisations={realisations} allRawTaches={allRawTaches} />
         </div>
       </div>
     );
   };
-
-
-
-  const renderFullRankingCards = () => {
-    if (!Array.isArray(classement) || classement.length === 0) {
-      return (
-        <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8">
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Classement Complet</h2>
-          <p className="text-center text-lightText text-lg">Aucun classement disponible pour le moment.</p>
-          <button
-            className="mt-6 sm:mt-8 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg
-                      transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
-            onClick={() => setActiveMainView('home')}
-          >
-            Retour à l'accueil
-          </button>
-        </div>
-      );
-    }
-
-    const sortedClassement = [...classement].sort(
-      (a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante
-    );
-
-    return (
-      <div className="bg-card rounded-3xl p-4 sm:p-6 shadow-2xl text-center mb-6 sm:mb-8">
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mb-6">Classement Hebdomadaire Complet</h2>
-        <div className="flex flex-col gap-3 mb-6 items-center"> 
-          {sortedClassement.map((participant, index) => (
-            <RankingCard
-              key={participant.Nom_Participant}
-              participant={participant}
-              rank={index + 1}
-              type="weekly" 
-              onParticipantClick={handleParticipantClick}
-            />
-          ))}
-        </div>
-        <div className="flex flex-col sm:flex-row justify-center gap-3 mt-4"> 
-          <button
-            className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg
-                      transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
-            onClick={() => setActiveMainView('home')}
-          >
-            Retour à l'accueil
-          </button>
-          <button
-            className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg shadow-lg
-                      transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm" 
-            onClick={() => setShowOverallRankingModal(true)}
-          >
-            Voir le Classement Général
-          </button>
-        </div>
-      </div>
-    );
-  };
-
 
   const renderExportSelectionModal = useCallback(() => {
     if (!showExportSelectionModal) return null;
@@ -2558,22 +2575,14 @@ function AppContent() {
 
   // --- Rendu conditionnel de l'application ---
 
-  if (loadingUser) { 
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4"> 
-        <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast mb-4 sm:mb-6"></div> 
-        <p className="text-xl sm:text-2xl font-semibold text-lightText">Chargement de l'utilisateur...</p> 
-      </div>
-    );
-  }
-
   // Rendu de l'écran de bienvenue si l'utilisateur n'est pas connecté
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background-light to-background-dark font-sans p-4 sm:p-6">
         <header className="relative flex flex-col items-center justify-center py-4 sm:py-6 px-4 mb-6 sm:mb-8 text-center">
-          <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-20 sm:h-28 md:h-36 w-auto drop-shadow-xl" />
-          <h1 className="text-3xl sm:text-5xl font-extrabold text-primary mb-2 tracking-tight">
+          <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-16 sm:h-24 w-auto drop-shadow-xl cursor-pointer transform hover:scale-105 transition"/>
+          {/* Dynamic Title with subtle animation */}
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-primary mb-2 tracking-tight animate-pulse">
             Clean App Challenge
           </h1>
         </header>
@@ -2601,7 +2610,6 @@ function AppContent() {
           draggable
           pauseOnHover
         />
-        {/* La modale d'authentification est rendue ici, en dehors du bloc conditionnel de l'écran de bienvenue */}
         {showAuthModal && ( 
           <AuthModal onClose={() => setShowAuthModal(false)} />
         )}
@@ -2622,76 +2630,55 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background-light to-background-dark font-sans p-4 sm:p-6"> 
       <div className="max-w-4xl mx-auto">
-        <header className="relative flex flex-col items-center justify-center py-4 sm:py-6 px-4 mb-6 sm:mb-8 text-center"> 
+        <header className="relative flex flex-col items-center justify-center py-4 sm:py-6 px-4 mb-6 sm:mb-8 text-center space-y-3">
+          {/* Logo / Emoji */}
           {showChickEmoji ? (
-            <span className="text-7xl sm:text-8xl mb-3 sm:mb-4 cursor-pointer" onClick={handleLogoClick}>🐣</span>
+            <span
+              className="text-6xl sm:text-7xl cursor-pointer transform hover:scale-110 transition"
+              onClick={handleLogoClick}
+            >
+              🐣
+            </span>
           ) : (
-            <img src={`/${LOGO_FILENAME}`} alt="Logo Clean App Challenge" className="mx-auto mb-3 sm:mb-4 h-20 sm:h-28 md:h-36 w-auto drop-shadow-xl cursor-pointer" onClick={handleLogoClick} /> 
+            <img
+              src={`/${LOGO_FILENAME}`}
+              alt="Logo Clean App Challenge"
+              className="mx-auto mb-3 sm:mb-4 h-16 sm:h-24 w-auto drop-shadow-xl cursor-pointer transform hover:scale-105 transition"
+              onClick={handleLogoClick}
+            />
           )}
-          <h1 className="text-3xl sm:text-5xl font-extrabold text-primary mb-2 tracking-tight">
+
+          {/* Dynamic Title with subtle animation */}
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-primary mb-2 tracking-tight animate-pulse">
             Clean App Challenge
           </h1>
+
+          {/* Greeting */}
           <p className="text-2xl sm:text-3xl text-lightText font-semibold mb-6">
             Bonjour, {currentUser?.displayName || currentUser?.email || 'Utilisateur'} 👋
           </p>
 
-          
+          {/* Logout button */}
           {currentUser && (
-            <div className="absolute top-4 right-4 z-10">
+            <div className="absolute top-4 right-4">
               <button
-                onClick={handleAuthAction}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-1.5 px-3 rounded-full shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-xs whitespace-nowrap"
-              >
-                Déconnexion
-              </button>
+                        onClick={handleAuthAction}
+                        className="bg-transparent hover:bg-primary/10 text-primary p-2 rounded-full transition-transform hover:scale-110"
+                        aria-label="Déconnexion"
+                      >
+                        <LogOut size={20} className="text-primary opacity-70 hover:opacity-100 transition" />
+                      </button>
             </div>
           )}
         </header>
 
-        <nav className="flex flex-col items-center mb-6 sm:mb-8 px-4"> 
-          <div className="bg-neutralBg rounded-full p-1.5 flex flex-row justify-start sm:justify-center gap-4 sm:gap-6 shadow-lg border border-primary/20 flex-nowrap overflow-x-auto w-full max-w-full"> 
-            <button
-              className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
-                ${activeMainView === 'home' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
-              onClick={() => setActiveMainView('home')}
-            >
-              Accueil
-            </button>
-            <button
-              className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
-                ${activeMainView === 'completedTasks' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
-              onClick={() => setActiveMainView('completedTasks')}
-            >
-              Tâches Terminées
-            </button>
-            <button
-              className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
-                ${activeMainView === 'historicalPodiums' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
-              onClick={() => setActiveMainView('historicalPodiums')}
-            >
-              Historique
-            </button> 
-            {currentUser && (
-              <button
-                onClick={() => handleParticipantClick({ Nom_Participant: currentUser.displayName || currentUser.email })}
-                className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
-                  ${activeMainView === 'participantProfile' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
-              >
-                Mon Profil
-              </button>
-            )}
-            {/* Le bouton de chat est maintenant dans ChatFloatingButton */}
-            {isAdmin && (
-              <button
-                onClick={() => setActiveMainView('adminPanel')}
-                className={`py-2 px-4 sm:px-6 rounded-full font-bold text-sm transition duration-300 ease-in-out transform hover:scale-105 shadow-md flex-shrink-0
-                  ${activeMainView === 'adminPanel' ? 'bg-primary text-white shadow-lg' : 'text-text hover:bg-accent hover:text-secondary'}`}
-              >
-                Console Admin
-              </button>
-            )}
-          </div>
-        </nav>
+        <Navbar
+          activeMainView={activeMainView}
+          setActiveMainView={setActiveMainView}
+          currentUser={currentUser}
+          handleParticipantClick={handleParticipantClick}
+          isAdmin={isAdmin}
+        />
 
         <main>
           {activeMainView === 'home' && (
@@ -2700,9 +2687,6 @@ function AppContent() {
               <hr className="my-6 sm:my-8 border-t-2 border-neutralBg" /> 
               {renderTaskCategories()}
             </>
-          )}
-          {activeMainView === 'fullRanking' && (
-            renderFullRankingCards()
           )}
           {activeMainView === 'historicalPodiums' && (
             <HistoricalPodiums historicalPodiums={historicalPodiums} onClose={() => setActiveMainView('home')}>
@@ -2747,9 +2731,7 @@ function AppContent() {
           )}
         </main>
         {/* Modales et popups */}
-        {renderTaskDialog()}
         {renderThankYouPopup()} 
-        {renderSplitTaskDialog()} 
         {renderConfirmResetModal()} 
         {renderConfirmResetRealisationsModal()} 
         {renderDeleteConfirmModal()} 
@@ -2822,7 +2804,6 @@ function AppContent() {
             editingTask={editingTask}
           />
         )}
-        {/* La modale d'authentification est rendue ici, en dehors du bloc conditionnel de l'écran de bienvenue */}
         {showAuthModal && ( 
           <AuthModal onClose={() => setShowAuthModal(false)} />
         )}
@@ -2842,7 +2823,6 @@ function AppContent() {
         )}
 
         {showGlobalDataViewModal && isAdmin && renderGlobalDataViewModal()}
-        {selectedDocumentDetails && isAdmin && renderDocumentDetailsModal()}
 
         {showWeeklyRecapModal && weeklyRecapData && (
           <WeeklyRecapModal
@@ -2851,17 +2831,6 @@ function AppContent() {
           />
         )}
 
-        {showTaskHistoryModal && (
-          <TaskHistoryModal
-            taskId={taskHistoryTaskId}
-            allRealisations={realisations}
-            allTasks={allRawTaches}
-            onClose={() => {
-              setShowTaskHistoryModal(false);
-              setTaskHistoryTaskId(null);
-            }}
-          />
-        )}
 
         {showProfileEditOptionsModal && currentUser && ( 
           <ProfileEditOptionsModal
@@ -2878,7 +2847,6 @@ function AppContent() {
             onSave={async (newAvatar) => {
               try {
                 await updateDoc(doc(db, "users", currentUser.uid), { avatar: newAvatar });
-                // Mettre à jour le currentUser dans le contexte après la sauvegarde
                 setCurrentUser(prevUser => ({ ...prevUser, avatar: newAvatar }));
                 toast.success("Avatar mis à jour !");
               } catch (error) {
@@ -2890,6 +2858,8 @@ function AppContent() {
             }}
           />
         )}
+        
+        
 
         {showPasswordChangeModal && currentUser && (
           <PasswordChangeModal
@@ -2897,8 +2867,6 @@ function AppContent() {
             currentUser={currentUser}
           />
         )}
-        
-        {/* Le bouton flottant du chat est rendu ici */}
 
       </div>
       <ToastContainer 
@@ -2912,6 +2880,27 @@ function AppContent() {
         draggable
         pauseOnHover
       />
+
+      {/* TaskConfirmModal gère maintenant les tâches simples et les tâches de groupe */}
+      
+      <RankingCardModal
+  show={showFullRankingModal}
+  onClose={() => setShowFullRankingModal(false)}
+  title="Classement Hebdomadaire Complet"
+  participants={classement}
+  type="weekly"
+  onParticipantClick={handleParticipantClick}
+/>
+    {showTaskModal && selectedTask && (
+        <TaskConfirmModal
+          task={selectedTask} // selectedTask contient maintenant SousTaches si c'est un groupe
+          onClose={() => setShowTaskModal(false)}
+          onConfirm={handleTaskConfirmation}
+          loading={loadingConfirm}
+          currentUser={currentUser}
+          isSubTaskAvailable={isSubTaskAvailable} 
+        />
+      )}
     </div>
   );
 }

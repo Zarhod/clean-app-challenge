@@ -4,7 +4,7 @@ import { collection, addDoc, deleteDoc, doc, onSnapshot } from 'firebase/firesto
 import { toast } from 'react-toastify';
 import ListAndInfoModal from './ListAndInfoModal';
 import ConfirmActionModal from './ConfirmActionModal';
-import { useUser } from './UserContext'; // Pour db et isAdmin
+import { useUser } from './UserContext';
 
 const AdminCongratulatoryMessagesModal = ({ onClose }) => {
   const { db, isAdmin } = useUser();
@@ -16,28 +16,25 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
 
   useEffect(() => {
     if (!db) return;
-    const unsubscribe = onSnapshot(collection(db, 'congratulatory_messages'), (snapshot) => {
-      const fetchedMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setMessages(fetchedMessages);
-      setLoading(false);
-    }, (error) => {
-      toast.error("Erreur lors du chargement des messages de félicitation.");
-      console.error("Error fetching congratulatory messages:", error);
-      setLoading(false);
-    });
-
+    const unsubscribe = onSnapshot(
+      collection(db, 'congratulatory_messages'),
+      (snapshot) => {
+        const fetchedMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setMessages(fetchedMessages);
+        setLoading(false);
+      },
+      (error) => {
+        toast.error("Erreur lors du chargement des messages.");
+        console.error("Erreur snapshot:", error);
+        setLoading(false);
+      }
+    );
     return () => unsubscribe();
   }, [db]);
 
   const handleAddMessage = async () => {
-    if (!isAdmin) {
-      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
-      return;
-    }
-    if (newMessage.trim() === '') {
-      toast.warn("Le message ne peut pas être vide.");
-      return;
-    }
+    if (!isAdmin) return toast.error("Accès refusé.");
+    if (!newMessage.trim()) return toast.warn("Message vide.");
     setLoading(true);
     try {
       await addDoc(collection(db, 'congratulatory_messages'), {
@@ -45,78 +42,82 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
         createdAt: new Date().toISOString(),
       });
       setNewMessage('');
-      toast.success("Message ajouté avec succès !");
+      toast.success("Message ajouté !");
     } catch (error) {
-      toast.error("Erreur lors de l'ajout du message.");
-      console.error("Error adding message:", error);
+      toast.error("Erreur à l'ajout.");
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteMessage = useCallback(async (messageId, skipConfirmation = false) => {
-    if (!isAdmin) {
-      toast.error("Accès refusé. Vous n'êtes pas administrateur.");
-      return;
-    }
-    if (!skipConfirmation) {
-      setMessageToDelete(messageId);
+  const handleDeleteMessage = useCallback(async (id, skip = false) => {
+    if (!isAdmin) return toast.error("Accès refusé.");
+    if (!skip) {
+      setMessageToDelete(id);
       setShowConfirmDeleteModal(true);
       return;
     }
-
     setLoading(true);
     try {
-      await deleteDoc(doc(db, 'congratulatory_messages', messageId));
-      toast.success("Message supprimé avec succès !");
+      await deleteDoc(doc(db, 'congratulatory_messages', id));
+      toast.success("Message supprimé !");
     } catch (error) {
-      toast.error("Erreur lors de la suppression du message.");
-      console.error("Error deleting message:", error);
+      toast.error("Erreur suppression.");
+      console.error(error);
     } finally {
       setLoading(false);
       setShowConfirmDeleteModal(false);
       setMessageToDelete(null);
     }
-  }, [isAdmin, db]);
+  }, [db, isAdmin]);
 
   return (
     <>
-      <ListAndInfoModal title="Gérer les Messages de Félicitation" onClose={onClose} sizeClass="max-w-lg">
+      <ListAndInfoModal
+        title="Messages de Félicitations"
+        onClose={onClose}
+        sizeClass="w-full max-w-[95vw] sm:max-w-lg md:max-w-xl h-[90vh] overflow-y-auto rounded-2xl p-6 animate-fade-in"
+      >
         <div className="mb-4">
           <textarea
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm mb-2"
+            className="w-full p-3 border border-gray-300 rounded-xl shadow-inner text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             rows="3"
-            placeholder="Ajouter un nouveau message de félicitation..."
+            placeholder="Ajouter un nouveau message..."
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             disabled={loading}
-          ></textarea>
+          />
           <button
             onClick={handleAddMessage}
-            disabled={loading || newMessage.trim() === ''}
-            className="w-full bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            disabled={loading || !newMessage.trim()}
+            className="w-full mt-2 bg-success hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md transition-all duration-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Ajout en cours...' : 'Ajouter le Message'}
           </button>
         </div>
 
-        <h3 className="text-xl font-bold text-secondary mb-3 text-center">Messages Actuels</h3>
+        <h3 className="text-base sm:text-lg font-bold text-teal-500 mb-4 text-center">Messages Actuels</h3>
+
         {loading ? (
-          <div className="flex justify-center items-center py-4">
-            <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
-            <p className="ml-3 text-lightText">Chargement des messages...</p>
+          <div className="flex justify-center items-center py-6">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin-fast"></div>
+            <p className="ml-3 text-lightText text-sm sm:text-base">Chargement des messages...</p>
           </div>
         ) : (
-          <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar">
+          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
             {messages.length === 0 ? (
-              <p className="text-center text-lightText text-md">Aucun message de félicitation configuré.</p>
+              <p className="text-center text-lightText text-sm">Aucun message configuré.</p>
             ) : (
               messages.map((msg) => (
-                <div key={msg.id} className="bg-white rounded-lg p-3 flex items-center justify-between shadow-sm border border-neutralBg/50">
+                <div
+                  key={msg.id}
+                  className="bg-white rounded-2xl p-4 flex items-center justify-between shadow-sm border border-gray-200"
+                >
                   <p className="text-text text-sm flex-1 mr-2">{msg.Texte_Message}</p>
                   <button
                     onClick={() => handleDeleteMessage(msg.id)}
-                    className="bg-error hover:bg-red-700 text-white font-semibold py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs flex-shrink-0"
+                    className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1.5 px-3 rounded-full shadow-sm transition duration-300 text-xs"
                     disabled={loading}
                   >
                     Supprimer
@@ -131,12 +132,15 @@ const AdminCongratulatoryMessagesModal = ({ onClose }) => {
       {showConfirmDeleteModal && (
         <ConfirmActionModal
           title="Confirmer la Suppression"
-          message="Êtes-vous sûr de vouloir supprimer ce message de félicitation ? Cette action est irréversible."
+          message="Êtes-vous sûr de vouloir supprimer ce message ?"
           confirmText="Oui, Supprimer"
           confirmButtonClass="bg-error hover:bg-red-700"
           cancelText="Non, Annuler"
           onConfirm={() => handleDeleteMessage(messageToDelete, true)}
-          onCancel={() => { setShowConfirmDeleteModal(false); setMessageToDelete(null); }}
+          onCancel={() => {
+            setShowConfirmDeleteModal(false);
+            setMessageToDelete(null);
+          }}
           loading={loading}
         />
       )}

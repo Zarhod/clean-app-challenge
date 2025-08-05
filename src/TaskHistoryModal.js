@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useUser } from './UserContext';
-import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { updateDoc, doc } from 'firebase/firestore';
 import ConfettiOverlay from './ConfettiOverlay';
 import { toast } from 'react-toastify';
 import { calculateLevelAndXP } from './utils/levelUtils';
+import ListAndInfoModal from './ListAndInfoModal';
 
 const TaskHistoryModal = ({ taskId, allRealisations, allTasks, onClose }) => {
   const { currentUser, db, setCurrentUser } = useUser();
@@ -77,87 +78,94 @@ const TaskHistoryModal = ({ taskId, allRealisations, allTasks, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4">
-      <div className="bg-card rounded-3xl p-6 shadow-xl w-full max-w-xl text-center relative">
-        <h2 className="text-2xl font-bold text-primary mb-4">Historique des tâches</h2>
-
-        {!selectedTask ? (
-          tasks.length === 0 ? (
-            <p className="text-lightText">Aucune tâche trouvée.</p>
-          ) : (
-            <ul className="space-y-4 max-h-[60vh] overflow-y-auto">
-              {tasks.map((task) => (
-                <li key={task.id} className="bg-background rounded-lg p-4 shadow flex justify-between items-center">
-                  <div className="text-left">
-                    <p className="text-sm font-semibold">{task.Nom_Tache}</p>
-                    <p className="text-xs text-gray-400">Points: {task.Points}</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setSelectedTask(task);
-                      setCheckedSubs({});
-                    }}
-                    className="bg-primary hover:bg-secondary text-white font-semibold py-1 px-4 rounded-full text-sm"
-                  >
-                    Valider
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )
+    <ListAndInfoModal
+      title={!selectedTask ? 'Historique des tâches' : 'Confirmer la Tâche'}
+      onClose={onClose}
+      sizeClass="max-w-xl"
+    >
+      {!selectedTask ? (
+        tasks.length === 0 ? (
+          <p className="text-lightText">Aucune tâche trouvée.</p>
         ) : (
-          <div>
-            <h3 className="text-xl font-semibold mb-3">Confirmer la Tâche</h3>
-            <p className="mb-2">
-              Tâche : <strong>{selectedTask.Nom_Tache}</strong>
-            </p>
+          <ul className="space-y-4 max-h-[60vh] overflow-y-auto">
+            {tasks.map((task) => (
+              <li key={task.id} className="bg-background rounded-lg p-4 shadow flex justify-between items-center">
+                <div className="text-left">
+                  <p className="text-sm font-semibold">{task.Nom_Tache}</p>
+                  <p className="text-xs text-gray-400">Points: {task.Points}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    const sousTaches = task.SousTaches
+                      ? Array.isArray(task.SousTaches)
+                        ? task.SousTaches
+                        : (() => {
+                            try {
+                              return JSON.parse(task.SousTaches);
+                            } catch {
+                              return [];
+                            }
+                          })()
+                      : [];
 
-            {selectedTask.SousTaches?.length > 0 && (
-              <div className="text-left max-h-48 overflow-y-auto border p-3 rounded-md bg-muted mb-4">
-                <p className="font-semibold text-sm mb-2">Coche les sous-tâches réalisées :</p>
-                {selectedTask.SousTaches.map((sub, i) => (
-                  <label key={i} className="flex items-center gap-2 text-sm mb-1">
-                    <input
-                      type="checkbox"
-                      checked={!!checkedSubs[i]}
-                      onChange={() => handleCheckboxChange(i)}
-                    />
-                    {sub.nom} ({sub.points} pts)
-                  </label>
-                ))}
-              </div>
-            )}
+                    setSelectedTask({ ...task, SousTaches: sousTaches });
+                    setCheckedSubs({});
+                  }}
+                  className="bg-primary hover:bg-secondary text-white font-semibold py-1 px-4 rounded-full text-sm"
+                >
+                  Valider
+                </button>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : (
+        <div>
+          <p className="mb-2">
+            Tâche : <strong>{selectedTask.Nom_Tache}</strong>
+          </p>
 
-            <p className="text-sm mb-4">
-              Total à gagner : <span className="font-bold">{calculatePoints(selectedTask)} points</span>
-            </p>
-
-            <div className="flex justify-center gap-4">
-              <button
-                onClick={() => handleCompleteTask(selectedTask)}
-                className="bg-success hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-full shadow text-sm"
-              >
-                Valider
-              </button>
-              <button
-                onClick={() => setSelectedTask(null)}
-                className="bg-error hover:bg-red-700 text-white font-semibold py-2 px-6 rounded-full shadow text-sm"
-              >
-                Annuler
-              </button>
+          {selectedTask.SousTaches?.length > 0 ? (
+            <div className="text-left max-h-48 overflow-y-auto border p-3 rounded-md bg-muted mb-4">
+              <p className="font-semibold text-sm mb-2">Coche les sous-tâches réalisées :</p>
+              {selectedTask.SousTaches.map((sub, i) => (
+                <label key={i} className="flex items-center gap-2 text-sm mb-1">
+                  <input
+                    type="checkbox"
+                    checked={!!checkedSubs[i]}
+                    onChange={() => handleCheckboxChange(i)}
+                  />
+                  {sub.nom} ({sub.points} pts)
+                </label>
+              ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-sm text-gray-500 italic mb-4">Aucune sous-tâche à sélectionner.</p>
+          )}
 
-        <button
-          onClick={onClose}
-          className="absolute top-2 right-2 text-gray-400 hover:text-white"
-        >
-          ✕
-        </button>
-      </div>
+          <p className="text-sm mb-4">
+            Total à gagner : <span className="font-bold">{calculatePoints(selectedTask)} points</span>
+          </p>
+
+          <div className="flex justify-center gap-4">
+            <button
+              onClick={() => handleCompleteTask(selectedTask)}
+              className="bg-success hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-full shadow text-sm"
+            >
+              Valider
+            </button>
+            <button
+              onClick={() => setSelectedTask(null)}
+              className="bg-error hover:bg-red-700 text-white font-semibold py-2 px-6 rounded-full shadow text-sm"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
       {showConfetti && <ConfettiOverlay />}
-    </div>
+    </ListAndInfoModal>
   );
 };
 

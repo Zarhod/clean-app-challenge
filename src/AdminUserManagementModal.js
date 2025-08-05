@@ -1,7 +1,7 @@
 // src/AdminUserManagementModal.js
 import React, { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
-import { db } from './firebase'; // Assurez-vous que votre instance db est exportée de firebase.js
+import { db } from './firebase';
 import { toast } from 'react-toastify';
 
 const AdminUserManagementModal = ({ onClose, realisations }) => {
@@ -17,7 +17,6 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
       const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setUsers(usersData);
 
-      // Calculer le nombre de tâches par utilisateur
       const counts = {};
       realisations.forEach(real => {
         if (real.userId) {
@@ -25,7 +24,6 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
         }
       });
       setTaskCounts(counts);
-
     } catch (error) {
       toast.error("Erreur lors du chargement des utilisateurs.");
       console.error("Erreur fetchUsers:", error);
@@ -46,7 +44,7 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
         isAdmin: !currentStatus
       });
       toast.success(`Statut administrateur mis à jour pour l'utilisateur ${userId}.`);
-      fetchUsers(); // Re-fetch users to update the list
+      fetchUsers();
     } catch (error) {
       toast.error("Erreur lors de la mise à jour du statut administrateur.");
       console.error("Erreur toggleAdminStatus:", error);
@@ -56,13 +54,13 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4">
-      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-lg text-center animate-fade-in-scale border border-primary/20 mx-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+      <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-xl w-full max-w-2xl text-center animate-fade-in border border-gray-200 mx-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
         <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-6">Gestion des Utilisateurs</h2>
 
         {loading ? (
           <div className="flex justify-center items-center py-4">
-            <div className="w-8 h-8 border-4 border-primary border-t-4 border-t-transparent rounded-full animate-spin-fast"></div>
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin-fast"></div>
             <p className="ml-3 text-lightText">Chargement des utilisateurs...</p>
           </div>
         ) : (
@@ -71,7 +69,7 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
               <p className="text-center text-lightText text-lg">Aucun utilisateur enregistré.</p>
             ) : (
               users.map(user => (
-                <div key={user.id} className="bg-neutralBg rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm border border-neutralBg/50">
+                <div key={user.id} className="bg-gray-50 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm border border-gray-200">
                   <div className="flex-1 min-w-0 mb-2 sm:mb-0">
                     <p className="font-bold text-text text-lg truncate">{user.displayName || user.email}</p>
                     <p className="text-sm text-lightText">ID: {user.id}</p>
@@ -83,8 +81,8 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
                     </span>
                     <button
                       onClick={() => toggleAdminStatus(user.id, user.isAdmin)}
-                      className={`py-1.5 px-3 rounded-md shadow-sm transition duration-300 text-xs font-semibold
-                        ${user.isAdmin ? 'bg-warning hover:bg-yellow-600 text-white' : 'bg-primary hover:bg-blue-600 text-white'}`}
+                      className={`py-1.5 px-3 rounded-full shadow-sm transition duration-300 text-xs font-semibold
+                        ${user.isAdmin ? 'bg-yellow-500 hover:bg-yellow-600 text-white' : 'bg-primary hover:bg-blue-600 text-white'}`}
                       disabled={loading}
                     >
                       {user.isAdmin ? 'Rétrograder' : 'Promouvoir Admin'}
@@ -98,8 +96,7 @@ const AdminUserManagementModal = ({ onClose, realisations }) => {
 
         <button
           onClick={onClose}
-          className="mt-6 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg
-                     transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
+          className="mt-6 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md transition duration-300 ease-in-out text-sm"
         >
           Fermer
         </button>
