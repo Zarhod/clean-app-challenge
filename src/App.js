@@ -680,7 +680,7 @@ function AppContent() {
     };
 
     fetchClassement();
-  }, []);
+  }, [db]);
 
 
   // Deuxième useEffect: Calcul et affichage du récapitulatif hebdomadaire
@@ -1008,7 +1008,7 @@ function AppContent() {
       setShowDeleteConfirmModal(false); 
       setTaskToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteConfirmModal, setTaskToDelete, db]);
+  }, [isAdmin, db]);
 
   const handleObjectiveFormChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -1095,7 +1095,7 @@ function AppContent() {
       setShowDeleteObjectiveConfirmModal(false); 
       setObjectiveToDelete(null);
     }
-  }, [isAdmin, setLoading, setShowDeleteObjectiveConfirmModal, setObjectiveToDelete, db]);
+  }, [isAdmin, db]);
 
   const handleReportClick = (taskRealisation) => {
     if (!currentUser) {
