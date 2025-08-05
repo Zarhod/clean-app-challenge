@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, writeBatch } from 'firebase/firestore';
 import { useUser } from './UserContext';
 import { toast } from 'react-toastify';
-import { PlusCircle, Trash2, Fingerprint, ClipboardList, Target } from 'lucide-react';
+import { PlusCircle, Trash2, Fingerprint, ClipboardList } from 'lucide-react';
 
 function AdminTaskFormModal({ taskData, onFormChange, onClose, loading, editingTask }) {
   const { db } = useUser();
@@ -11,12 +11,12 @@ function AdminTaskFormModal({ taskData, onFormChange, onClose, loading, editingT
   const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
-    if (isComplexTask) {
+  if (isComplexTask) {
       const total = sousTaches.reduce((acc, t) => acc + (parseFloat(t.points) || 0), 0);
       onFormChange({ target: { name: 'Points', value: total } });
       onFormChange({ target: { name: 'SousTaches', value: sousTaches } });
     }
-  }, [sousTaches, isComplexTask][onFormChange]);
+  }, [sousTaches, isComplexTask, onFormChange]);
 
   const handleSousTacheChange = (index, field, value) => {
     const updated = [...sousTaches];
