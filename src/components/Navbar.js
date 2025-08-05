@@ -1,5 +1,5 @@
 // src/components/Navbar.js
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 const Navbar = ({
   activeMainView,
@@ -12,7 +12,7 @@ const Navbar = ({
   const buttonsRef = useRef({});
   const containerRef = useRef(null);
 
-  const updateActivePos = () => {
+  const updateActivePos = useCallback(() => {
     const activeBtn = buttonsRef.current[activeMainView];
     if (activeBtn) {
       const { offsetLeft, offsetWidth } = activeBtn;
@@ -24,13 +24,13 @@ const Navbar = ({
         });
       }
     }
-  };
+  }, [activeMainView]);
 
   useEffect(() => {
     updateActivePos();
     window.addEventListener("resize", updateActivePos);
     return () => window.removeEventListener("resize", updateActivePos);
-  }, [activeMainView]);
+  }, [activeMainView, updateActivePos]);
 
   const navItems = [
     { key: "home", label: "Accueil", action: () => setActiveMainView("home") },

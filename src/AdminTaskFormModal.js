@@ -16,7 +16,7 @@ function AdminTaskFormModal({ taskData, onFormChange, onClose, loading, editingT
       onFormChange({ target: { name: 'Points', value: total } });
       onFormChange({ target: { name: 'SousTaches', value: sousTaches } });
     }
-  }, [sousTaches, isComplexTask]);
+  }, [sousTaches, isComplexTask][onFormChange]);
 
   const handleSousTacheChange = (index, field, value) => {
     const updated = [...sousTaches];

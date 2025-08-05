@@ -4,20 +4,16 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css'; 
 import HistoricalPodiums from './HistoricalPodiums'; 
 import AdminTaskFormModal from './AdminTaskFormModal'; 
-import ConfirmActionModal from './ConfirmActionModal'; 
 import ConfettiOverlay from './ConfettiOverlay'; 
 import TaskStatisticsChart from './TaskStatisticsChart'; 
 import AdminObjectiveFormModal from './AdminObjectiveFormModal'; 
 import ListAndInfoModal from './ListAndInfoModal'; 
-import RankingCard from './RankingCard'; 
 import OverallRankingModal from './OverallRankingModal'; 
 import ReportTaskModal from './ReportTaskModal'; 
 import AuthModal from './AuthModal'; 
 import AdminUserManagementModal from './AdminUserManagementModal'; 
 import AdminCongratulatoryMessagesModal from './AdminCongratulatoryMessagesModal'; 
 import WeeklyRecapModal from './WeeklyRecapModal'; 
-// TaskHistoryModal n'est pas utilisé dans le code fourni, mais l'importation est conservée.
-import TaskHistoryModal from './TaskHistoryModal'; 
 import AvatarSelectionModal from './AvatarSelectionModal'; 
 import PasswordChangeModal from './PasswordChangeModal'; 
 import ProfileEditOptionsModal from './ProfileEditOptionsModal'; 
@@ -313,9 +309,6 @@ function AppContent() {
 
   const [showWeeklyRecapModal, setShowWeeklyRecapModal] = useState(false);
   const [weeklyRecapData, setWeeklyRecapData] = useState(null);
-
-  const [showTaskHistoryModal, setShowTaskHistoryModal] = useState(false); 
-  const [taskHistoryTaskId, setTaskHistoryTaskId] = useState(null); 
   const [showFullRankingModal, setShowFullRankingModal] = useState(false);
 
   const [showAvatarSelectionModal, setShowAvatarSelectionModal] = useState(false); 

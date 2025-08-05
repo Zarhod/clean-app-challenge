@@ -1,6 +1,5 @@
 // src/HistoricalPodiums.js
 import React from 'react';
-import ListAndInfoModal from './ListAndInfoModal';
 
 const HistoricalPodiums = ({ historicalPodiums, onClose }) => {
   const validPodiums = historicalPodiums
