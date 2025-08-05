@@ -2350,7 +2350,7 @@ const renderParticipantProfile = () => {
         )}
       </ListAndInfoModal>
     );
-  }, [loading, allRawTaches, handleDeleteTask, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal, showAdminTasksListModal, prepareTaskForEdit]);
+  }, [loading, allRawTaches, setShowAdminTasksListModal, setNewTaskData, setEditingTask, setShowAdminTaskFormModal, showAdminTasksListModal, prepareTaskForEdit]);
 
 
  const renderGlobalDataViewModal = useCallback(() => {
