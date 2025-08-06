@@ -2031,17 +2031,17 @@ function AppContent() {
 
         {/* Actions */}
         {isCurrentUser && (
-          <div className="mt-4 flex justify-center space-x-4 flex-wrap gap-2">
+          <div className="mt-4 flex justify-center space-x-4">
             <button
               onClick={() => setShowProfileEditOptionsModal(true)}
-              className="bg-primary hover:bg-primary/80 text-white px-6 py-2 rounded-full shadow-lg transition-transform hover:scale-105 max-w-[140px] flex-shrink whitespace-nowrap"
+              className="bg-primary hover:bg-primary/80 text-white px-4 py-2 rounded-full shadow-lg transition-transform hover:scale-105 max-w-[120px] flex-shrink whitespace-nowrap text-sm overflow-hidden text-ellipsis"
             >
               ✏️ Modifier
             </button>
             <button
               onClick={() => weeklyRecapData && setShowWeeklyRecapModal(true)}
               disabled={!weeklyRecapData}
-              className={`px-6 py-2 rounded-full shadow-lg transition max-w-[140px] flex-shrink whitespace-nowrap ${
+              className={`px-4 py-2 rounded-full shadow-lg transition max-w-[120px] flex-shrink whitespace-nowrap text-sm overflow-hidden text-ellipsis ${
                 weeklyRecapData
                   ? 'bg-secondary hover:bg-secondary/90 text-white'
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed'
