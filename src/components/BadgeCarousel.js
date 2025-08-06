@@ -1,11 +1,32 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import BadgeCard from "./BadgeCard";
 
 const BadgeCarousel = ({ badges = [] }) => {
-  // Seuls les badges débloqués :
-  const unlockedBadges = badges.filter(
-    b => b.unlockedAt || b.isUnlocked
-  );
+  const unlockedBadges = badges.filter(b => b.unlockedAt || b.isUnlocked);
+  const totalBadgesCount = 50;
+
+  const scrollRef = useRef(null);
+  const [isBouncing, setIsBouncing] = useState(false);
+  const [bounceDirection, setBounceDirection] = useState(null); // 'left' or 'right'
+
+  const handleScroll = (e) => {
+    const el = e.target;
+    if (el.scrollLeft <= 0) {
+      // rebond gauche
+      if (!isBouncing || bounceDirection !== 'left') {
+        setBounceDirection('left');
+        setIsBouncing(true);
+        setTimeout(() => setIsBouncing(false), 300);
+      }
+    } else if (el.scrollLeft + el.clientWidth >= el.scrollWidth) {
+      // rebond droite
+      if (!isBouncing || bounceDirection !== 'right') {
+        setBounceDirection('right');
+        setIsBouncing(true);
+        setTimeout(() => setIsBouncing(false), 300);
+      }
+    }
+  };
 
   if (!unlockedBadges.length) {
     return (
@@ -16,43 +37,59 @@ const BadgeCarousel = ({ badges = [] }) => {
   }
 
   return (
-    <div
-      className="
-        flex gap-4
-        overflow-x-auto
-        no-scrollbar
-        items-center
-        w-full
-        justify-center
-        scroll-smooth
-        py-2
-      "
-      style={{
-        WebkitOverflowScrolling: "touch",
-        scrollSnapType: "x mandatory",
-      }}
-    >
-      {unlockedBadges.map((badge, idx) => (
-        <div
-          key={badge.id || badge.name || idx}
-          className="flex-shrink-0"
-          style={{
-            scrollSnapAlign: "center",
-            minWidth: "110px", // ajustable selon BadgeCard
-            maxWidth: "145px",
-          }}
-        >
-          <BadgeCard
-            emoji={badge.emoji}
-            icon={badge.icon}
-            name={badge.name}
-            condition={badge.description} // ou badge.condition selon ta source
-            unlockedAt={badge.unlockedAt}
-            ownersCount={badge.ownersCount}
-            index={idx}
-          />
-        </div>
-      ))}
+    <div className="w-full">
+      {/* Compteur badges */}
+      <div className="text-center text-sm font-semibold text-primary mb-3 select-none">
+        {unlockedBadges.length} / {totalBadgesCount} badges débloqués
+      </div>
+
+      {/* Carrousel badges */}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className={`
+          flex gap-4
+          overflow-x-auto
+          no-scrollbar
+          items-center
+          w-full
+          justify-start
+          scroll-smooth
+          py-2
+          px-4
+          transition-transform duration-300
+          ${isBouncing && bounceDirection === 'left' ? 'translate-x-4' : ''}
+          ${isBouncing && bounceDirection === 'right' ? '-translate-x-4' : ''}
+        `}
+        style={{
+          WebkitOverflowScrolling: "touch",
+          scrollSnapType: "x mandatory",
+        }}
+      >
+        {unlockedBadges.map((badge, idx) => (
+          <div
+            key={badge.id || badge.name || idx}
+            className="flex-shrink-0"
+            style={{
+              scrollSnapAlign: "center",
+              minWidth: "110px",
+              maxWidth: "145px",
+              marginLeft: idx === 0 ? "12px" : undefined,
+              marginRight: idx === unlockedBadges.length - 1 ? "12px" : undefined,
+            }}
+          >
+            <BadgeCard
+              emoji={badge.emoji}
+              icon={badge.icon}
+              name={badge.name}
+              condition={badge.description}
+              unlockedAt={badge.unlockedAt}
+              ownersCount={badge.ownersCount}
+              index={idx}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
