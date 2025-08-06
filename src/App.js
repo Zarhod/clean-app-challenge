@@ -38,6 +38,8 @@ import checkAndAssignBadges from './utils/checkAndAssignBadges';
 import BadgePopup from './components/BadgePopup';
 import BadgeCarousel from "./components/BadgeCarousel";
 import BADGES from './utils/badges';
+import InvitationsAdminModal from './InvitationsAdminModal';
+
 
 const LOGO_FILENAME = 'logo.png'; 
 
@@ -343,6 +345,8 @@ function AppContent() {
 
   const [showAvatarSelectionModal, setShowAvatarSelectionModal] = useState(false); 
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false); 
+  const [showInvitationModal, setShowInvitationModal] = useState(false);
+
 
   // États pour la pagination des réalisations
   const [realizationsPerPage] = useState(10);
@@ -2739,6 +2743,9 @@ function AppContent() {
             <button onClick={() => setShowAdminCongratulatoryMessagesModal(true)} className={blueBtn}>
               🎉 Félicitations
             </button>
+            <button onClick={() => setShowInvitationModal(true)} className={blueBtn}>
+              ✉️ Invitations {/* ← Nouveau bouton */}
+            </button>
             <button onClick={() => setShowConfirmResetModal(true)} className={redBtn}>
               🔄 Reset Points Hebdo
             </button>
@@ -2768,6 +2775,7 @@ function AppContent() {
       </div>
     );
   };
+
 
   const renderExportSelectionModal = useCallback(() => {
     if (!showExportSelectionModal) return null;
@@ -2959,7 +2967,7 @@ function AppContent() {
               {renderObjectivesContent(objectives, realisations, taches)}
             </div>
           )}
-
+          
         </main>
         {/* Modales et popups */}
         {renderThankYouPopup()} 
@@ -2983,6 +2991,13 @@ function AppContent() {
           >
             {renderObjectivesContent(objectives, realisations, taches)}
           </ListAndInfoModal>
+        )}
+        {showInvitationModal && (
+          <InvitationsAdminModal
+            open={showInvitationModal} // ou isOpen={showInvitationModal} si ta modale attend isOpen !
+            onClose={() => setShowInvitationModal(false)}
+            // Passe d’autres props si besoin (db, toast, etc)
+          />
         )}
 
         {showAdminObjectivesListModal && isAdmin && renderAdminObjectivesListModal()} 
@@ -3122,13 +3137,13 @@ function AppContent() {
       {/* TaskConfirmModal gère maintenant les tâches simples et les tâches de groupe */}
       
       <RankingCardModal
-  show={showFullRankingModal}
-  onClose={() => setShowFullRankingModal(false)}
-  title="Classement Hebdomadaire Complet"
-  participants={classement}
-  type="weekly"
-  onParticipantClick={handleParticipantClick}
-/>
+        show={showFullRankingModal}
+        onClose={() => setShowFullRankingModal(false)}
+        title="Classement Hebdomadaire Complet"
+        participants={classement}
+        type="weekly"
+        onParticipantClick={handleParticipantClick}
+      />
     {showTaskModal && selectedTask && (
         <TaskConfirmModal
           task={selectedTask} // selectedTask contient maintenant SousTaches si c'est un groupe
