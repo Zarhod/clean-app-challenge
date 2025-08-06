@@ -1,31 +1,27 @@
-// src/AuthModal.js
+// src/Auth.js
 import React, { useState, useEffect } from 'react';
-import { useUser } from './UserContext';
-import { toast } from 'react-toastify';
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  updateProfile
-} from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import AvatarSelectionModal from './AvatarSelectionModal';
+import { toast } from 'react-toastify';
+import ListAndInfoModal from './ListAndInfoModal';
+import { useUser } from './UserContext'; 
+
+const avatars = ['😀', '😂', '😎', '🤩', '🥳', '🤓', '🤖', '👻', '👽', '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦉', '🦋', '🐢', '🐍', '🐉', '🐳', '🐬', '🐠', '🐙', '🦀', '🦞', '🦐', '🦑', '🐡', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🦒', '🦘', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🐐', '🦌', '🐕', '🐩', '🐈', '🐓', '🦃', '🕊️', '🦅', '🦆', '🦢', '🦩', '🦜', '🐦', '🐧', '🦉', '🦚', '🦃', '🐓', '🐔', '🐣', '🐤', '🐥', '👶', '👦', '👧', '🧑', '👨', '👩', '👴', '👵', '🧓', '👨‍⚕️', '👩‍⚕️', '👨‍🎓', '👩‍🎓', '👨‍🏫', '👩‍🏫', '👨‍⚖️', '👩‍⚖️', '👨‍🌾', '👩‍🌾', '👨‍🍳', '👩‍🍳', '👨‍🔧', '👩‍🔧', '👨‍🏭', '👩‍🏭', '👨‍💼', '👩‍💼', '👨‍🔬', '👩‍🔬', '👨‍💻', '👩‍💻', '👨‍🎤', '👩‍🎤', '👨‍🎨', '👩‍🎨', '👨‍✈️', '👩‍✈️', '👨‍🚀', '👩‍🚀', '👨‍🚒', '👩‍🚒', '👮', '🕵️', '💂', '👷', '🤴', '👸', '👳', '👲', '🧕', '🤵', '👰', '🤰', '🤱', '👼', '🎅', '🤶', '🦸', '🦹', '🧙', '🧚', '🧛', '🧜', '🧝', '🧟', '🧞', '👨‍🦯', '👩‍🦯', '👨‍🦼', '👩‍🦼', '👨‍🦽', '👩‍🦽', '🗣️', '👤', '👥', '🫂'];
 
 const AuthModal = ({ onClose }) => {
-  const { auth, db, setCurrentUser, loadingUser } = useUser();
+  const { auth, db, loadingUser, setCurrentUser } = useUser(); 
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [avatar, setAvatar] = useState('😀');
-  const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [selectedAvatar, setSelectedAvatar] = useState('👤'); 
   const [error, setError] = useState('');
 
   useEffect(() => {
     setEmail('');
     setPassword('');
     setDisplayName('');
-    setAvatar('😀');
     setError('');
     setLoading(false);
   }, [isLogin]);
@@ -36,7 +32,18 @@ const AuthModal = ({ onClose }) => {
     setError('');
 
     if (loadingUser || !auth || !db) {
-      setError("Le service d'authentification n'est pas encore prêt.");
+      setError("Le service d'authentification n'est pas encore prêt. Veuillez patienter et réessayer.");
+      setLoading(false);
+      return;
+    }
+
+    if (!email || !email.includes('@')) {
+      setError('Adresse e-mail invalide.');
+      setLoading(false);
+      return;
+    }
+    if (!password || password.length < 6) {
+      setError('Le mot de passe doit contenir au moins 6 caractères.');
       setLoading(false);
       return;
     }
@@ -45,6 +52,7 @@ const AuthModal = ({ onClose }) => {
       if (isLogin) {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
+
         const userDocRef = doc(db, 'users', user.uid);
         const userDocSnap = await getDoc(userDocRef);
 
@@ -81,7 +89,7 @@ const AuthModal = ({ onClose }) => {
           };
           await setDoc(userDocRef, defaultUserData);
           setCurrentUser({ uid: user.uid, email: user.email, ...defaultUserData });
-          toast.success(`Bienvenue, ${defaultUserData.displayName} !`);
+          toast.success(`Bienvenue, ${defaultUserData.displayName} ! Votre compte a été initialisé.`);
           onClose();
         }
 
@@ -94,48 +102,65 @@ const AuthModal = ({ onClose }) => {
 
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
+
         await updateProfile(user, { displayName: displayName.trim() });
 
-        const userDocRef = doc(db, 'users', user.uid);
+        const userDocRef = doc(db, "users", user.uid);
         const newUserData = {
           displayName: displayName.trim(),
           email: email.trim(),
-          isAdmin: false,
-          avatar: avatar || '👤',
-          weeklyPoints: 0,
+          dateJoined: new Date().toISOString(),
+          isAdmin: false, 
           totalCumulativePoints: 0,
+          weeklyPoints: 0,
           previousWeeklyPoints: 0,
           xp: 0,
           level: 1,
-          dateJoined: new Date().toISOString(),
-          lastReadTimestamp: new Date().toISOString()
+          avatar: selectedAvatar
         };
-        await setDoc(userDocRef, newUserData);
+
+        try {
+          await setDoc(userDocRef, newUserData);
+          console.log("Profil créé dans Firestore", newUserData);
+        } catch (firestoreError) {
+          console.error("Erreur création profil Firestore:", firestoreError);
+          setError("Impossible de créer le profil utilisateur. Veuillez réessayer plus tard.");
+          setLoading(false);
+          return;
+        }
 
         setCurrentUser({ uid: user.uid, ...newUserData });
-        toast.success(`Compte créé avec succès pour ${displayName.trim()} !`);
+        toast.success(`Compte créé et connecté !`);
         onClose();
       }
-
     } catch (err) {
-      let errorMessage = "Une erreur est survenue.";
+      console.error("Erreur d'authentification:", err.code, err.message);
+      let errorMessage = "Une erreur est survenue lors de l'authentification.";
       switch (err.code) {
         case 'auth/invalid-email':
-          errorMessage = 'Adresse e-mail invalide.'; break;
+          errorMessage = 'Adresse e-mail invalide.';
+          break;
         case 'auth/user-disabled':
-          errorMessage = 'Ce compte a été désactivé.'; break;
+          errorMessage = 'Ce compte a été désactivé.';
+          break;
         case 'auth/user-not-found':
+          errorMessage = 'Adresse e-mail ou mot de passe incorrect.';
+          break;
         case 'auth/wrong-password':
-        case 'auth/invalid-credential':
-          errorMessage = 'Adresse e-mail ou mot de passe incorrect.'; break;
+          errorMessage = 'Adresse e-mail ou mot de passe incorrect.';
+          break;
         case 'auth/email-already-in-use':
-          errorMessage = 'Cette adresse e-mail est déjà utilisée.'; break;
+          errorMessage = 'Cette adresse e-mail est déjà utilisée.';
+          break;
         case 'auth/weak-password':
-          errorMessage = 'Mot de passe trop faible (6 caractères min).'; break;
+          errorMessage = 'Le mot de passe doit contenir au moins 6 caractères.';
+          break;
         case 'auth/network-request-failed':
-          errorMessage = 'Erreur réseau.'; break;
+          errorMessage = 'Erreur réseau. Veuillez vérifier votre connexion.';
+          break;
         default:
-          errorMessage = "Erreur inconnue.";
+          errorMessage = "Une erreur inattendue est survenue. Veuillez réessayer.";
+          break;
       }
       setError(errorMessage);
     } finally {
@@ -146,108 +171,81 @@ const AuthModal = ({ onClose }) => {
   const isDisabled = loading || loadingUser || !auth || !db;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4">
-      <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-sm text-center animate-fade-in-scale border border-primary/20 mx-auto">
-        <h2 className="text-2xl sm:text-3xl font-bold text-primary mb-6">
-          {isLogin ? 'Connexion' : 'Inscription'}
-        </h2>
-        <form onSubmit={handleAuth} className="space-y-4">
-          {!isLogin && (
-            <>
-              <div>
-                <label htmlFor="displayName" className="block text-left text-sm font-medium mb-1">Nom d'affichage</label>
-                <input
-                  type="text"
-                  id="displayName"
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm"
-                  placeholder="Votre nom ou pseudo"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  disabled={isDisabled}
-                />
-              </div>
-
-              <div className="text-5xl text-center mt-4">{avatar.startsWith('http') ? '🖼️' : avatar}</div>
-              <div className="flex justify-center my-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAvatarModal(true)}
-                  className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-md transition duration-300 ease-in-out text-sm"
-                  disabled={isDisabled}
-                >
-                  Choisir un avatar
-                </button>
-              </div>
-            </>
-          )}
-
+    <ListAndInfoModal title={isLogin ? "Connexion" : "Inscription"} onClose={onClose} sizeClass="max-w-xs sm:max-w-md">
+      <form onSubmit={handleAuth} className="space-y-4">
+        {!isLogin && (
           <div>
-            <label htmlFor="email" className="block text-left text-sm font-medium mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-700">Nom d'utilisateur</label>
             <input
-              type="email"
-              id="email"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-              placeholder="votre.email@exemple.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2"
               required
               disabled={isDisabled}
             />
           </div>
-
-          <div>
-            <label htmlFor="password" className="block text-left text-sm font-medium mb-1">Mot de passe</label>
-            <input
-              type="password"
-              id="password"
-              className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-              placeholder="Minimum 6 caractères"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={isDisabled}
-            />
-          </div>
-
-          {error && <p className="text-error text-sm mt-2">{error}</p>}
-
-          <button
-            type="submit"
-            className="w-full bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+        )}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2"
+            required
             disabled={isDisabled}
-          >
-            {loading ? 'Chargement...' : (isLogin ? 'Se connecter' : "S'inscrire")}
-          </button>
-        </form>
-
-        <div className="flex flex-col gap-3 mt-4">
-          <button
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-primary hover:underline text-sm"
-            disabled={isDisabled}
-          >
-            {isLogin ? "Pas de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
-          </button>
-          <button
-            onClick={onClose}
-            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
-            disabled={isDisabled}
-          >
-            Fermer
-          </button>
+          />
         </div>
-      </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-2"
+            required
+            disabled={isDisabled}
+          />
+        </div>
 
-      <AvatarSelectionModal
-        isOpen={showAvatarModal}
-        currentAvatar={avatar}
-        onClose={() => setShowAvatarModal(false)}
-        onAvatarSelected={(selected) => {
-          setAvatar(selected);
-          setShowAvatarModal(false);
-        }}
-      />
-    </div>
+        {!isLogin && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Choisissez votre avatar</label>
+            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 max-h-40 overflow-y-auto p-2 border rounded-md bg-gray-50 custom-scrollbar">
+              {avatars.map((avatar, index) => (
+                <div
+                  key={index}
+                  className={`flex items-center justify-center text-2xl sm:text-3xl p-1.5 rounded-full cursor-pointer transition-all duration-200
+                              ${selectedAvatar === avatar ? 'bg-primary text-white scale-110 shadow-lg' : 'hover:bg-gray-200'}`}
+                  onClick={() => setSelectedAvatar(avatar)}
+                >
+                  {avatar}
+                </div>
+              ))}
+            </div>
+            <p className="text-center text-gray-500 text-xs mt-2">Votre avatar actuel: <span className="text-xl align-middle">{selectedAvatar}</span></p>
+          </div>
+        )}
+
+        {error && <p className="text-error text-sm mt-2">{error}</p>}
+
+        <button
+          type="submit"
+          className="w-full bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 disabled:opacity-50"
+          disabled={isDisabled}
+        >
+          {loading ? 'Chargement...' : (isLogin ? 'Se connecter' : 'S\'inscrire')}
+        </button>
+      </form>
+      <button
+        onClick={() => setIsLogin(!isLogin)}
+        className="mt-4 w-full text-primary hover:text-secondary font-semibold text-sm transition duration-300"
+        disabled={isDisabled}
+      >
+        {isLogin ? "Pas de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
+      </button>
+    </ListAndInfoModal>
   );
 };
 

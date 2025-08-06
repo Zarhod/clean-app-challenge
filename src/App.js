@@ -1192,8 +1192,18 @@ function AppContent() {
         status: 'pending' 
       });
 
+      // Supprimer la réalisation
       await deleteDoc(doc(db, 'realizations', reportedTaskDetails.realizationId)); 
-      toast.success(`Tâche signalée et réalisation supprimée.`);
+
+      // 1️⃣ Remettre la tâche disponible (adapte les champs si besoin)
+      const reportedTaskRef = doc(db, 'tasks', reportedTaskDetails.id);
+      await updateDoc(reportedTaskRef, {
+        responsable: null,         // ou "" selon ton modèle
+        status: "disponible"       // adapte au nom réel du champ
+        // ... autres champs éventuels
+      });
+
+      toast.success(`Tâche signalée, réalisation supprimée et tâche remise disponible.`);
 
       const DEDUCTION_POINTS = 5;
       const reportedUserRef = doc(db, "users", reportedTaskDetails.reportedUserId);
@@ -1203,7 +1213,6 @@ function AppContent() {
         const reportedUserData = reportedUserSnap.data();
         const newTotalCumulativePoints = Math.max(0, (reportedUserData.totalCumulativePoints || 0) - DEDUCTION_POINTS);
         const newWeeklyPoints = Math.max(0, (reportedUserData.weeklyPoints || 0) - DEDUCTION_POINTS);
-        
         const newXP = Math.max(0, (reportedUserData.xp || 0) - DEDUCTION_POINTS);
         const { level: newLevel } = calculateLevelAndXP(newXP);
 
@@ -1236,6 +1245,7 @@ function AppContent() {
       setReportedTaskDetails(null);
     }
   };
+
 
 
   const handleParticipantClick = useCallback(async (participant) => {
@@ -1391,6 +1401,17 @@ function AppContent() {
     ];
     const medals = ['🥇', '🥈', '🥉'];
 
+    // Ordre: [2e, 1er, 3e] pour effet podium
+    const podiumIndices = [1, 0, 2];
+    const podiumStyles = [
+      // 2ème à gauche (plus petit)
+      { container: "flex flex-col items-center justify-end", avatar: "w-14 h-14 sm:w-20 sm:h-20", offset: "mb-2 sm:mb-4", medal: "text-2xl sm:text-3xl" },
+      // 1er au centre (grand)
+      { container: "flex flex-col items-center justify-end", avatar: "w-20 h-20 sm:w-28 sm:h-28", offset: "", medal: "text-3xl sm:text-4xl" },
+      // 3ème à droite (plus petit)
+      { container: "flex flex-col items-center justify-end", avatar: "w-14 h-14 sm:w-20 sm:h-20", offset: "mb-2 sm:mb-4", medal: "text-2xl sm:text-3xl" },
+    ];
+
     return (
       <div className="bg-card rounded-3xl p-5 mb-4 shadow-lg text-center space-y-4">
         {/* Compteur de tâches restantes */}
@@ -1407,20 +1428,22 @@ function AppContent() {
         {top3WithPoints.length === 0 ? (
           <p className="text-lg font-semibold text-lightText mt-8">Pas de classement pour le moment</p>
         ) : (
-          <div className="flex justify-center items-end gap-6">
-            {top3WithPoints.map((p, i) => {
-              const isTop = i === 0;
-              const sizeClass = isTop ? 'w-16 h-16 sm:w-20 sm:h-20' : 'w-12 h-12 sm:w-16 sm:h-16';
+          <div className="flex justify-center items-end gap-3 sm:gap-8 mt-8">
+            {podiumIndices.map((idx, col) => {
+              const p = top3WithPoints[idx];
+              if (!p) return <div key={col} className="flex-1" />; // pour garder l'espacement s'il manque un top
+              const style = podiumStyles[col];
               const avatar = getAvatarUrl(p);
               return (
                 <div
                   key={p.id || p.Nom_Participant}
-                  className={`flex flex-col items-center cursor-pointer ${isTop ? '-mb-6' : ''}`}
+                  className={`${style.container} ${style.offset} cursor-pointer`}
                   onClick={() => handleParticipantClick(p)}
+                  style={{ minWidth: "90px" }}
                 >
-                  <div className={`relative ${sizeClass}`}>
+                  <div className={`relative ${style.avatar}`}>
                     {/* Cercle avatar */}
-                    <div className={`${sizeClass} rounded-full overflow-hidden shadow-md ${bgClasses[i]}`}>
+                    <div className={`${style.avatar} rounded-full overflow-hidden shadow-md ${bgClasses[idx]} flex items-center justify-center`}>
                       {avatar ? (
                         <img
                           src={avatar}
@@ -1428,30 +1451,25 @@ function AppContent() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="flex items-center justify-center w-full h-full text-lg sm:text-5xl">
+                        <span className="flex items-center justify-center w-full h-full text-3xl sm:text-5xl select-none">
                           {p.Avatar || '👤'}
                         </span>
                       )}
                     </div>
-
                     {/* Médaille */}
                     <span
-                      className={`absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4 ${isTop ? 'text-3xl' : 'text-2xl'}`}
+                      className={`absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4 ${style.medal}`}
                       style={{ pointerEvents: 'none' }}
                     >
-                      {medals[i]}
+                      {medals[idx]}
                     </span>
                   </div>
-
                   {/* Nom */}
-                  <p className="mt-1 text-sm sm:text-base font-semibold text-text truncate w-24">
+                  <p className="mt-1 text-sm sm:text-base font-semibold text-text truncate w-24 text-center">
                     {p.Nom_Participant}
                   </p>
-
                   {/* Points */}
-                  <p className="text-xs text-lightText">
-                    {Number(p.Points_Total_Semaine_Courante || 0)} pts
-                  </p>
+                  <p className="text-xs text-lightText">{Number(p.Points_Total_Semaine_Courante || 0)} pts</p>
                 </div>
               );
             })}
@@ -1470,8 +1488,6 @@ function AppContent() {
             >
               Voir le classement complet
             </button>
-
-            {/* Séparateur */}
             <div className="border-t border-neutralBg my-4"></div>
           </>
         )}
@@ -1496,6 +1512,7 @@ function AppContent() {
       </div>
     );
   };
+
 
     const renderHighlightsContent = () => {
       let mostImproved = null;
@@ -1663,7 +1680,6 @@ function AppContent() {
     );
   };
 
-
   const renderTaskCategories = () => {
     const categories = [
       { name: 'tous', label: 'Communs' },
@@ -1673,7 +1689,8 @@ function AppContent() {
 
     const currentCategoryTasks = taches.filter(tache => {
       if (activeTaskCategory === 'tous') {
-        return true;
+        // Filtre uniquement la catégorie "Tous" (attention majuscule !)
+        return tache.Categorie?.toLowerCase() === 'tous';
       }
       return tache.Categorie?.toLowerCase() === activeTaskCategory;
     });
@@ -1689,50 +1706,49 @@ function AppContent() {
         t => (t.Frequence || 'hebdomadaire').toLowerCase() === freq
       );
 
-  const renderTasksList = (tasks) => {
-    const visible = tasks.filter(t => !isTaskHidden(t) && !t.Parent_Task_ID);
-    if (!visible.length) {
+    const renderTasksList = (tasks) => {
+      const visible = tasks.filter(t => !isTaskHidden(t) && !t.Parent_Task_ID);
+      if (!visible.length) {
+        return (
+          <p className="text-center text-lightText text-base py-2">
+            Aucune tâche disponible.
+          </p>
+        );
+      }
       return (
-        <p className="text-center text-lightText text-base py-2">
-          Aucune tâche disponible.
-        </p>
-      );
-    }
-    return (
-      <div className="space-y-4">
-        {visible.map(t => (
-          <div
-            key={t.ID_Tache}
-            onClick={() => handleTaskClick(t)}
-            className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center p-4 bg-card rounded-2xl shadow hover:shadow-lg transition-shadow duration-200 border border-transparent hover:border-primary max-w-full cursor-pointer"
-          >
-            <div className="flex-1 min-w-0 max-w-full">
-              <h4 className="text-lg font-bold break-words bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
-                {t.Nom_Tache}
-              </h4>
-              {t.isGroupTask && (
-                <span className="inline-block mt-1 px-2 py-0.5 bg-primary/20 text-primary text-xs font-medium rounded-full">
-                  Groupe
+        <div className="space-y-4">
+          {visible.map(t => (
+            <div
+              key={t.ID_Tache}
+              onClick={() => handleTaskClick(t)}
+              className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center p-4 bg-card rounded-2xl shadow hover:shadow-lg transition-shadow duration-200 border border-transparent hover:border-primary max-w-full cursor-pointer"
+            >
+              <div className="flex-1 min-w-0 max-w-full">
+                <h4 className="text-lg font-bold break-words bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                  {t.Nom_Tache}
+                </h4>
+                {t.isGroupTask && (
+                  <span className="inline-block mt-1 px-2 py-0.5 bg-primary/20 text-primary text-xs font-medium rounded-full">
+                    Groupe
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center space-x-2 mt-3 sm:mt-0 shrink-0">
+                <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getUrgencyClasses(t.Urgence)}`}>
+                  {t.Urgence || 'Normal'}
                 </span>
-              )}
+                <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getFrequencyClasses(t.Frequence)}`}>
+                  {t.Frequence || 'Hebdo'}
+                </span>
+                <span className="px-2 py-0.5 text-xs font-bold rounded bg-secondary/10 text-secondary">
+                  {t.Calculated_Points} pts
+                </span>
+              </div>
             </div>
-            <div className="flex items-center space-x-2 mt-3 sm:mt-0 shrink-0">
-              <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getUrgencyClasses(t.Urgence)}`}>
-                {t.Urgence || 'Normal'}
-              </span>
-              <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getFrequencyClasses(t.Frequence)}`}>
-                {t.Frequence || 'Hebdo'}
-              </span>
-              <span className="px-2 py-0.5 text-xs font-bold rounded bg-secondary/10 text-secondary">
-                {t.Calculated_Points} pts
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
+          ))}
+        </div>
+      );
+    };
 
     return (
       <div className="bg-card rounded-3xl p-6 shadow-lg space-y-6">
@@ -1954,7 +1970,6 @@ function AppContent() {
       ? Math.min(((profileData.xp || 0) / xpNeededForNextLevel) * 100, 100)
       : 0;
 
-    // === 🔥 MAPPING des badges débloqués 🔥 ===
     const userBadgesObj = profileData.badges || {};
     const unlockedBadges = BADGES
       .map(badge => {
@@ -1964,19 +1979,39 @@ function AppContent() {
             ...badge,
             unlockedAt: badgeState.unlockedAt,
             isUnlocked: true,
-            ownersCount: badge.ownersCount // optionnel, sinon calcule dynamiquement
+            ownersCount: badge.ownersCount
           };
         }
         return null;
       })
       .filter(Boolean);
 
+    const isPhoto = profileData.avatar && profileData.avatar.startsWith('http');
+
     return (
       <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 mb-8 text-center max-w-3xl mx-auto">
         {/* Avatar + Level */}
-        <div className="relative inline-block">
-          <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-primary shadow-lg mx-auto">
-            <img src={profileData.avatar} alt="Avatar" className="w-full h-full object-cover" />
+        <div className="relative inline-block mb-3">
+          <div className={
+            `w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-primary shadow-lg mx-auto flex items-center justify-center
+            ${!isPhoto ? 'bg-gradient-to-br from-blue-200 via-fuchsia-100 to-pink-200' : 'bg-white'}`
+          }>
+            {profileData.avatar ? (
+              isPhoto ? (
+                <img src={profileData.avatar} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span
+                  aria-label="Avatar Emoji"
+                  role="img"
+                  className="select-none w-full h-full flex items-center justify-center text-[2.7rem] sm:text-[3.4rem]"
+                  style={{ lineHeight: "1" }}
+                >
+                  {profileData.avatar}
+                </span>
+              )
+            ) : (
+              <span className="text-gray-400 text-4xl">?</span>
+            )}
           </div>
           <div className="absolute bottom-0 right-0 bg-primary text-white rounded-full p-2 shadow-md transform translate-x-2 translate-y-2">
             <span className="text-sm font-bold">Niv. {level}</span>
@@ -1988,53 +2023,9 @@ function AppContent() {
           {profileData.displayName || profileData.email}
         </h2>
 
-        {/* XP Bar */}
-        <div className="mt-4 w-full max-w-lg mx-auto">
-          <div className="relative h-6 bg-gray-200 rounded-full overflow-hidden shadow-inner">
-            <div
-              className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 animate-progress-bar"
-              style={{ width: `${xpProgress}%`, transition: 'width 1s ease-out' }}
-            />
-            <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white">
-              {profileData.xp || 0} / {xpNeededForNextLevel}
-            </span>
-          </div>
-        </div>
-
-        {/* Engagement Score */}
-        <div className="mt-6">
-          <p className="text-text">Score d'Engagement Global</p>
-          <p className="text-2xl font-bold text-primary">{engagementPercentage}%</p>
-        </div>
-
-        {/* Cumulative Points Pill */}
-        <div className="mt-4 w-full max-w-xs sm:max-w-sm mx-auto bg-primary/10 px-6 py-2 rounded-full shadow-sm text-center">
-          <span className="text-sm text-text font-medium">Points Cumulatifs: </span>
-          <span className="text-sm font-bold text-primary ml-1">{totalPoints}</span>
-        </div>
-
-        {/* === CAROUSEL BADGES MODERNE & RESPONSIVE === */}
-        <div className="w-full flex justify-center my-10">
-          <div
-            className="
-              badge-widget-glassy
-              w-full
-              max-w-2xl
-              px-1
-              mx-auto
-              transition-all
-              duration-200
-              shadow-2xl
-              rounded-[2.5rem]
-            "
-          >
-            <BadgeCarousel badges={unlockedBadges} />
-          </div>
-        </div>
-
         {/* Actions */}
         {isCurrentUser && (
-          <div className="mt-6 flex justify-center space-x-4">
+          <div className="mt-4 flex justify-center space-x-4">
             <button
               onClick={() => setShowProfileEditOptionsModal(true)}
               className="bg-primary hover:bg-primary/80 text-white px-6 py-2 rounded-full shadow-lg transition-transform hover:scale-105"
@@ -2054,6 +2045,56 @@ function AppContent() {
             </button>
           </div>
         )}
+
+        {/* XP Bar */}
+        <div className="mt-6 w-full max-w-lg mx-auto">
+          <label className="block text-xs text-lightText mb-1 font-medium">
+            Barre d'expérience
+          </label>
+          <div className="relative h-7 bg-gray-100 rounded-full overflow-hidden shadow-inner border border-gray-200">
+            <div
+              className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 via-purple-400 to-pink-400"
+              style={{ width: `${xpProgress}%`, transition: 'width 1s ease-out' }}
+            />
+            <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-primary">
+              {profileData.xp || 0} XP / {xpNeededForNextLevel}
+            </span>
+          </div>
+          <div className="text-xs text-lightText mt-1">
+            Gagnez des XP pour monter de niveau !
+          </div>
+        </div>
+
+        {/* Engagement Score */}
+        <div className="mt-6">
+          <p className="text-text">Score d'Engagement Global</p>
+          <p className="text-2xl font-bold text-primary">{engagementPercentage}%</p>
+        </div>
+
+        {/* Cumulative Points Pill */}
+        <div className="mt-4 w-full max-w-xs sm:max-w-sm mx-auto bg-primary/10 px-6 py-2 rounded-full shadow-sm text-center">
+          <span className="text-sm text-text font-medium">Points Cumulatifs : </span>
+          <span className="text-sm font-bold text-primary ml-1">{totalPoints}</span>
+        </div>
+
+        {/* Badges */}
+        <div className="w-full flex justify-center my-10">
+          <div
+            className="
+              badge-widget-glassy
+              w-full
+              max-w-2xl
+              px-1
+              mx-auto
+              transition-all
+              duration-200
+              shadow-2xl
+              rounded-[2.5rem]
+            "
+          >
+            <BadgeCarousel badges={unlockedBadges} />
+          </div>
+        </div>
 
         {/* Weekly Tasks */}
         <div className="mt-8 space-y-4 text-left">
@@ -2087,6 +2128,7 @@ function AppContent() {
       </div>
     );
   };
+
 
 
   const renderConfirmResetModal = () => {

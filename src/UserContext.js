@@ -18,7 +18,7 @@ try {
   if (!firebaseConfig.projectId || !firebaseConfig.apiKey || !firebaseConfig.authDomain) {
     firebaseInitializationError = new Error(
       "CRITIQUE : La configuration Firebase est incomplète. " +
-      "Veuillez vous assurer que les secrets Cloudflare Pages (REACT_APP_FIREBASE_...) sont correctement définis."
+      "Veuillez vérifier vos variables d'environnement."
     );
     console.error(firebaseInitializationError.message);
   } else {
@@ -28,7 +28,7 @@ try {
     firebaseStorageInstance = getStorage(firebaseAppInstance);
   }
 } catch (error) {
-  firebaseInitializationError = new Error(`Erreur critique lors de l'initialisation de Firebase : ${error.message}`);
+  firebaseInitializationError = new Error(`Erreur lors de l'initialisation Firebase : ${error.message}`);
   console.error(firebaseInitializationError.message, error);
 }
 
@@ -50,7 +50,11 @@ export const UserProvider = ({ children }) => {
       maxXpInOneTask: 0,
     };
     const newStats = { ...defaultStats, ...existingStats };
+
+    // Mise à jour partielle de 'stats'
+    // IMPORTANT : updateDoc avec un objet complet 'stats'
     await updateDoc(userRef, { stats: newStats });
+
     return newStats;
   };
 
@@ -164,7 +168,7 @@ export const UserProvider = ({ children }) => {
     const storageRef = ref(storage, `avatars/${auth.currentUser.uid}`);
 
     const metadata = {
-      contentDisposition: 'inline', // ✅ Pour affichage direct
+      contentDisposition: 'inline', // Affichage direct
       contentType: file.type,
     };
 
@@ -172,7 +176,6 @@ export const UserProvider = ({ children }) => {
     const url = await getDownloadURL(storageRef);
     return `${url}?alt=media`;
   };
-
 
   const updateUserAvatar = async (newAvatar) => {
     if (!auth?.currentUser || !db) return;

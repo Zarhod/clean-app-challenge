@@ -1,4 +1,3 @@
-// src/components/Navbar.js
 import React, { useState, useEffect, useRef, useCallback } from "react";
 
 const Navbar = ({
@@ -55,14 +54,24 @@ const Navbar = ({
       : [])
   ];
 
+  // --- DÉTECTION : admin présent ou non ? ---
+  const showAdmin = navItems.some(item => item.key === "adminPanel");
+
   return (
-    // nav avec padding horizontal symétrique
     <nav className="w-full flex justify-center mb-6 sm:mb-8 px-4 sm:px-6">
       <div
         ref={containerRef}
-        className="relative flex items-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar
-                   bg-white/50 backdrop-blur-md border border-white/30 shadow-lg rounded-full
-                   px-4 sm:px-6 py-1 w-full max-w-screen-xl mx-auto"
+        className={`
+          relative
+          ${showAdmin ? "flex w-full max-w-screen-xl" : "inline-flex w-auto"}
+          items-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar
+          bg-white/50 backdrop-blur-md border border-white/30 shadow-lg rounded-full
+          px-4 sm:px-6 py-1 mx-auto
+          ${showAdmin ? "justify-start" : "justify-center"}
+        `}
+        style={{
+          minWidth: showAdmin ? undefined : "min-content",
+        }}
       >
         {/* Curseur animé */}
         <div
