@@ -54,59 +54,63 @@ const Navbar = ({
       : [])
   ];
 
-  // --- DÉTECTION : admin présent ou non ? ---
-  const showAdmin = navItems.some(item => item.key === "adminPanel");
-
   return (
     <nav className="w-full flex justify-center mb-6 sm:mb-8 px-4 sm:px-6">
       <div
         ref={containerRef}
-        className={`
+        className="
           relative
-          ${showAdmin ? "flex w-full max-w-screen-xl" : "inline-flex w-auto"}
-          items-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar
+          w-full max-w-screen-xl
+          overflow-x-auto no-scrollbar
           bg-white/50 backdrop-blur-md border border-white/30 shadow-lg rounded-full
-          px-4 sm:px-6 py-1 mx-auto
-          ${showAdmin ? "justify-start" : "justify-center"}
-        `}
-        style={{
-          minWidth: showAdmin ? undefined : "min-content",
-        }}
+          mx-auto
+        "
+        style={{ WebkitOverflowScrolling: "touch" }} // scroll fluide iOS
       >
-        {/* Curseur animé */}
         <div
-          className={`absolute top-1 bottom-1 rounded-full transition-all duration-300 ease-out shadow-md
-                      ${activeMainView === "adminPanel" ? "bg-red-500" : "bg-primary/90"}`}
-          style={{
-            left: activeButtonPos.left,
-            width: activeButtonPos.width
-          }}
-        />
-        {navItems.map((item) => {
-          const isActive = activeMainView === item.key;
-          const isAdminPanel = item.key === "adminPanel";
-          return (
-            <button
-              key={item.key}
-              ref={(el) => (buttonsRef.current[item.key] = el)}
-              onClick={() => {
-                item.action();
-                updateActivePos();
-              }}
-              className={`relative z-10 py-2 px-4 sm:px-6 whitespace-nowrap rounded-full font-bold text-sm 
-                          transition duration-300 ease-in-out flex-shrink-0
-                          ${
-                            isActive
-                              ? "text-white"
-                              : isAdminPanel
-                              ? "text-red-500 hover:text-red-600"
-                              : "text-gray-700 hover:text-primary"
-                          }`}
-            >
-              {item.label}
-            </button>
-          );
-        })}
+          className="
+            flex items-center gap-2 sm:gap-4
+            min-w-max
+            px-4 sm:px-6 py-1
+            justify-start
+            relative
+          "
+        >
+          {/* Curseur animé */}
+          <div
+            className={`absolute top-1 bottom-1 rounded-full transition-all duration-300 ease-out shadow-md
+                        ${activeMainView === "adminPanel" ? "bg-red-500" : "bg-primary/90"}`}
+            style={{
+              left: activeButtonPos.left,
+              width: activeButtonPos.width
+            }}
+          />
+          {navItems.map((item) => {
+            const isActive = activeMainView === item.key;
+            const isAdminPanel = item.key === "adminPanel";
+            return (
+              <button
+                key={item.key}
+                ref={(el) => (buttonsRef.current[item.key] = el)}
+                onClick={() => {
+                  item.action();
+                  updateActivePos();
+                }}
+                className={`relative z-10 py-2 px-4 sm:px-6 whitespace-nowrap rounded-full font-bold text-sm 
+                            transition duration-300 ease-in-out flex-shrink-0
+                            ${
+                              isActive
+                                ? "text-white"
+                                : isAdminPanel
+                                ? "text-red-500 hover:text-red-600"
+                                : "text-gray-700 hover:text-primary"
+                            }`}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );
