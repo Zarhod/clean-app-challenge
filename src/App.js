@@ -702,6 +702,7 @@ function AppContent() {
 
   useEffect(() => {
     const fetchClassement = async () => {
+      if (!db || !auth?.currentUser) return;  // <--- AJOUT
       try {
         const querySnapshot = await getDocs(collection(db, "users"));
         const data = querySnapshot.docs.map(doc => ({
@@ -715,7 +716,7 @@ function AppContent() {
     };
 
     fetchClassement();
-  }, [db]);
+  }, [db, auth?.currentUser]); // <--- Ajoute auth?.currentUser dans les deps
 
   useEffect(() => {
     if (
