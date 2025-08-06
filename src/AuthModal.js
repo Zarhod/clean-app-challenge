@@ -1,4 +1,4 @@
-import React, { useState, Fragment } from 'react';
+import React, { useState, Fragment, useEffect } from 'react';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -16,8 +16,8 @@ import { Dialog, Transition } from '@headlessui/react';
 
 const DEFAULT_AVATAR = '😀';
 
-// Liste étendue d'emojis
-const avatarOptions = [
+// Liste d'emojis unique et stylée (sans doublons)
+const avatarOptions = Array.from(new Set([
   '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
   '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
   '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🥸',
@@ -29,7 +29,7 @@ const avatarOptions = [
   '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠',
   '😈', '👿', '👹', '🤡', '💩', '👻', '💀', '☠️', '👽',
   '👾', '🤖', '👀'
-];
+]));
 
 const AuthModal = ({ onClose }) => {
   const { auth, db, loadingUser, setCurrentUser } = useUser();
@@ -42,8 +42,7 @@ const AuthModal = ({ onClose }) => {
   const [showEmojiModal, setShowEmojiModal] = useState(false);
   const [error, setError] = useState('');
 
-  // Réinitialisation des champs à chaque changement de mode (login/inscription)
-  React.useEffect(() => {
+  useEffect(() => {
     setEmail('');
     setPassword('');
     setDisplayName('');
@@ -125,18 +124,27 @@ const AuthModal = ({ onClose }) => {
       let errorMessage = "Une erreur est survenue lors de l'authentification.";
       switch (err.code) {
         case 'auth/invalid-email':
-          errorMessage = 'Adresse e-mail invalide.'; break;
+          errorMessage = 'Adresse e-mail invalide.';
+          break;
         case 'auth/user-disabled':
-          errorMessage = 'Ce compte a été désactivé.'; break;
+          errorMessage = 'Ce compte a été désactivé.';
+          break;
         case 'auth/user-not-found':
         case 'auth/wrong-password':
-          errorMessage = 'Adresse e-mail ou mot de passe incorrect.'; break;
+          errorMessage = 'Adresse e-mail ou mot de passe incorrect.';
+          break;
         case 'auth/email-already-in-use':
-          errorMessage = 'Cette adresse e-mail est déjà utilisée.'; break;
+          errorMessage = 'Cette adresse e-mail est déjà utilisée.';
+          break;
         case 'auth/weak-password':
-          errorMessage = 'Le mot de passe doit contenir au moins 6 caractères.'; break;
+          errorMessage = 'Le mot de passe doit contenir au moins 6 caractères.';
+          break;
         case 'auth/network-request-failed':
-          errorMessage = 'Erreur réseau. Veuillez vérifier votre connexion.'; break;
+          errorMessage = 'Erreur réseau. Veuillez vérifier votre connexion.';
+          break;
+        default:
+          errorMessage = "Une erreur inattendue est survenue. Veuillez réessayer.";
+          break;
       }
       setError(errorMessage);
     } finally {
