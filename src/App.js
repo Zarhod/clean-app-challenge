@@ -32,10 +32,12 @@ import { UserProvider, useUser } from './UserContext';
 // TaskConfirmModal gère maintenant les tâches simples et complexes
 import TaskConfirmModal from './TaskConfirmModal'; 
 import RankingCardModal from './RankingCard';
-import Navbar from './components/Navbar'; // adapte le chemin si besoin
+import Navbar from './components/Navbar';
 import { LogOut } from 'lucide-react';
-
-
+import checkAndAssignBadges from './utils/checkAndAssignBadges';
+import BadgePopup from './components/BadgePopup';
+import BadgeCarousel from "./components/BadgeCarousel";
+import BADGES from './utils/badges';
 
 const LOGO_FILENAME = 'logo.png'; 
 
@@ -58,7 +60,9 @@ function AppContent() {
   const [selectedTask, setSelectedTask] = useState(null); 
   const [showThankYouPopup, setShowThankYouPopup] = useState(null); 
   const [showConfetti, setShowConfetti] = useState(false); 
-  
+  const [badgeQueue, setBadgeQueue] = useState([]); // tableau de badges à afficher (FIFO)
+  const [showingBadge, setShowingBadge] = useState(null);
+
   const [activeMainView, setActiveMainView] = useState('home'); 
   const [activeTaskCategory, setActiveTaskCategory] = useState('tous'); 
 
@@ -160,101 +164,127 @@ function AppContent() {
 
   // Gère la confirmation d'une tâche (appelée par TaskConfirmModal)
   const handleTaskConfirmation = async ({ selectedSubs, points }) => {
-      if (!currentUser) {
-        toast.warn('Veuillez vous connecter pour valider une tâche.');
-        setShowAuthModal(true);
-        return;
-      }
+    if (!currentUser) {
+      toast.warn('Veuillez vous connecter pour valider une tâche.');
+      setShowAuthModal(true);
+      return;
+    }
 
-      setLoadingConfirm(true);
-      try {
-        const now = new Date();
-        const batch = writeBatch(db); 
+    setLoadingConfirm(true);
+    try {
+      const now = new Date();
+      const batch = writeBatch(db);
 
-        let totalPointsGained = 0;
-        // Détermine si on traite des sous-tâches sélectionnées ou la tâche principale
-        const itemsToProcess = selectedSubs.length > 0 ? selectedSubs : [selectedTask]; 
+      let totalPointsGained = 0;
+      const itemsToProcess = selectedSubs.length > 0 ? selectedSubs : [selectedTask];
 
-        for (const item of itemsToProcess) {
-          const taskId = item.ID_Tache; 
-          const taskName = item.Nom_Tache;
-          const taskPoints = parseFloat(item.Points) || 0;
-          const taskCategory = item.Categorie || 'Non catégorisée';
-          const taskFrequence = item.Frequence; // Récupère la fréquence pour la suppression ponctuelle
+      for (const item of itemsToProcess) {
+        const taskId = item.ID_Tache;
+        const taskName = item.Nom_Tache;
+        const taskPoints = parseFloat(item.Points) || 0;
+        const taskCategory = item.Categorie || 'Non catégorisée';
+        const taskFrequence = item.Frequence;
 
-          totalPointsGained += taskPoints;
+        totalPointsGained += taskPoints;
 
-          batch.set(doc(collection(db, 'realizations')), {
-            taskId: taskId,
-            userId: currentUser.uid,
-            nomParticipant: currentUser.displayName || currentUser.email,
-            nomTacheEffectuee: taskName,
-            categorieTache: taskCategory,
-            pointsGagnes: taskPoints,
-            timestamp: now.toISOString(),
-            parentTaskId: selectedSubs.length > 0 ? selectedTask.ID_Tache : null, 
-          });
+        batch.set(doc(collection(db, 'realizations')), {
+          taskId: taskId,
+          userId: currentUser.uid,
+          nomParticipant: currentUser.displayName || currentUser.email,
+          nomTacheEffectuee: taskName,
+          categorieTache: taskCategory,
+          pointsGagnes: taskPoints,
+          timestamp: now.toISOString(),
+          parentTaskId: selectedSubs.length > 0 ? selectedTask.ID_Tache : null,
+        });
 
-          // Si la tâche (ou sous-tâche) est ponctuelle, ajouter sa suppression au batch
-          if (String(taskFrequence || '').toLowerCase() === 'ponctuel') {
-            const taskDocToDelete = allRawTaches.find(t => String(t.ID_Tache) === String(taskId));
-            if (taskDocToDelete) {
-              batch.delete(doc(db, 'tasks', taskDocToDelete.id));
-            }
+        // Ponctuel = suppression après réalisation
+        if (String(taskFrequence || '').toLowerCase() === 'ponctuel') {
+          const taskDocToDelete = allRawTaches.find(t => String(t.ID_Tache) === String(taskId));
+          if (taskDocToDelete) {
+            batch.delete(doc(db, 'tasks', taskDocToDelete.id));
           }
         }
-
-        const userRef = doc(db, 'users', currentUser.uid);
-        const userSnap = await getDoc(userRef);
-  
-        if (userSnap.exists()) {
-          const userData = userSnap.data();
-          const updatedXP = (userData.xp || 0) + totalPointsGained;
-  
-          batch.update(userRef, {
-            xp: updatedXP,
-            weeklyPoints: (userData.weeklyPoints || 0) + totalPointsGained,
-            totalCumulativePoints: (userData.totalCumulativePoints || 0) + totalPointsGained,
-          });
-  
-          const { newLevel } = calculateLevelAndXP(updatedXP);
-          if (newLevel > (userData.level || 1)) {
-            confetti({
-              particleCount: 150,
-              spread: 90,
-              origin: { y: 0.6, x: 0.5 }, 
-              colors: ['#a8e6cf', '#dcedc1', '#ffd3b6', '#ffaaa5', '#ff8b94', '#6a0dad', '#800080', '#ffc0cb', '#0000ff'] 
-            });
-            toast.success(`Félicitations ! Vous avez atteint le niveau ${newLevel} !`);
-          }
-
-          setCurrentUser(prevUser => ({
-            ...prevUser,
-            xp: updatedXP,
-            weeklyPoints: (userData.weeklyPoints || 0) + totalPointsGained,
-            totalCumulativePoints: (userData.totalCumulativePoints || 0) + totalPointsGained,
-            level: newLevel
-          }));
-        }
-        await batch.commit(); 
-
-        const completedTaskNames = itemsToProcess.map(t => t.Nom_Tache).join(', ');
-        const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
-        setShowThankYouPopup({ name: currentUser.displayName || currentUser.email, task: completedTaskNames, message: randomMessage }); 
-        setShowConfetti(true); 
-        
-        toast.success("Tâche(s) validée(s) !");
-        
-      } catch (error) {
-        console.error("Erreur de validation :", error);
-        toast.error("Erreur lors de la validation de la tâche.");
-      } finally {
-        setLoadingConfirm(false);
-        setShowTaskModal(false); 
-        setSelectedTask(null); 
       }
-    };
 
+      const userRef = doc(db, 'users', currentUser.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        const updatedXP = (userData.xp || 0) + totalPointsGained;
+
+        batch.update(userRef, {
+          xp: updatedXP,
+          weeklyPoints: (userData.weeklyPoints || 0) + totalPointsGained,
+          totalCumulativePoints: (userData.totalCumulativePoints || 0) + totalPointsGained,
+        });
+
+        const { newLevel } = calculateLevelAndXP(updatedXP);
+        if (newLevel > (userData.level || 1)) {
+          confetti({
+            particleCount: 150,
+            spread: 90,
+            origin: { y: 0.6, x: 0.5 },
+            colors: ['#a8e6cf', '#dcedc1', '#ffd3b6', '#ffaaa5', '#ff8b94', '#6a0dad', '#800080', '#ffc0cb', '#0000ff']
+          });
+          toast.success(`Félicitations ! Vous avez atteint le niveau ${newLevel} !`);
+        }
+
+        setCurrentUser(prevUser => ({
+          ...prevUser,
+          xp: updatedXP,
+          weeklyPoints: (userData.weeklyPoints || 0) + totalPointsGained,
+          totalCumulativePoints: (userData.totalCumulativePoints || 0) + totalPointsGained,
+          level: newLevel
+        }));
+      }
+
+      await batch.commit();
+
+      // ============ BADGES AUTOMATIQUES =============
+      const updatedUserSnap = await getDoc(userRef);
+      const updatedUser = { id: userRef.id, ...updatedUserSnap.data() };
+
+      // Toutes les réalisations du user
+      const realizationsSnap = await getDocs(
+        query(collection(db, 'realizations'), where('userId', '==', currentUser.uid))
+      );
+      const realisations = realizationsSnap.docs.map(doc => doc.data());
+
+      // Toutes les tâches (pour les règles)
+      const tasksSnap = await getDocs(collection(db, 'tasks'));
+      const tasks = tasksSnap.docs.map(doc => doc.data());
+
+      // Attribue les badges et affiche le popup en temps réel
+      await checkAndAssignBadges(
+        updatedUser,
+        realisations,
+        tasks,
+        db,
+        (newBadge) => {
+          // Ouvre la modale ou l'animation du badge obtenu
+          showBadgePopup(newBadge); // (à remplacer par ton vrai composant/popup !)
+        }
+      );
+      // ==============================================
+
+      // Reste du feedback
+      const completedTaskNames = itemsToProcess.map(t => t.Nom_Tache).join(', ');
+      const randomMessage = congratulatoryMessages[Math.floor(Math.random() * congratulatoryMessages.length)]?.Texte_Message || "Bravo pour votre excellent travail !";
+      setShowThankYouPopup({ name: currentUser.displayName || currentUser.email, task: completedTaskNames, message: randomMessage });
+      setShowConfetti(true);
+
+      toast.success("Tâche(s) validée(s) !");
+    } catch (error) {
+      console.error("Erreur de validation :", error);
+      toast.error("Erreur lors de la validation de la tâche.");
+    } finally {
+      setLoadingConfirm(false);
+      setShowTaskModal(false);
+      setSelectedTask(null);
+    }
+  };
 
   const [participantWeeklyTasks, setParticipantWeeklyTasks] = useState([]); 
   const [totalGlobalCumulativePoints, setTotalGlobalCumulativePoints] = useState(0); 
@@ -350,6 +380,11 @@ function AppContent() {
     }
   }, [currentUser, selectedParticipantProfile]);
 
+  const showBadgePopup = (badge) => {
+    setBadgeQueue(prevQueue => [...prevQueue, badge]);
+  };
+
+  const handleCloseBadge = () => setShowingBadge(null);
 
   // Fonction pour calculer le récapitulatif de la semaine précédente
   const calculateWeeklyRecap = useCallback((userId, displayName, allRealisations, allHistoricalPodiums) => {
@@ -682,6 +717,16 @@ function AppContent() {
     fetchClassement();
   }, [db]);
 
+  useEffect(() => {
+    if (
+      !showingBadge &&
+      badgeQueue.length > 0 &&
+      !showThankYouPopup // <--- remplace par ton vrai state
+    ) {
+      setShowingBadge(badgeQueue[0]);
+      setBadgeQueue(prev => prev.slice(1));
+    }
+  }, [badgeQueue, showingBadge, showThankYouPopup]);
 
   // Deuxième useEffect: Calcul et affichage du récapitulatif hebdomadaire
   useEffect(() => {
@@ -1629,7 +1674,20 @@ function AppContent() {
               <button
                 key={cat.name}
                 onClick={() => setActiveTaskCategory(cat.name)}
-                className={`px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 shadow-md ${isActive ? activeBg : inactiveBg}`}
+                className={`
+                  px-5 py-2
+                  sm:px-6 sm:py-2.5
+                  rounded-full
+                  text-sm sm:text-base
+                  font-semibold
+                  transition-all duration-200 shadow-md
+                  whitespace-nowrap
+                  ${isActive ? activeBg : inactiveBg}
+                `}
+                style={{
+                  minWidth: '96px',
+                  maxWidth: '180px'
+                }}
               >
                 {cat.label}
               </button>
@@ -1660,6 +1718,7 @@ function AppContent() {
       </div>
     );
   };
+
   
   const renderCompletedTasks = () => {
     if (!Array.isArray(realisations) || realisations.length === 0) {
@@ -1790,118 +1849,157 @@ function AppContent() {
     );
   };
 
+  const renderParticipantProfile = () => {
+    if (!selectedParticipantProfile) return null;
 
-const renderParticipantProfile = () => {
-  if (!selectedParticipantProfile) return null;
+    const isCurrentUser = currentUser && selectedParticipantProfile.id === currentUser.uid;
+    const profileData = isCurrentUser ? currentUser : selectedParticipantProfile;
+    const totalPoints = profileData.totalCumulativePoints || 0;
+    const engagementPercentage = totalGlobalCumulativePoints
+      ? ((totalPoints / totalGlobalCumulativePoints) * 100).toFixed(1)
+      : 0;
 
-  const isCurrentUser = currentUser && selectedParticipantProfile.id === currentUser.uid;
-  const profileData = isCurrentUser ? currentUser : selectedParticipantProfile;
-  const totalPoints = profileData.totalCumulativePoints || 0;
-  const engagementPercentage = totalGlobalCumulativePoints
-    ? ((totalPoints / totalGlobalCumulativePoints) * 100).toFixed(1)
-    : 0;
+    const level = profileData.level || 1;
+    const { xpNeededForNextLevel } = calculateLevelAndXP(profileData.xp || 0);
+    const xpProgress = xpNeededForNextLevel
+      ? Math.min(((profileData.xp || 0) / xpNeededForNextLevel) * 100, 100)
+      : 0;
 
-  const level = profileData.level || 1;
-  const { xpNeededForNextLevel } = calculateLevelAndXP(profileData.xp || 0);
-  const xpProgress = xpNeededForNextLevel
-    ? Math.min(((profileData.xp || 0) / xpNeededForNextLevel) * 100, 100)
-    : 0;
+    // === 🔥 MAPPING des badges débloqués 🔥 ===
+    const userBadgesObj = profileData.badges || {};
+    const unlockedBadges = BADGES
+      .map(badge => {
+        const badgeState = userBadgesObj[badge.id];
+        if (badgeState && badgeState.unlocked) {
+          return {
+            ...badge,
+            unlockedAt: badgeState.unlockedAt,
+            isUnlocked: true,
+            ownersCount: badge.ownersCount // optionnel, sinon calcule dynamiquement
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
 
-  return (
-    <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 mb-8 text-center">
-      {/* Avatar + Level */}
-      <div className="relative inline-block">
-        <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-primary shadow-lg mx-auto">
-          <img src={profileData.avatar} alt="Avatar" className="w-full h-full object-cover" />
+    return (
+      <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 mb-8 text-center max-w-3xl mx-auto">
+        {/* Avatar + Level */}
+        <div className="relative inline-block">
+          <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-primary shadow-lg mx-auto">
+            <img src={profileData.avatar} alt="Avatar" className="w-full h-full object-cover" />
+          </div>
+          <div className="absolute bottom-0 right-0 bg-primary text-white rounded-full p-2 shadow-md transform translate-x-2 translate-y-2">
+            <span className="text-sm font-bold">Niv. {level}</span>
+          </div>
         </div>
-        <div className="absolute bottom-0 right-0 bg-primary text-white rounded-full p-2 shadow-md transform translate-x-2 translate-y-2">
-          <span className="text-sm font-bold">Niv. {level}</span>
-        </div>
-      </div>
 
-      {/* Name */}
-      <h2 className="mt-4 text-2xl sm:text-3xl font-extrabold text-secondary">
-        {profileData.displayName || profileData.email}
-      </h2>
+        {/* Name */}
+        <h2 className="mt-4 text-2xl sm:text-3xl font-extrabold text-secondary">
+          {profileData.displayName || profileData.email}
+        </h2>
 
-      {/* XP Bar (dynamic gradient animation) */}
-      <div className="mt-4 w-full max-w-lg mx-auto">
-        <div className="relative h-6 bg-gray-200 rounded-full overflow-hidden shadow-inner">
-          <div
-            className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 animate-progress-bar"
-            style={{ width: `${xpProgress}%`, transition: 'width 1s ease-out' }}
-          />
-          <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white">
-            {profileData.xp || 0} / {xpNeededForNextLevel}
-          </span>
-        </div>
-      </div>
-
-      {/* Engagement Score */}
-      <div className="mt-6">
-        <p className="text-text">Score d'Engagement Global</p>
-        <p className="text-2xl font-bold text-primary">{engagementPercentage}%</p>
-      </div>
-
-      {/* Cumulative Points Pill (single-line) */}
-      <div className="mt-4 w-full max-w-xs sm:max-w-sm mx-auto bg-primary/10 px-6 py-2 rounded-full shadow-sm text-center">
-        <span className="text-sm text-text font-medium">Points Cumulatifs: </span>
-        <span className="text-sm font-bold text-primary ml-1">{totalPoints}</span>
-      </div>
-
-      {/* Actions */}
-      {isCurrentUser && (
-        <div className="mt-6 flex justify-center space-x-4">
-          <button
-            onClick={() => setShowProfileEditOptionsModal(true)}
-            className="bg-primary hover:bg-primary/80 text-white px-6 py-2 rounded-full shadow-lg transition-transform hover:scale-105"
-          >
-            ✏️ Modifier
-          </button>
-          <button
-            onClick={() => weeklyRecapData && setShowWeeklyRecapModal(true)}
-            disabled={!weeklyRecapData}
-            className={`px-6 py-2 rounded-full shadow-lg transition ${weeklyRecapData
-              ? 'bg-secondary hover:bg-secondary/90 text-white'
-              : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
-          >
-            🗓 Récap Hebdo
-          </button>
-        </div>
-      )}
-
-      {/* Weekly Tasks */}
-      <div className="mt-8 space-y-4 text-left">
-        <h3 className="text-xl font-bold text-secondary">Tâches terminées cette semaine</h3>
-        {participantWeeklyTasks.length > 0 ? (
-          participantWeeklyTasks.map((task, idx) => (
+        {/* XP Bar */}
+        <div className="mt-4 w-full max-w-lg mx-auto">
+          <div className="relative h-6 bg-gray-200 rounded-full overflow-hidden shadow-inner">
             <div
-              key={idx}
-              className="bg-gray-50 rounded-lg p-4 flex justify-between items-center shadow-md"
-            >
-              <div>
-                <h4 className="font-semibold text-text truncate">{task.nomTacheEffectuee}</h4>
-                <p className="text-xs text-lightText">
-                  {new Date(task.timestamp).toLocaleDateString('fr-FR')}
-                </p>
-              </div>
-              <span className="text-primary font-bold">+{task.pointsGagnes} pts</span>
-            </div>
-          ))
-        ) : (
-          <p className="text-center text-lightText">Aucune tâche terminée cette semaine.</p>
-        )}
-      </div>
+              className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 animate-progress-bar"
+              style={{ width: `${xpProgress}%`, transition: 'width 1s ease-out' }}
+            />
+            <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white">
+              {profileData.xp || 0} / {xpNeededForNextLevel}
+            </span>
+          </div>
+        </div>
 
-      <button
-        className="mt-8 w-full bg-primary hover:bg-primary/80 text-white px-6 py-3 rounded-full shadow-lg transition-transform hover:scale-105"
-        onClick={() => setActiveMainView('home')}
-      >
-        Retour à l'accueil
-      </button>
-    </div>
-  );
-};
+        {/* Engagement Score */}
+        <div className="mt-6">
+          <p className="text-text">Score d'Engagement Global</p>
+          <p className="text-2xl font-bold text-primary">{engagementPercentage}%</p>
+        </div>
+
+        {/* Cumulative Points Pill */}
+        <div className="mt-4 w-full max-w-xs sm:max-w-sm mx-auto bg-primary/10 px-6 py-2 rounded-full shadow-sm text-center">
+          <span className="text-sm text-text font-medium">Points Cumulatifs: </span>
+          <span className="text-sm font-bold text-primary ml-1">{totalPoints}</span>
+        </div>
+
+        {/* === CAROUSEL BADGES MODERNE & RESPONSIVE === */}
+        <div className="w-full flex justify-center my-10">
+          <div
+            className="
+              badge-widget-glassy
+              w-full
+              max-w-2xl
+              px-1
+              mx-auto
+              transition-all
+              duration-200
+              shadow-2xl
+              rounded-[2.5rem]
+            "
+          >
+            <BadgeCarousel badges={unlockedBadges} />
+          </div>
+        </div>
+
+        {/* Actions */}
+        {isCurrentUser && (
+          <div className="mt-6 flex justify-center space-x-4">
+            <button
+              onClick={() => setShowProfileEditOptionsModal(true)}
+              className="bg-primary hover:bg-primary/80 text-white px-6 py-2 rounded-full shadow-lg transition-transform hover:scale-105"
+            >
+              ✏️ Modifier
+            </button>
+            <button
+              onClick={() => weeklyRecapData && setShowWeeklyRecapModal(true)}
+              disabled={!weeklyRecapData}
+              className={`px-6 py-2 rounded-full shadow-lg transition ${
+                weeklyRecapData
+                  ? 'bg-secondary hover:bg-secondary/90 text-white'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              🗓 Récap Hebdo
+            </button>
+          </div>
+        )}
+
+        {/* Weekly Tasks */}
+        <div className="mt-8 space-y-4 text-left">
+          <h3 className="text-xl font-bold text-secondary">Tâches terminées cette semaine</h3>
+          {participantWeeklyTasks.length > 0 ? (
+            participantWeeklyTasks.map((task, idx) => (
+              <div
+                key={idx}
+                className="bg-gray-50 rounded-lg p-4 flex justify-between items-center shadow-md"
+              >
+                <div>
+                  <h4 className="font-semibold text-text truncate">{task.nomTacheEffectuee}</h4>
+                  <p className="text-xs text-lightText">
+                    {new Date(task.timestamp).toLocaleDateString('fr-FR')}
+                  </p>
+                </div>
+                <span className="text-primary font-bold">+{task.pointsGagnes} pts</span>
+              </div>
+            ))
+          ) : (
+            <p className="text-center text-lightText">Aucune tâche terminée cette semaine.</p>
+          )}
+        </div>
+
+        <button
+          className="mt-8 w-full bg-primary hover:bg-primary/80 text-white px-6 py-3 rounded-full shadow-lg transition-transform hover:scale-105"
+          onClick={() => setActiveMainView('home')}
+        >
+          Retour à l'accueil
+        </button>
+      </div>
+    );
+  };
+
+
   const renderConfirmResetModal = () => {
     if (!showConfirmResetModal) return null;
 
@@ -2627,7 +2725,7 @@ const renderParticipantProfile = () => {
           {/* Logo / Emoji */}
           {showChickEmoji ? (
             <span
-              className="text-6xl sm:text-7xl cursor-pointer transform hover:scale-110 transition"
+              className="text-7xl sm:text-7xl cursor-pointer transform hover:scale-110 transition"
               onClick={handleLogoClick}
             >
               🐣
@@ -2636,7 +2734,7 @@ const renderParticipantProfile = () => {
             <img
               src={`/${LOGO_FILENAME}`}
               alt="Logo Clean App Challenge"
-              className="mx-auto mb-3 sm:mb-4 h-16 sm:h-24 w-auto drop-shadow-xl cursor-pointer transform hover:scale-105 transition"
+              className="mx-auto mb-3 sm:mb-4 h-20 sm:h-24 w-auto drop-shadow-xl cursor-pointer transform hover:scale-105 transition"
               onClick={handleLogoClick}
             />
           )}
@@ -2655,15 +2753,16 @@ const renderParticipantProfile = () => {
           {currentUser && (
             <div className="absolute top-4 right-4">
               <button
-                        onClick={handleAuthAction}
-                        className="bg-transparent hover:bg-primary/10 text-primary p-2 rounded-full transition-transform hover:scale-110"
-                        aria-label="Déconnexion"
-                      >
-                        <LogOut size={20} className="text-primary opacity-70 hover:opacity-100 transition" />
-                      </button>
+                onClick={handleAuthAction}
+                className="bg-transparent hover:bg-primary/10 text-primary p-2 rounded-full transition-transform hover:scale-110"
+                aria-label="Déconnexion"
+              >
+                <LogOut size={20} className="text-primary opacity-70 hover:opacity-100 transition" />
+              </button>
             </div>
           )}
         </header>
+
 
         <Navbar
           activeMainView={activeMainView}
@@ -2873,6 +2972,8 @@ const renderParticipantProfile = () => {
         draggable
         pauseOnHover
       />
+
+      <BadgePopup badge={showingBadge} onClose={handleCloseBadge} />
 
       {/* TaskConfirmModal gère maintenant les tâches simples et les tâches de groupe */}
       
