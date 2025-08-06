@@ -8,6 +8,11 @@ import {
   doc,
   setDoc,
   getDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+  updateDoc,
 } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import ListAndInfoModal from './ListAndInfoModal';
@@ -37,6 +42,7 @@ const AuthModal = ({ onClose }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedAvatar, setSelectedAvatar] = useState(DEFAULT_AVATAR);
   const [showEmojiModal, setShowEmojiModal] = useState(false);
@@ -46,6 +52,7 @@ const AuthModal = ({ onClose }) => {
     setEmail('');
     setPassword('');
     setDisplayName('');
+    setInviteCode('');
     setError('');
     setLoading(false);
     setSelectedAvatar(DEFAULT_AVATAR);
@@ -102,6 +109,26 @@ const AuthModal = ({ onClose }) => {
           setLoading(false);
           return;
         }
+        if (!inviteCode.trim()) {
+          setError("Le code d'invitation est requis.");
+          setLoading(false);
+          return;
+        }
+
+        // Vérifier que le code d'invitation est valide et non utilisé
+        const invitationsRef = collection(db, 'invitations');
+        const invitationQuery = query(
+          invitationsRef,
+          where('code', '==', inviteCode.trim()),
+          where('used', '==', false)
+        );
+        const querySnapshot = await getDocs(invitationQuery);
+        if (querySnapshot.empty) {
+          setError('Code d’invitation invalide ou déjà utilisé.');
+          setLoading(false);
+          return;
+        }
+        const invitationDoc = querySnapshot.docs[0];
 
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
@@ -115,6 +142,13 @@ const AuthModal = ({ onClose }) => {
           avatar: selectedAvatar,
         };
         await setDoc(userDocRef, newUserData);
+
+        // Marquer le code invitation comme utilisé
+        await updateDoc(invitationDoc.ref, {
+          used: true,
+          usedBy: user.uid,
+          usedAt: new Date().toISOString(),
+        });
 
         setCurrentUser({ uid: user.uid, ...newUserData });
         toast.success(`Compte créé et connecté !`);
@@ -163,20 +197,38 @@ const AuthModal = ({ onClose }) => {
       >
         <form onSubmit={handleAuth} className="space-y-3">
           {!isLogin && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Nom d'utilisateur
-              </label>
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="block w-full rounded-lg border border-gray-300 p-2 text-base focus:border-primary focus:ring-primary focus:outline-none"
-                required
-                disabled={isDisabled}
-                autoComplete="username"
-              />
-            </div>
+            <>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Nom d'utilisateur
+                </label>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 p-2 text-base focus:border-primary focus:ring-primary focus:outline-none"
+                  required
+                  disabled={isDisabled}
+                  autoComplete="username"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Code d'invitation
+                </label>
+                <input
+                  type="text"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-300 p-2 text-base focus:border-primary focus:ring-primary focus:outline-none"
+                  required
+                  disabled={isDisabled}
+                  placeholder="Entrez le code fourni par l'administrateur"
+                  autoComplete="off"
+                />
+              </div>
+            </>
           )}
 
           <div>
