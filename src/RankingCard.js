@@ -2,10 +2,17 @@ import React from 'react';
 import { Dialog } from '@headlessui/react';
 import { Star, Award, User } from 'react-feather';
 
-function RankingCardModal({ show, onClose, title, participants, type, onParticipantClick }) {
-  if (!show || !participants || participants.length === 0) return null;
+function RankingCardModal({ show, onClose, title, participants = [], type, onParticipantClick }) {
+  if (!show || !participants.length) return null;
 
   const isWeekly = type === 'weekly';
+
+  // Filtrer participants pour ne garder que ceux avec points > 0
+  const filteredParticipants = participants.filter(p =>
+    (isWeekly ? Number(p.Points_Total_Semaine_Courante) : Number(p.Points_Total_Cumulatif)) > 0
+  );
+
+  if (filteredParticipants.length === 0) return null;
 
   const podiumColors = {
     1: { bg: 'bg-podium-gold/30', text: 'text-podium-gold' },
@@ -27,7 +34,7 @@ function RankingCardModal({ show, onClose, title, participants, type, onParticip
 
           {/* Content */}
           <div className="flex-grow overflow-y-auto p-4 sm:p-6 space-y-3 custom-scrollbar">
-            {participants.map((participant, index) => {
+            {filteredParticipants.map((participant, index) => {
               const rank = index + 1;
               const score = isWeekly
                 ? participant.Points_Total_Semaine_Courante

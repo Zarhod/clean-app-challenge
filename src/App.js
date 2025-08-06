@@ -1361,18 +1361,24 @@ function AppContent() {
   };
 
   const renderPodiumSection = () => {
+    // Nombre de tâches restantes
     const remainingTasksCount = taches.filter(tache => {
       if (tache.isGroupTask) return !areAllSubtasksCompleted(tache);
       return isSubTaskAvailable(tache);
     }).length;
 
+    // Trie classement par points hebdo décroissants, en convertissant en nombre
     const sortedClassement = [...classement].sort(
-      (a, b) => b.Points_Total_Semaine_Courante - a.Points_Total_Semaine_Courante
+      (a, b) =>
+        Number(b.Points_Total_Semaine_Courante || 0) - Number(a.Points_Total_Semaine_Courante || 0)
     );
+
+    // On prend les top 3 avec plus de 0 points
     const top3WithPoints = sortedClassement
-      .filter(p => parseFloat(p.Points_Total_Semaine_Courante) > 0)
+      .filter(p => Number(p.Points_Total_Semaine_Courante || 0) > 0)
       .slice(0, 3);
 
+    // Récupération url avatar
     const getAvatarUrl = p =>
       typeof p.Avatar === 'string' && p.Avatar.startsWith('http')
         ? p.Avatar
@@ -1387,75 +1393,88 @@ function AppContent() {
 
     return (
       <div className="bg-card rounded-3xl p-5 mb-4 shadow-lg text-center space-y-4">
-        {/* Compteur de tâches restantes en pilule */}
+        {/* Compteur de tâches restantes */}
         <div className="inline-block px-4 py-1 bg-primary/10 text-primary font-semibold rounded-full">
           Tâches restantes: <span className="font-bold">{remainingTasksCount}</span>
         </div>
 
-        {/* Titre dynamique bleu-violet */}
+        {/* Titre */}
         <h2 className="text-3xl sm:text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 animate-pulse">
           Podium de la Semaine
         </h2>
 
-        {/* Podium dynamique */}
-        <div className="flex justify-center items-end gap-6">
-          {top3WithPoints.map((p, i) => {
-            const isTop = i === 0;
-            const sizeClass = isTop ? 'w-16 h-16 sm:w-20 sm:h-20' : 'w-12 h-12 sm:w-16 sm:h-16';
-            const avatar = getAvatarUrl(p);
-            return (
-              <div
-                key={p.id || p.Nom_Participant}
-                className={`flex flex-col items-center cursor-pointer ${isTop ? '-mb-6' : ''}`}
-                onClick={() => handleParticipantClick(p)}
-              >
-                <div className={`relative ${sizeClass}`}>  
-                  {/* cercle */}
-                  <div className={`${sizeClass} rounded-full overflow-hidden shadow-md ${bgClasses[i]}`}> 
-                    {avatar ? (
-                      <img
-                        src={avatar}
-                        alt={p.Nom_Participant}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="flex items-center justify-center w-full h-full text-lg sm:text-5xl">
-                        {p.Avatar || '👤'}
-                      </span>
-                    )}
-                  </div>
-                  {/* Médaille superposée sur l'avatar */}
-                  <span
-                    className={`absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4 ${isTop ? 'text-3xl' : 'text-2xl'}`}
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {medals[i]}
-                  </span>
-                </div>
-                <p className="mt-1 text-sm sm:text-base font-semibold text-text truncate w-24">
-                  {p.Nom_Participant}
-                </p>
-                <p className="text-xs text-lightText">
-                  {p.Points_Total_Semaine_Courante} pts
-                </p>
-              </div>
-            );
-          })}
-        </div>
+        {/* Si pas de points, afficher message sinon podium */}
+        {top3WithPoints.length === 0 ? (
+          <p className="text-lg font-semibold text-lightText mt-8">Pas de classement pour le moment</p>
+        ) : (
+          <div className="flex justify-center items-end gap-6">
+            {top3WithPoints.map((p, i) => {
+              const isTop = i === 0;
+              const sizeClass = isTop ? 'w-16 h-16 sm:w-20 sm:h-20' : 'w-12 h-12 sm:w-16 sm:h-16';
+              const avatar = getAvatarUrl(p);
+              return (
+                <div
+                  key={p.id || p.Nom_Participant}
+                  className={`flex flex-col items-center cursor-pointer ${isTop ? '-mb-6' : ''}`}
+                  onClick={() => handleParticipantClick(p)}
+                >
+                  <div className={`relative ${sizeClass}`}>
+                    {/* Cercle avatar */}
+                    <div className={`${sizeClass} rounded-full overflow-hidden shadow-md ${bgClasses[i]}`}>
+                      {avatar ? (
+                        <img
+                          src={avatar}
+                          alt={p.Nom_Participant}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="flex items-center justify-center w-full h-full text-lg sm:text-5xl">
+                          {p.Avatar || '👤'}
+                        </span>
+                      )}
+                    </div>
 
-        {/* Espace entre points et bouton classement */}
+                    {/* Médaille */}
+                    <span
+                      className={`absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4 ${isTop ? 'text-3xl' : 'text-2xl'}`}
+                      style={{ pointerEvents: 'none' }}
+                    >
+                      {medals[i]}
+                    </span>
+                  </div>
+
+                  {/* Nom */}
+                  <p className="mt-1 text-sm sm:text-base font-semibold text-text truncate w-24">
+                    {p.Nom_Participant}
+                  </p>
+
+                  {/* Points */}
+                  <p className="text-xs text-lightText">
+                    {Number(p.Points_Total_Semaine_Courante || 0)} pts
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Espace */}
         <div className="mt-6"></div>
 
-        {/* Bouton Voir le classement complet, taille réduite */}
-        <button
-          className="bg-primary hover:bg-secondary text-white font-semibold text-xs py-1.5 px-4 rounded-full shadow transition-transform hover:scale-105"
-          onClick={() => setShowFullRankingModal(true)}
-        >
-          Voir le classement complet
-        </button>
+        {/* Bouton classement complet - affiché uniquement s'il y a un podium */}
+        {top3WithPoints.length > 0 && (
+          <>
+            <button
+              className="bg-primary hover:bg-secondary text-white font-semibold text-xs py-1.5 px-4 rounded-full shadow transition-transform hover:scale-105"
+              onClick={() => setShowFullRankingModal(true)}
+            >
+              Voir le classement complet
+            </button>
 
-        {/* Séparation légère */}
-        <div className="border-t border-neutralBg my-4"></div>
+            {/* Séparateur */}
+            <div className="border-t border-neutralBg my-4"></div>
+          </>
+        )}
 
         {/* Boutons Tendances et Objectifs */}
         <div className="flex justify-center gap-6">
@@ -1826,21 +1845,30 @@ function AppContent() {
 
 
   const renderThankYouPopup = () => {
-    if (!showThankYouPopup) return null; 
+    if (!showThankYouPopup) return null;
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-[1000] p-4"> 
-        <div className="bg-card rounded-3xl p-6 sm:p-8 shadow-2xl w-full max-w-xs sm:max-w-md text-center animate-fade-in-scale border border-primary/20 mx-auto"> 
-          <h3 className="text-3xl sm:text-4xl font-bold text-success mb-6 sm:mb-8">🎉 Bravo ! 🎉</h3> 
-          <p className="text-lg sm:text-xl text-text mb-6 sm:mb-8">
+      <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-[1000] p-4">
+        <div className="bg-gradient-to-tr from-purple-400 via-pink-400 to-yellow-400 rounded-3xl w-full max-w-xs sm:max-w-md p-6 shadow-lg animate-popin relative text-center overflow-hidden">
+          {/* Glow background */}
+          <div className="absolute inset-0 bg-gradient-to-r from-pink-500 via-purple-500 to-yellow-400 opacity-20 blur-3xl pointer-events-none rounded-3xl"></div>
+
+          <h3 className="relative text-3xl sm:text-4xl font-extrabold text-white drop-shadow-lg mb-4 select-none">
+            🎉 Bravo ! 🎉
+          </h3>
+
+          <p className="relative text-lg sm:text-xl text-white mb-4 font-semibold drop-shadow-sm max-w-xs mx-auto">
             {showThankYouPopup.message}
-            <br/>
-            Tâche: "<strong className="text-primary">{showThankYouPopup.task}</strong>" terminée par <strong className="text-secondary">{showThankYouPopup.name}</strong>.
           </p>
-          <button 
-            onClick={() => setShowThankYouPopup(null)} 
-            className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded-full shadow-lg 
-                       transition duration-300 ease-in-out transform hover:scale-105 tracking-wide text-sm"
+
+          <p className="relative text-yellow-300 font-bold drop-shadow-sm mb-6 max-w-xs mx-auto">
+            Tâche: "<span className="text-white">{showThankYouPopup.task}</span>"<br />
+            terminée par <span className="text-pink-300">{showThankYouPopup.name}</span>.
+          </p>
+
+          <button
+            onClick={() => setShowThankYouPopup(null)}
+            className="relative bg-gradient-to-r from-yellow-400 via-pink-400 to-purple-500 text-white font-semibold py-2 px-5 rounded-full shadow-md transition duration-300 ease-in-out hover:brightness-110 hover:scale-105 tracking-wide select-none"
           >
             Super !
           </button>
