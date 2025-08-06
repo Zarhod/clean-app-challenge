@@ -12,14 +12,12 @@ const BadgeCarousel = ({ badges = [] }) => {
   const handleScroll = (e) => {
     const el = e.target;
     if (el.scrollLeft <= 0) {
-      // rebond gauche
       if (!isBouncing || bounceDirection !== 'left') {
         setBounceDirection('left');
         setIsBouncing(true);
         setTimeout(() => setIsBouncing(false), 300);
       }
-    } else if (el.scrollLeft + el.clientWidth >= el.scrollWidth) {
-      // rebond droite
+    } else if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 1) { // -1 pour tolérance
       if (!isBouncing || bounceDirection !== 'right') {
         setBounceDirection('right');
         setIsBouncing(true);
@@ -37,7 +35,7 @@ const BadgeCarousel = ({ badges = [] }) => {
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full overflow-hidden"> {/* Ici on masque le débordement */}
       {/* Compteur badges */}
       <div className="text-center text-sm font-semibold text-primary mb-3 select-none">
         {unlockedBadges.length} / {totalBadgesCount} badges débloqués
@@ -74,8 +72,8 @@ const BadgeCarousel = ({ badges = [] }) => {
               scrollSnapAlign: "center",
               minWidth: "110px",
               maxWidth: "145px",
-              marginLeft: idx === 0 ? "12px" : undefined,
-              marginRight: idx === unlockedBadges.length - 1 ? "12px" : undefined,
+              marginLeft: idx === 0 ? "12px" : "6px",   // réduit la marge à gauche sauf le 1er
+              marginRight: idx === unlockedBadges.length - 1 ? "12px" : "6px", // pareil à droite
             }}
           >
             <BadgeCard
