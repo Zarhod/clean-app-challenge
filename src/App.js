@@ -1565,43 +1565,103 @@ function AppContent() {
       );
     };
 
-    const renderObjectivesContent = () => {
-      if (!Array.isArray(objectives) || objectives.length === 0) {
-        return <p className="text-center text-lightText text-md py-2">Aucun objectif disponible pour le moment.</p>;
+  const renderObjectivesContent = (objectives, realisations, tasks) => {
+    // Si pas d'objectifs
+    if (!Array.isArray(objectives) || objectives.length === 0) {
+      return (
+        <p className="text-center text-lightText text-md py-2">
+          Aucun objectif disponible pour le moment.
+        </p>
+      );
+    }
+
+    // Calcule les points actuels selon type objectif
+    function getPointsForObjective(obj) {
+      if (!obj || !Array.isArray(realisations) || !Array.isArray(tasks)) return 0;
+
+      const targetCategory = obj.Categorie_Cible || "";
+      const targetType = obj.Type_Cible || "Cumulatif";
+
+      if (targetType === "Hebdomadaire") {
+        // Lundi semaine courante à 00:00:00
+        const now = new Date();
+        const day = now.getDay();
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+        const startOfWeek = new Date(now.getFullYear(), now.getMonth(), diff);
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        return realisations.reduce((sum, real) => {
+          const realDate = new Date(real.date);
+          if (realDate < startOfWeek) return sum;
+
+          const task = tasks.find(t => t.ID_Tache === real.taskId);
+          if (!task) return sum;
+          if (targetCategory && targetCategory.length > 0 && task.Categorie !== targetCategory) return sum;
+
+          return sum + (parseFloat(task.Calculated_Points) || 0);
+        }, 0);
       }
 
-      return (
-        <div className="space-y-2"> 
-          {objectives.map(obj => {
-            const currentPoints = parseFloat(obj.Points_Actuels) || 0;
-            const targetPoints = parseFloat(obj.Cible_Points) || 0;
-            const progress = targetPoints > 0 ? (currentPoints / targetPoints) * 100 : 0;
-            const isCompleted = obj.Est_Atteint === true || String(obj.Est_Atteint).toLowerCase() === 'true' || currentPoints >= targetPoints;
+      if (targetType === "Par_Categorie") {
+        if (!targetCategory || targetCategory.length === 0) return 0;
 
-            return (
-              <div key={obj.ID_Objectif} className={`bg-white rounded-lg p-3 shadow-sm border 
-                ${isCompleted ? 'border-success' : 'border-primary/10'}`}> 
-                <div className="flex justify-between items-center mb-1">
-                  <h3 className="text-base font-bold text-primary truncate">{obj.Nom_Objectif}</h3> 
-                  {isCompleted ? (
-                    <span className="text-success font-bold text-sm">✅ Atteint !</span>
-                  ) : (
-                    <span className="text-text font-semibold text-sm">{currentPoints} / {targetPoints} pts</span>
-                  )}
-                </div>
-                <p className="text-lightText text-xs mb-2 truncate">{obj.Description_Objectif}</p> 
-                <div className="w-full bg-gray-200 rounded-full h-2"> 
-                  <div 
-                    className={`h-2 rounded-full ${isCompleted ? 'bg-success' : 'bg-primary'}`} 
-                    style={{ width: `${Math.min(progress, 100)}%` }}
-                  ></div>
-                </div>
+        return realisations.reduce((sum, real) => {
+          const task = tasks.find(t => t.ID_Tache === real.taskId);
+          if (task && task.Categorie === targetCategory) {
+            return sum + (parseFloat(task.Calculated_Points) || 0);
+          }
+          return sum;
+        }, 0);
+      }
+
+      // Cumulatif ou autre type par défaut
+      return realisations.reduce((sum, real) => {
+        const task = tasks.find(t => t.ID_Tache === real.taskId);
+        return sum + (task ? (parseFloat(task.Calculated_Points) || 0) : 0);
+      }, 0);
+    }
+
+    return (
+      <div className="space-y-2">
+        {objectives.map(obj => {
+          const currentPoints = getPointsForObjective(obj);
+          const targetPoints = parseFloat(obj.Cible_Points) || 0;
+          const progress = targetPoints > 0 ? (currentPoints / targetPoints) * 100 : 0;
+          const isCompleted =
+            obj.Est_Atteint === true ||
+            String(obj.Est_Atteint).toLowerCase() === 'true' ||
+            currentPoints >= targetPoints;
+
+          return (
+            <div
+              key={obj.ID_Objectif}
+              className={`bg-white rounded-lg p-3 shadow-sm border ${
+                isCompleted ? 'border-success' : 'border-primary/10'
+              }`}
+            >
+              <div className="flex justify-between items-center mb-1">
+                <h3 className="text-base font-bold text-primary truncate">{obj.Nom_Objectif}</h3>
+                {isCompleted ? (
+                  <span className="text-success font-bold text-sm">✅ Atteint !</span>
+                ) : (
+                  <span className="text-text font-semibold text-sm">
+                    {currentPoints.toFixed(1)} / {targetPoints} pts
+                  </span>
+                )}
               </div>
-            );
-          })}
-        </div>
-      );
-    };
+              <p className="text-lightText text-xs mb-2 truncate">{obj.Description_Objectif}</p>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full ${isCompleted ? 'bg-success' : 'bg-primary'}`}
+                  style={{ width: `${Math.min(progress, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
 
   const renderTaskCategories = () => {
@@ -1613,7 +1673,7 @@ function AppContent() {
 
     const currentCategoryTasks = taches.filter(tache => {
       if (activeTaskCategory === 'tous') {
-        return tache.Categorie?.toLowerCase() === 'tous';
+        return true;
       }
       return tache.Categorie?.toLowerCase() === activeTaskCategory;
     });
@@ -2850,6 +2910,13 @@ function AppContent() {
           {activeMainView === 'adminPanel' && (
             renderAdminPanel()
           )}
+          {activeMainView === 'objectives' && (
+            <div>
+              <h2 className="text-xl font-bold mb-4">Objectifs</h2>
+              {renderObjectivesContent(objectives, realisations, taches)}
+            </div>
+          )}
+
         </main>
         {/* Modales et popups */}
         {renderThankYouPopup()} 
@@ -2864,11 +2931,17 @@ function AppContent() {
                 {renderHighlightsContent()}
             </ListAndInfoModal>
         )}
+        
         {showObjectivesModal && (
-            <ListAndInfoModal title="Objectifs Communs" onClose={() => setShowObjectivesModal(false)} sizeClass="max-w-xs sm:max-w-md"> 
-                {renderObjectivesContent()}
-            </ListAndInfoModal>
+          <ListAndInfoModal
+            title="Objectifs Communs"
+            onClose={() => setShowObjectivesModal(false)}
+            sizeClass="max-w-xs sm:max-w-md"
+          >
+            {renderObjectivesContent(objectives, realisations, taches)}
+          </ListAndInfoModal>
         )}
+
         {showAdminObjectivesListModal && isAdmin && renderAdminObjectivesListModal()} 
         {showAdminTasksListModal && isAdmin && renderAdminTasksListModal()} 
         {showExportSelectionModal && isAdmin && renderExportSelectionModal()} 
@@ -2979,8 +3052,7 @@ function AppContent() {
             }}
           />
         )}
-        
-        
+
 
         {showPasswordChangeModal && currentUser && (
           <PasswordChangeModal

@@ -1,6 +1,14 @@
 import React from 'react';
 
-function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClose, loading, editingObjective }) {
+function AdminObjectiveFormModal({
+  objectiveData,
+  onFormChange,
+  onSubmit,
+  onClose,
+  loading,
+  editingObjective,
+  categories = [],  // <-- Liste des catégories imposée
+}) {
   return (
     <div className="fixed inset-0 z-[1000] flex justify-center items-center p-2 sm:p-4 pointer-events-none">
       <div className="bg-white rounded-3xl w-full max-w-md sm:max-w-lg max-h-[90vh] flex flex-col shadow-[0_15px_35px_rgba(0,0,0,0.2)] border border-gray-200 overflow-hidden animate-fade-in pointer-events-auto">
@@ -8,9 +16,17 @@ function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClos
           {editingObjective ? 'Modifier un objectif' : 'Nouvel Objectif'}
         </h3>
 
-        <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }} className="px-6 py-4 space-y-4 overflow-y-auto">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit();
+          }}
+          className="px-6 py-4 space-y-4 overflow-y-auto"
+        >
           <div>
-            <label htmlFor="ID_Objectif" className="block text-sm font-semibold mb-1 text-gray-600">ID Objectif (Unique)</label>
+            <label htmlFor="ID_Objectif" className="block text-sm font-semibold mb-1 text-gray-600">
+              ID Objectif (Unique)
+            </label>
             <input
               type="text"
               name="ID_Objectif"
@@ -24,7 +40,9 @@ function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClos
           </div>
 
           <div>
-            <label htmlFor="Nom_Objectif" className="block text-sm font-semibold mb-1 text-gray-600">Nom de l'Objectif</label>
+            <label htmlFor="Nom_Objectif" className="block text-sm font-semibold mb-1 text-gray-600">
+              Nom de l'Objectif
+            </label>
             <input
               type="text"
               name="Nom_Objectif"
@@ -37,7 +55,9 @@ function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClos
           </div>
 
           <div>
-            <label htmlFor="Description_Objectif" className="block text-sm font-semibold mb-1 text-gray-600">Description</label>
+            <label htmlFor="Description_Objectif" className="block text-sm font-semibold mb-1 text-gray-600">
+              Description
+            </label>
             <textarea
               name="Description_Objectif"
               value={objectiveData.Description_Objectif}
@@ -45,11 +65,13 @@ function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClos
               rows="2"
               placeholder="Détails de l'objectif..."
               className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
-            ></textarea>
+            />
           </div>
 
           <div>
-            <label htmlFor="Cible_Points" className="block text-sm font-semibold mb-1 text-gray-600">Points Cible</label>
+            <label htmlFor="Cible_Points" className="block text-sm font-semibold mb-1 text-gray-600">
+              Points Cible
+            </label>
             <input
               type="number"
               name="Cible_Points"
@@ -62,7 +84,9 @@ function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClos
           </div>
 
           <div>
-            <label htmlFor="Type_Cible" className="block text-sm font-semibold mb-1 text-gray-600">Type de Cible</label>
+            <label htmlFor="Type_Cible" className="block text-sm font-semibold mb-1 text-gray-600">
+              Type de Cible
+            </label>
             <select
               name="Type_Cible"
               value={objectiveData.Type_Cible}
@@ -71,28 +95,40 @@ function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClos
             >
               <option value="Cumulatif">Points Cumulatifs</option>
               <option value="Par_Categorie">Par Catégorie de Tâche</option>
+              <option value="Hebdomadaire">Hebdomadaire</option>
             </select>
           </div>
 
           {objectiveData.Type_Cible === 'Par_Categorie' && (
             <div>
-              <label htmlFor="Categorie_Cible" className="block text-sm font-semibold mb-1 text-gray-600">Catégorie Cible</label>
-              <input
-                type="text"
+              <label htmlFor="Categorie_Cible" className="block text-sm font-semibold mb-1 text-gray-600">
+                Catégorie Cible
+              </label>
+              <select
                 name="Categorie_Cible"
-                value={objectiveData.Categorie_Cible}
+                value={objectiveData.Categorie_Cible || ''}
                 onChange={onFormChange}
-                placeholder="Ex: Cuisine, Salle"
                 required
                 className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl text-sm shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+              >
+                <option value="" disabled>
+                  -- Sélectionnez une catégorie --
+                </option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
           {editingObjective && (
             <>
               <div>
-                <label htmlFor="Points_Actuels" className="block text-sm font-semibold mb-1 text-gray-600">Points Actuels</label>
+                <label htmlFor="Points_Actuels" className="block text-sm font-semibold mb-1 text-gray-600">
+                  Points Actuels
+                </label>
                 <input
                   type="number"
                   name="Points_Actuels"
@@ -112,7 +148,9 @@ function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClos
                   onChange={(e) => onFormChange({ target: { name: 'Est_Atteint', value: e.target.checked } })}
                   className="form-checkbox h-5 w-5 text-primary rounded focus:ring-2 focus:ring-primary"
                 />
-                <label htmlFor="Est_Atteint" className="ml-2 text-sm text-gray-700">Objectif Atteint</label>
+                <label htmlFor="Est_Atteint" className="ml-2 text-sm text-gray-700">
+                  Objectif Atteint
+                </label>
               </div>
             </>
           )}
@@ -123,7 +161,7 @@ function AdminObjectiveFormModal({ objectiveData, onFormChange, onSubmit, onClos
               disabled={loading}
               className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-full text-sm font-semibold shadow-md transition duration-300"
             >
-              {loading ? 'Envoi...' : (editingObjective ? 'Mettre à jour' : 'Ajouter')}
+              {loading ? 'Envoi...' : editingObjective ? 'Mettre à jour' : 'Ajouter'}
             </button>
             <button
               type="button"
