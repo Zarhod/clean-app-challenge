@@ -1694,7 +1694,6 @@ function AppContent() {
 
     const currentCategoryTasks = taches.filter(tache => {
       if (activeTaskCategory === 'tous') {
-        // Filtre uniquement la catégorie "Tous" (attention majuscule !)
         return tache.Categorie?.toLowerCase() === 'tous';
       }
       return tache.Categorie?.toLowerCase() === activeTaskCategory;
@@ -1758,7 +1757,10 @@ function AppContent() {
     return (
       <div className="bg-card rounded-3xl p-6 shadow-lg space-y-6">
         {/* Category Buttons with responsive alignment */}
-        <div className="flex justify-center space-x-2 sm:space-x-3 overflow-x-auto py-2">
+        <div
+          className="flex justify-center space-x-2 sm:space-x-3 overflow-x-auto py-2 px-4"
+          style={{ WebkitOverflowScrolling: 'touch' }} // scroll fluide sur iOS
+        >
           {categories.map(cat => {
             const isActive = activeTaskCategory === cat.name;
             const activeBg = cat.name === 'tous'
@@ -1776,18 +1778,18 @@ function AppContent() {
                 key={cat.name}
                 onClick={() => setActiveTaskCategory(cat.name)}
                 className={`
-                  px-5 py-2
-                  sm:px-6 sm:py-2.5
+                  px-4 py-2
+                  sm:px-5 sm:py-2.5
                   rounded-full
-                  text-sm sm:text-base
                   font-semibold
                   transition-all duration-200 shadow-md
                   whitespace-nowrap
                   ${isActive ? activeBg : inactiveBg}
                 `}
                 style={{
-                  minWidth: '96px',
-                  maxWidth: '180px'
+                  minWidth: 'clamp(60px, 20vw, 100px)', // largeur min responsive
+                  maxWidth: '160px',
+                  fontSize: 'clamp(0.75rem, 1.5vw, 1rem)', // taille texte responsive
                 }}
               >
                 {cat.label}
@@ -1819,8 +1821,7 @@ function AppContent() {
       </div>
     );
   };
-
-  
+    
   const renderCompletedTasks = () => {
     if (!Array.isArray(realisations) || realisations.length === 0) {
       return (
@@ -2967,7 +2968,7 @@ function AppContent() {
               {renderObjectivesContent(objectives, realisations, taches)}
             </div>
           )}
-          
+
         </main>
         {/* Modales et popups */}
         {renderThankYouPopup()} 
