@@ -1629,49 +1629,50 @@ function AppContent() {
         t => (t.Frequence || 'hebdomadaire').toLowerCase() === freq
       );
 
-    const renderTasksList = (tasks) => {
-      const visible = tasks.filter(t => !isTaskHidden(t) && !t.Parent_Task_ID);
-      if (!visible.length) {
-        return (
-          <p className="text-center text-lightText text-base py-2">
-            Aucune tâche disponible.
-          </p>
-        );
-      }
+  const renderTasksList = (tasks) => {
+    const visible = tasks.filter(t => !isTaskHidden(t) && !t.Parent_Task_ID);
+    if (!visible.length) {
       return (
-        <div className="space-y-4">
-          {visible.map(t => (
-            <div
-              key={t.ID_Tache}
-              onClick={() => handleTaskClick(t)}
-              className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center p-4 bg-card rounded-2xl shadow hover:shadow-lg transition-shadow duration-200 border border-transparent hover:border-primary"
-            >
-              <div className="flex-1">
-                <h4 className="text-lg font-bold truncate bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
-                  {t.Nom_Tache}
-                </h4>
-                {t.isGroupTask && (
-                  <span className="inline-block mt-1 px-2 py-0.5 bg-primary/20 text-primary text-xs font-medium rounded-full">
-                    Groupe
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center space-x-2 mt-3 sm:mt-0">
-                <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getUrgencyClasses(t.Urgence)}`}> 
-                  {t.Urgence || 'Normal'}
-                </span>
-                <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getFrequencyClasses(t.Frequence)}`}> 
-                  {t.Frequence || 'Hebdo'}
-                </span>
-                <span className="px-2 py-0.5 text-xs font-bold rounded bg-secondary/10 text-secondary">
-                  {t.Calculated_Points} pts
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+        <p className="text-center text-lightText text-base py-2">
+          Aucune tâche disponible.
+        </p>
       );
-    };
+    }
+    return (
+      <div className="space-y-4">
+        {visible.map(t => (
+          <div
+            key={t.ID_Tache}
+            onClick={() => handleTaskClick(t)}
+            className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center p-4 bg-card rounded-2xl shadow hover:shadow-lg transition-shadow duration-200 border border-transparent hover:border-primary max-w-full cursor-pointer"
+          >
+            <div className="flex-1 min-w-0 max-w-full">
+              <h4 className="text-lg font-bold break-words bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                {t.Nom_Tache}
+              </h4>
+              {t.isGroupTask && (
+                <span className="inline-block mt-1 px-2 py-0.5 bg-primary/20 text-primary text-xs font-medium rounded-full">
+                  Groupe
+                </span>
+              )}
+            </div>
+            <div className="flex items-center space-x-2 mt-3 sm:mt-0 shrink-0">
+              <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getUrgencyClasses(t.Urgence)}`}>
+                {t.Urgence || 'Normal'}
+              </span>
+              <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${getFrequencyClasses(t.Frequence)}`}>
+                {t.Frequence || 'Hebdo'}
+              </span>
+              <span className="px-2 py-0.5 text-xs font-bold rounded bg-secondary/10 text-secondary">
+                {t.Calculated_Points} pts
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
 
     return (
       <div className="bg-card rounded-3xl p-6 shadow-lg space-y-6">
