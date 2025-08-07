@@ -39,6 +39,9 @@ import BadgePopup from './components/BadgePopup';
 import BadgeCarousel from "./components/BadgeCarousel";
 import BADGES from './utils/badges';
 import InvitationsAdminModal from './InvitationsAdminModal';
+import WeeklyRecapImageModal from './WeeklyRecapImageModal';
+import { generateRecapDataFromStats } from "./utils/recapUtils";
+
 
 
 const LOGO_FILENAME = 'logo.png'; 
@@ -341,11 +344,13 @@ function AppContent() {
 
   const [showWeeklyRecapModal, setShowWeeklyRecapModal] = useState(false);
   const [weeklyRecapData, setWeeklyRecapData] = useState(null);
+
   const [showFullRankingModal, setShowFullRankingModal] = useState(false);
 
   const [showAvatarSelectionModal, setShowAvatarSelectionModal] = useState(false); 
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false); 
   const [showInvitationModal, setShowInvitationModal] = useState(false);
+  const [showWeeklyRecapImage, setShowWeeklyRecapImage] = useState(false);
 
 
   // États pour la pagination des réalisations
@@ -440,6 +445,16 @@ function AppContent() {
     };
   }, []); 
 
+  useEffect(() => {
+    if (
+      usersData?.length > 0 &&
+      realisations?.length > 0 &&
+      allRawTaches?.length > 0
+    ) {
+      const recap = generateRecapDataFromStats(usersData, realisations, allRawTaches);
+      setWeeklyRecapData(recap);
+    }
+  }, [usersData, realisations, allRawTaches]);
 
   // Fonctions de récupération de données utilisant onSnapshot (CHEMINS MIS À JOUR)
   const setupTasksListener = useCallback(() => {
@@ -775,6 +790,18 @@ function AppContent() {
     db 
   ]);
 
+  useEffect(() => {
+    const shouldGenerate =
+      currentUser?.isAdmin &&
+      usersData?.length > 0 &&
+      realisations?.length > 0 &&
+      allRawTaches?.length > 0;
+
+    if (shouldGenerate) {
+      const data = generateRecapDataFromStats(usersData, realisations, allRawTaches);
+      setWeeklyRecapData(data);
+    }
+  }, [currentUser, usersData, realisations, allRawTaches]);
 
   const fetchParticipantWeeklyTasks = useCallback(async (participantName) => {
     setLoading(true); 
@@ -1300,10 +1327,66 @@ function AppContent() {
   }, [allRawTaches, isSubTaskAvailable]); 
 
   const isTaskHidden = useCallback((tache) => {
+    const freq = (tache.Frequence || 'hebdomadaire').toLowerCase();
+
+    // Trouve la dernière réalisation pour cette tâche
+    const lastRealisation = realisations
+      .filter(r => String(r.taskId) === String(tache.ID_Tache))
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+
+    if (!lastRealisation) {
+      // Jamais réalisée => on affiche
+      return false;
+    }
+
+    const lastDate = new Date(lastRealisation.timestamp);
+    const now = new Date();
+
+    // Fonction pour récupérer lundi prochain (le début de semaine)
+    const getNextMonday = (date) => {
+      const result = new Date(date);
+      const day = result.getDay();
+      const diff = (day === 0 ? 1 : 8 - day); // si dimanche (0), lundi = +1 jour, sinon lundi = + (8 - jour)
+      result.setDate(result.getDate() + diff);
+      result.setHours(0,0,0,0);
+      return result;
+    };
+
+    if (freq === 'quotidien') {
+      // Cache si réalisée aujourd'hui
+      const sameDay =
+        lastDate.getDate() === now.getDate() &&
+        lastDate.getMonth() === now.getMonth() &&
+        lastDate.getFullYear() === now.getFullYear();
+      if (sameDay) return true;
+      return false; // réapparaît le lendemain
+    }
+
+    if (freq === 'hebdomadaire') {
+      // Cache si réalisée cette semaine, réapparaît lundi prochain
+      // Semaine commence lundi 00:00
+      const lastMonday = new Date(now);
+      const day = lastMonday.getDay();
+      const diff = (day === 0 ? -6 : 1 - day); // si dimanche (0), lundi = -6 jours, sinon lundi = 1 - jour
+      lastMonday.setDate(lastMonday.getDate() + diff);
+      lastMonday.setHours(0,0,0,0);
+
+      if (lastDate >= lastMonday) {
+        // réalisée cette semaine => cachée
+        return true;
+      }
+      return false; // réapparaît la semaine suivante
+    }
+
+    // Pour les tâches ponctuelles ou autres fréquences :
+    // On garde ta logique existante
     const isSingleTaskCompleted = !tache.isGroupTask && !isSubTaskAvailable(tache);
     const isGroupTaskFullyCompleted = tache.isGroupTask && areAllSubtasksCompleted(tache);
+
     return isSingleTaskCompleted || isGroupTaskFullyCompleted;
-  }, [isSubTaskAvailable, areAllSubtasksCompleted]);
+
+  }, [realisations, isSubTaskAvailable, areAllSubtasksCompleted]);
+
 
   const handleLogoClick = () => {
     setLogoClickCount(prevCount => {
@@ -2712,7 +2795,6 @@ function AppContent() {
     selectedDocumentDetails
   ]);
 
-
   const renderAdminPanel = () => {
     if (!isAdmin) return null;
 
@@ -2745,7 +2827,7 @@ function AppContent() {
               🎉 Félicitations
             </button>
             <button onClick={() => setShowInvitationModal(true)} className={blueBtn}>
-              ✉️ Invitations {/* ← Nouveau bouton */}
+              ✉️ Invitations
             </button>
             <button onClick={() => setShowConfirmResetModal(true)} className={redBtn}>
               🔄 Reset Points Hebdo
@@ -2767,11 +2849,23 @@ function AppContent() {
               <button onClick={() => setShowExportSelectionModal(true)} className={grayBtn}>
                 📤 Export CSV
               </button>
+              <button onClick={() => setShowWeeklyRecapImage(true)} className={grayBtn}>
+                🖼️ Image Récap Semaine
+              </button>
             </div>
           </div>
 
           {/* Section 3 - Statistiques */}
           <TaskStatisticsChart realisations={realisations} allRawTaches={allRawTaches} />
+
+          {/* Section 4 - Image récap de la semaine */}
+          {showWeeklyRecapImage && (
+            <WeeklyRecapImageModal
+              isOpen={true}
+              onClose={() => setShowWeeklyRecapImage(false)}
+              recapData={weeklyRecapData}
+            />
+          )}
         </div>
       </div>
     );
