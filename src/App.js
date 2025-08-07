@@ -1342,15 +1342,6 @@ function AppContent() {
     const lastDate = new Date(lastRealisation.timestamp);
     const now = new Date();
 
-    // Fonction pour récupérer lundi prochain (le début de semaine)
-    const getNextMonday = (date) => {
-      const result = new Date(date);
-      const day = result.getDay();
-      const diff = (day === 0 ? 1 : 8 - day); // si dimanche (0), lundi = +1 jour, sinon lundi = + (8 - jour)
-      result.setDate(result.getDate() + diff);
-      result.setHours(0,0,0,0);
-      return result;
-    };
 
     if (freq === 'quotidien') {
       // Cache si réalisée aujourd'hui
